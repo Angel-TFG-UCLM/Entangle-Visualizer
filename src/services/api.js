@@ -26,7 +26,7 @@ console.log(`🔗 API Client configurado para: ${BASE_URL}`);
 // Instancia configurada de Axios
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000, // 15s timeout (Azure puede tardar más)
+  timeout: 30000, // 30s timeout (Azure Container Apps cold start puede tardar)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -94,8 +94,8 @@ export async function checkHealth() {
 }
 
 /**
- * Obtener estadísticas del dashboard
- * Endpoint: GET /stats
+ * Obtener estadísticas del dashboard (repos, users, orgs)
+ * Endpoint esperado: GET /api/v1/stats
  * @returns {Promise<{repositories: number, users: number, organizations: number}>}
  */
 export async function getDashboardStats() {
@@ -104,12 +104,8 @@ export async function getDashboardStats() {
     return response.data;
   } catch (error) {
     console.error('[getDashboardStats] Error:', error);
-    // Retornar datos por defecto si hay error
-    return {
-      repositories: 0,
-      users: 0,
-      organizations: 0
-    };
+    // Propagar el error para que el componente pueda manejarlo con retry
+    throw error;
   }
 }
 

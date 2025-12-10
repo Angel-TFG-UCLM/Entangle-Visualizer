@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react'
 import { checkHealth, getDashboardStats } from './services/api'
 import { Activity, Database, Server, Building2 } from 'lucide-react'
+import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa'
 import styles from './App.module.css'
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
   const [error, setError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const [isExiting, setIsExiting] = useState(false)
+  const [loadingResult, setLoadingResult] = useState(null) // null | 'success' | 'error'
 
   // === EFECTOS ===
   // Health Check y carga de estadísticas al montar el componente
@@ -83,13 +85,20 @@ function App() {
             setError(null)
             setRetryCount(0)
             
-            // Éxito: activar animación de salida
-            setIsExiting(true)
+            // Éxito: mostrar check verde
+            setLoadingResult('success')
+            
+            // Esperar 800ms para que se aprecie el check, luego salir
             setTimeout(() => {
               if (isMounted) {
-                setIsLoading(false)
+                setIsExiting(true)
+                setTimeout(() => {
+                  if (isMounted) {
+                    setIsLoading(false)
+                  }
+                }, 500)
               }
-            }, 500)
+            }, 800)
           } catch (statsError) {
             console.error(`Error cargando estadísticas (intento ${attempt}/${MAX_RETRIES}):`, statsError)
             
@@ -107,13 +116,20 @@ function App() {
                 message: 'Error de conexión',
               })
               
-              // Error final: salir de la pantalla de carga
-              setIsExiting(true)
+              // Error: mostrar X roja
+              setLoadingResult('error')
+              
+              // Esperar 800ms para que se aprecie el error, luego salir
               setTimeout(() => {
                 if (isMounted) {
-                  setIsLoading(false)
+                  setIsExiting(true)
+                  setTimeout(() => {
+                    if (isMounted) {
+                      setIsLoading(false)
+                    }
+                  }, 500)
                 }
-              }, 500)
+              }, 800)
             }
           }
         } else {
@@ -126,13 +142,20 @@ function App() {
             // Error final: backend offline después de 3 intentos
             setError('Backend no disponible. Por favor, verifica que esté corriendo.')
             
-            // Salir de la pantalla de carga
-            setIsExiting(true)
+            // Error: mostrar X roja
+            setLoadingResult('error')
+            
+            // Esperar 800ms para que se aprecie el error, luego salir
             setTimeout(() => {
               if (isMounted) {
-                setIsLoading(false)
+                setIsExiting(true)
+                setTimeout(() => {
+                  if (isMounted) {
+                    setIsLoading(false)
+                  }
+                }, 500)
               }
-            }, 500)
+            }, 800)
           }
         }
       } catch (healthError) {
@@ -152,13 +175,20 @@ function App() {
             message: 'Error de conexión',
           })
           
-          // Error final: salir de la pantalla de carga
-          setIsExiting(true)
+          // Error: mostrar X roja
+          setLoadingResult('error')
+          
+          // Esperar 800ms para que se aprecie el error, luego salir
           setTimeout(() => {
             if (isMounted) {
-              setIsLoading(false)
+              setIsExiting(true)
+              setTimeout(() => {
+                if (isMounted) {
+                  setIsLoading(false)
+                }
+              }, 500)
             }
-          }, 500)
+          }, 800)
         }
       }
     }
@@ -176,12 +206,10 @@ function App() {
 
   // === RENDER ===
   
-  // Mostrar pantalla de carga mientras está cargando o reintentando (pero no cuando está haciendo fadeOut exitoso)
-  const shouldShowLoading = isLoading && !isExiting;
-  
-  if (shouldShowLoading) {
+  // Mostrar pantalla de carga mientras está cargando (incluyendo durante el fadeOut)
+  if (isLoading) {
     return (
-      <div className={styles.loadingScreen}>
+      <div className={`${styles.loadingScreen} ${isExiting ? styles.fadeOut : ''}`}>
         <div className={styles.loadingContent}>
           <img 
             src="/logo.png" 
@@ -191,13 +219,23 @@ function App() {
           <p className={styles.loadingSubtitle}>Quantum Software Ecosystem Analysis</p>
           
           <div className={styles.loadingSpinner}>
-            <div className={styles.spinner}></div>
+            {loadingResult === null && <div className={styles.spinner}></div>}
+            {loadingResult === 'success' && (
+              <FaCheckCircle className={styles.successIcon} size={60} />
+            )}
+            {loadingResult === 'error' && (
+              <FaTimesCircle className={styles.errorIcon} size={60} />
+            )}
           </div>
           
           <p className={styles.loadingText}>
-            {retryCount > 0 
-              ? `Conectando al sistema... (Intento ${retryCount}/3)` 
-              : 'Cargando datos del ecosistema...'}
+            {loadingResult === 'success' && '¡Conexión exitosa!'}
+            {loadingResult === 'error' && 'Error de conexión'}
+            {loadingResult === null && (
+              retryCount > 0 
+                ? `Conectando al sistema... (Intento ${retryCount}/3)` 
+                : 'Cargando datos del ecosistema...'
+            )}
           </p>
         </div>
       </div>
@@ -207,7 +245,7 @@ function App() {
   return (
     <div className={`${styles.app} ${styles.fadeInApp}`}>
       {/* HEADER */}
-      <header className={styles.header}>
+      <header className={`${styles.header} ${styles.fadeInStagger1}`}>
         <div className={styles.headerContent}>
           <div className={styles.branding}>
             <img 
@@ -240,7 +278,7 @@ function App() {
       <main className={styles.main}>
         <div className={styles.container}>
           {/* Mensaje de bienvenida */}
-          <section className={styles.hero}>
+          <section className={`${styles.hero} ${styles.fadeInStagger2}`}>
             <h2>Sistema de Análisis de Ecosistemas de Software Cuántico</h2>
             <p className={styles.heroDescription}>
               Plataforma de extracción, procesamiento y visualización de datos del ecosistema GitHub.
@@ -249,7 +287,7 @@ function App() {
           </section>
 
           {/* Grid de estadísticas */}
-          <section className={styles.statsGrid}>
+          <section className={`${styles.statsGrid} ${styles.fadeInStagger3}`}>
             {/* Card: Repositorios */}
             <article className={styles.statCard}>
               <div className={styles.statHeader}>

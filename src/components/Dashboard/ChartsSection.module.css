@@ -1,0 +1,199 @@
+/**
+ * ChartsSection Styles
+ * ====================
+ * Coherente con el diseño de App.module.css
+ * Usa las mismas variables CSS y efectos visuales
+ */
+
+.chartsSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-2xl);
+}
+
+/* === CHART CARD === */
+.chartCard {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+/* === SCROLL REVEAL ANIMATION === */
+.scrollReveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scrollRevealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Delay escalonado para el segundo gráfico */
+.chartsSection > .scrollReveal:nth-child(2) {
+  transition-delay: 0.15s;
+}
+
+.chartCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-secondary) 50%, var(--color-neon) 100%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--transition-normal);
+}
+
+.chartCard:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-lg);
+}
+
+.chartCard:hover::before {
+  transform: scaleX(1);
+}
+
+.chartTitle {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin: 0 0 var(--spacing-xs) 0;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.chartSubtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-lg) 0;
+  font-style: italic;
+}
+
+/* === CUSTOM TOOLTIP === */
+.customTooltip {
+  background: rgba(15, 20, 25, 0.95);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+}
+
+.tooltipLabel {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-accent);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.customTooltip p {
+  margin: var(--spacing-xs) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.customTooltip strong {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+/* === FILTER INDICATOR === */
+.filterIndicator {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(34, 197, 94, 0.15);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-success);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+  z-index: 10;
+  /* Estado inicial para animación */
+  opacity: 0;
+  transform: scale(0.85) translateY(-5px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filterIndicator.filterVisible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.filterIndicator.filterExiting {
+  opacity: 0;
+  transform: scale(0.85) translateY(-5px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.filterIndicator strong {
+  color: #4ade80;
+  font-family: var(--font-family-mono);
+  font-weight: 600;
+  transition: all 0.15s ease-out;
+}
+
+.filterIndicator .valueChanging {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.clearButton {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(239, 68, 68, 0.8);
+  font-size: 12px;
+  font-weight: bold;
+  transition: all 0.2s ease-out;
+  margin-left: var(--spacing-xs);
+}
+
+.clearButton:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-error);
+  transform: scale(1.15);
+}
+
+/* === CELDAS DE GRÁFICOS CON TRANSICIONES === */
+.barCell,
+.pieCell {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .chartsSection {
+    grid-template-columns: 1fr;
+  }
+
+  .chartCard {
+    padding: var(--spacing-md);
+  }
+
+  .chartTitle {
+    font-size: var(--font-size-lg);
+  }
+}

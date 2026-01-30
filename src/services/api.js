@@ -94,13 +94,54 @@ export async function checkHealth() {
 }
 
 /**
- * Obtener estadísticas del dashboard (repos, users, orgs)
- * Endpoint esperado: GET /api/v1/stats
+ * Obtener estadísticas simples (Simple counts - Legacy)
+ * Endpoint: GET /stats
  * @returns {Promise<{repositories: number, users: number, organizations: number}>}
+ */
+export async function getSimpleStats() {
+  try {
+    const response = await apiClient.get('/stats');
+    return response.data;
+  } catch (error) {
+    console.error('[getSimpleStats] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene estadísticas completas del dashboard con sistema de caché inteligente
+ * 
+ * Endpoint: GET /dashboard/stats
+ * 
+ * Respuesta:
+ * - kpis: { totalRepos, totalUsers, totalOrgs }
+ * - topLanguages: [{ name, count, percentage }, ...] (Top 5)
+ * - topOrganizations: [{ name, repoCount, totalStars }, ...] (Top 5)
+ * - metadata: { cached, calculatedAt, expiresAt, ageHours }
+ * 
+ * Caché Backend: Los datos se cachean en MongoDB por 24h.
+ * Si el caché está fresco, la respuesta es instantánea (~0ms).
+ * Si está expirado, se recalcula con agregaciones y se guarda.
+ * 
+ * @returns {Promise<Object>} Dashboard stats completo
+ * 
+ * @example
+ * const stats = await getDashboardStats()
+ * console.log(stats.kpis.totalRepos) // 1658
+ * console.log(stats.topLanguages[0].name) // "Python"
+ * console.log(stats.metadata.cached) // true/false
  */
 export async function getDashboardStats() {
   try {
-    const response = await apiClient.get('/stats');
+    const response = await apiClient.get('/dashboard/stats');
+    
+    // Log para debugging (ver si viene de caché o calculado)
+    if (response.data.metadata?.cached) {
+      console.log(`📊 Dashboard stats from CACHE (${response.data.metadata.ageHours}h old)`);
+    } else {
+      console.log('📊 Dashboard stats CALCULATED fresh');
+    }
+    
     return response.data;
   } catch (error) {
     console.error('[getDashboardStats] Error:', error);

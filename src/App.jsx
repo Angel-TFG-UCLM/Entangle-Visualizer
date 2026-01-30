@@ -3,16 +3,21 @@
  * ===============================
  * Vista principal de la SPA que muestra:
  * - Header con branding y estado del backend
- * - Grid de tarjetas con estadísticas (Repos, Users, Orgs)
+ * - KPIs dinámicos conectados a Zustand
+ * - Gráficos interactivos con drill-down
  * 
  * Decisión arquitectónica: Este componente es el "layout base".
- * Usa Service Layer (api.js) en lugar de fetch directo.
+ * Usa Service Layer (api.js) para checkHealth del backend.
+ * Los datos visualizados provienen de mockData (integrado via Zustand).
  */
 
 import { useEffect, useState } from 'react'
-import { checkHealth, getDashboardStats } from './services/api'
-import { Activity, Database, Server, Building2 } from 'lucide-react'
+import { checkHealth } from './services/api'
+import { Server } from 'lucide-react'
 import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa'
+import { useDashboardStore } from './store/dashboardStore'
+import KPISection from './components/Dashboard/KPISection'
+import ChartsSection from './components/Dashboard/ChartsSection'
 import styles from './App.module.css'
 
 function App() {
@@ -22,23 +27,19 @@ function App() {
     message: 'Verificando conexión...',
   })
 
-  // Estado para las estadísticas (ahora con datos reales)
-  const [stats, setStats] = useState({
-    repositories: { count: 0, label: 'Repositorios Analizados' },
-    users: { count: 0, label: 'Usuarios Registrados' },
-    organizations: { count: 0, label: 'Organizaciones Indexadas' },
-  })
-
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const [isExiting, setIsExiting] = useState(false)
   const [loadingResult, setLoadingResult] = useState(null) // null | 'success' | 'error'
 
+  // === ZUSTAND STORE ===
+  // Datos del ecosistema
+  const { data, fetchDashboardData, kpis, isLoading: storeLoading } = useDashboardStore()
+
   // === EFECTOS ===
-  // Health Check y carga de estadísticas al montar el componente
+  // Health Check al montar el componente (verificar backend online/offline)
   useEffect(() => {
-    let isMounted = true // Evitar actualizaciones si el componente se desmonta
+    let isMounted = true
     let retryTimeout = null
 
     async function loadData(attempt = 1) {
@@ -48,10 +49,9 @@ function App() {
       if (!isMounted) return
 
       setIsLoading(true)
-      setError(null)
       
       try {
-        // Health Check
+        // Health Check del backend
         const healthResult = await checkHealth()
         
         if (!isMounted) return
@@ -61,124 +61,66 @@ function App() {
           message: healthResult.message,
         })
 
-        // Si el backend está online, cargar estadísticas reales
+        // Backend online → Cargar datos reales
         if (healthResult.status === 'online') {
+          setRetryCount(0)
+          
+          // Cargar datos del dashboard desde backend (con caché inteligente)
           try {
-            const statsData = await getDashboardStats()
-            
-            if (!isMounted) return
-            
-            setStats({
-              repositories: { 
-                count: statsData.repositories || 0, 
-                label: 'Repositorios Analizados'
-              },
-              users: { 
-                count: statsData.users || 0, 
-                label: 'Usuarios Registrados'
-              },
-              organizations: { 
-                count: statsData.organizations || 0, 
-                label: 'Organizaciones Indexadas'
-              },
-            })
-            setError(null)
-            setRetryCount(0)
-            
-            // Éxito: mostrar check verde
-            setLoadingResult('success')
-            
-            // Esperar 800ms para que se aprecie el check, luego salir
-            setTimeout(() => {
-              if (isMounted) {
-                setIsExiting(true)
-                setTimeout(() => {
-                  if (isMounted) {
-                    setIsLoading(false)
-                  }
-                }, 500)
-              }
-            }, 800)
-          } catch (statsError) {
-            console.error(`Error cargando estadísticas (intento ${attempt}/${MAX_RETRIES}):`, statsError)
-            
-            if (!isMounted) return
-            
-            // Retry automático si no se alcanzó el máximo
-            if (attempt < MAX_RETRIES) {
-              setError(`Error cargando datos. Reintentando en ${RETRY_DELAY / 1000}s...`)
-              setRetryCount(attempt)
-              retryTimeout = setTimeout(() => loadData(attempt + 1), RETRY_DELAY)
-            } else {
-              setError('No se pudieron cargar las estadísticas. Por favor, recarga la página.')
-              setApiStatus({
-                status: 'offline',
-                message: 'Error de conexión',
-              })
-              
-              // Error: mostrar X roja
-              setLoadingResult('error')
-              
-              // Esperar 800ms para que se aprecie el error, luego salir
+            await fetchDashboardData()
+            console.log('✅ Dashboard data loaded from backend')
+          } catch (fetchError) {
+            console.warn('⚠️ Backend online pero error al cargar datos:', fetchError)
+            // No bloqueamos la UI, mockData sigue disponible
+          }
+          
+          // Éxito: mostrar check verde
+          setLoadingResult('success')
+          
+          // Esperar 800ms para que se aprecie el check, luego salir
+          setTimeout(() => {
+            if (isMounted) {
+              setIsExiting(true)
               setTimeout(() => {
                 if (isMounted) {
-                  setIsExiting(true)
-                  setTimeout(() => {
-                    if (isMounted) {
-                      setIsLoading(false)
-                    }
-                  }, 500)
+                  setIsLoading(false)
                 }
-              }, 800)
+              }, 500)
             }
-          }
+          }, 800)
         } else {
-          // Backend offline, pero intentar de nuevo si no se alcanzó el máximo
-          if (attempt < MAX_RETRIES) {
-            setError(`Backend no disponible. Reintentando (${attempt}/${MAX_RETRIES})...`)
-            setRetryCount(attempt)
-            retryTimeout = setTimeout(() => loadData(attempt + 1), RETRY_DELAY)
-          } else {
-            // Error final: backend offline después de 3 intentos
-            setError('Backend no disponible. Por favor, verifica que esté corriendo.')
-            
-            // Error: mostrar X roja
-            setLoadingResult('error')
-            
-            // Esperar 800ms para que se aprecie el error, luego salir
-            setTimeout(() => {
-              if (isMounted) {
-                setIsExiting(true)
-                setTimeout(() => {
-                  if (isMounted) {
-                    setIsLoading(false)
-                  }
-                }, 500)
-              }
-            }, 800)
-          }
+          // Backend offline pero sin error crítico
+          setLoadingResult('error')
+          setTimeout(() => {
+            if (isMounted) {
+              setIsExiting(true)
+              setTimeout(() => {
+                if (isMounted) {
+                  setIsLoading(false)
+                }
+              }, 500)
+            }
+          }, 800)
         }
-      } catch (healthError) {
-        console.error(`Error en health check (intento ${attempt}/${MAX_RETRIES}):`, healthError)
+      } catch (err) {
+        console.error('[App] Error en checkHealth:', err)
         
         if (!isMounted) return
-        
-        // Retry para el health check también
+
+        setApiStatus({
+          status: 'offline',
+          message: 'Error de conexión con el backend',
+        })
+
+        // Reintentar si no hemos alcanzado el límite
         if (attempt < MAX_RETRIES) {
-          setError(`Conectando al backend... (${attempt}/${MAX_RETRIES})`)
           setRetryCount(attempt)
-          retryTimeout = setTimeout(() => loadData(attempt + 1), RETRY_DELAY)
+          retryTimeout = setTimeout(() => {
+            loadData(attempt + 1)
+          }, RETRY_DELAY)
         } else {
-          setError('No se pudo conectar al backend. Verifica tu conexión.')
-          setApiStatus({
-            status: 'offline',
-            message: 'Error de conexión',
-          })
-          
-          // Error: mostrar X roja
+          // Agotamos reintentos: mostrar error
           setLoadingResult('error')
-          
-          // Esperar 800ms para que se aprecie el error, luego salir
           setTimeout(() => {
             if (isMounted) {
               setIsExiting(true)
@@ -195,7 +137,6 @@ function App() {
 
     loadData()
 
-    // Cleanup: cancelar reintentos pendientes si el componente se desmonta
     return () => {
       isMounted = false
       if (retryTimeout) {
@@ -286,47 +227,11 @@ function App() {
             </p>
           </section>
 
-          {/* Grid de estadísticas */}
-          <section className={`${styles.statsGrid} ${styles.fadeInStagger3}`}>
-            {/* Card: Repositorios */}
-            <article className={styles.statCard}>
-              <div className={styles.statHeader}>
-                <Database className={styles.statIcon} size={32} />
-              </div>
-              <div className={styles.statContent}>
-                <h3 className={styles.statValue}>
-                  {isLoading ? '...' : (error ? 'N/A' : stats.repositories.count.toLocaleString())}
-                </h3>
-                <p className={styles.statLabel}>{stats.repositories.label}</p>
-              </div>
-            </article>
+          {/* KPIs dinámicos conectados a Zustand */}
+          <KPISection data={data} />
 
-            {/* Card: Usuarios */}
-            <article className={styles.statCard}>
-              <div className={styles.statHeader}>
-                <Activity className={styles.statIcon} size={32} />
-              </div>
-              <div className={styles.statContent}>
-                <h3 className={styles.statValue}>
-                  {isLoading ? '...' : (error ? 'N/A' : stats.users.count.toLocaleString())}
-                </h3>
-                <p className={styles.statLabel}>{stats.users.label}</p>
-              </div>
-            </article>
-
-            {/* Card: Organizaciones */}
-            <article className={styles.statCard}>
-              <div className={styles.statHeader}>
-                <Building2 className={styles.statIcon} size={32} />
-              </div>
-              <div className={styles.statContent}>
-                <h3 className={styles.statValue}>
-                  {isLoading ? '...' : (error ? 'N/A' : stats.organizations.count.toLocaleString())}
-                </h3>
-                <p className={styles.statLabel}>{stats.organizations.label}</p>
-              </div>
-            </article>
-          </section>
+          {/* Gráficos interactivos con drill-down */}
+          <ChartsSection data={data} />
 
           {/* Mensaje de alerta si el backend está offline */}
           {apiStatus.status === 'offline' && (
@@ -336,7 +241,7 @@ function App() {
                 <h3>Backend no disponible</h3>
                 <p>{apiStatus.message}</p>
                 <p className={styles.alertHint}>
-                  Verifica que el backend esté corriendo o revisa la URL en <code>src/services/api.js</code>
+                  Mostrando datos de demostración. Verifica que el backend esté corriendo para ver datos reales.
                 </p>
               </div>
             </div>

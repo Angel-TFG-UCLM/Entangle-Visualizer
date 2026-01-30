@@ -411,6 +411,19 @@
   margin-bottom: var(--spacing-2xl);
 }
 
+/* === SCROLL REVEAL ANIMATION === */
+.scrollReveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scrollRevealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* === STAT CARD === */
 .statCard {
   background: var(--color-card);
@@ -418,7 +431,7 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
   transition: all var(--transition-normal);
-  cursor: pointer;
+  cursor: default;
   position: relative;
   overflow: hidden;
 }
@@ -470,6 +483,21 @@
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-full);
   padding: var(--spacing-xs) var(--spacing-sm);
+  animation: badgePop 0.3s ease-out;
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  70% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .badgeText {
@@ -483,6 +511,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  transition: all 0.3s ease-out;
 }
 
 .statValue {
@@ -495,6 +524,23 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.statValue:not(:empty) {
+  animation: countPulse 0.4s ease-out;
+}
+
+@keyframes countPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .statLabel {

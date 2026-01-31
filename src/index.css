@@ -1,0 +1,187 @@
+/* =========================================
+   ENTANGLE - TFG UCLM
+   Dark Tech/Scientific Design System
+   ========================================= */
+
+:root {
+  /* === PALETA DE COLORES ENTANGLE === */
+  --color-bg: #0f1419;           /* Fondo principal (Negro azulado oscuro) */
+  --color-card: #1a1f2e;         /* Fondo tarjetas */
+  --color-card-hover: #242938;   /* Hover estado tarjetas */
+  --color-accent: #00D4E4;       /* Cian vibrante - Principal */
+  --color-accent-hover: #00F5FF; /* Hover accent (cian brillante) */
+  --color-secondary: #9D6FDB;    /* Morado vibrante - Secundario */
+  --color-neon: #00FFFF;         /* Cian neón - Éxito/Highlight */
+  --color-text: #F0F0F0;         /* Texto principal (alta legibilidad) */
+  --color-text-muted: #A0A5B0;   /* Texto secundario/metadatos */
+  --color-text-disabled: #606570; /* Texto desactivado */
+  
+  /* Estados */
+  --color-success: #00FF88;      /* Verde éxito */
+  --color-warning: #FFB800;      /* Naranja advertencia */
+  --color-error: #FF4466;        /* Rojo error */
+  --color-info: #44BBFF;         /* Azul info */
+  
+  /* Bordes y Sombras */
+  --color-border: rgba(0, 212, 228, 0.25);
+  --color-border-active: rgba(0, 212, 228, 0.6);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-neon: 0 0 20px rgba(29, 245, 255, 0.3);
+
+  /* === TIPOGRAFÍA === */
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  
+  --font-size-xs: 0.75rem;   /* 12px */
+  --font-size-sm: 0.875rem;  /* 14px */
+  --font-size-base: 1rem;    /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.25rem;   /* 20px */
+  --font-size-2xl: 1.5rem;   /* 24px */
+  --font-size-3xl: 2rem;     /* 32px */
+
+  /* === ESPACIADO (Sistema 8px) === */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+  --spacing-2xl: 3rem;     /* 48px */
+
+  /* === BORDER RADIUS === */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* === TRANSICIONES === */
+  --transition-fast: 150ms ease-in-out;
+  --transition-normal: 250ms ease-in-out;
+  --transition-slow: 400ms ease-in-out;
+
+  /* === Z-INDEX SCALE === */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-modal: 1200;
+  --z-tooltip: 1300;
+}
+
+/* === RESET CSS PROFESIONAL === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-size: 16px; /* Base para rem calculations */
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* === TIPOGRAFÍA BASE === */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-md);
+}
+
+h1 { font-size: var(--font-size-3xl); }
+h2 { font-size: var(--font-size-2xl); }
+h3 { font-size: var(--font-size-xl); }
+
+p {
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-muted);
+}
+
+/* === ENLACES === */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* === BOTONES BASE === */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* === LISTAS === */
+ul, ol {
+  list-style: none;
+}
+
+/* === CÓDIGO === */
+code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  background-color: var(--color-card);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-neon);
+}
+
+/* === SCROLLBAR CUSTOM (Webkit) === */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-card);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 228, 0.4);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 228, 0.6);
+}
+
+/* === UTILIDADES === */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

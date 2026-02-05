@@ -188,6 +188,16 @@
   animation: fadeInUp 0.6s ease-out 0.5s forwards;
 }
 
+.fadeInStagger4 {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out 0.7s forwards;
+}
+
+.fadeInStagger5 {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out 0.9s forwards;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;

@@ -1,0 +1,221 @@
+﻿/**
+ * NETWORK GRAPH - Estilos Circular Cyberpunk
+ */
+
+.graphSection {
+  margin-bottom: 2rem;
+}
+
+.sectionHeader {
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.sectionSubtitle {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+}
+
+.graphContainer {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.circularGraph {
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+}
+
+.linksGroup {
+  opacity: 1;
+}
+
+.nodesGroup {
+  cursor: pointer;
+}
+
+.link {
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+  opacity: 0;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
+
+.link.animate {
+  animation: drawLine 1.2s ease-out forwards, energyPulse 3s ease-in-out infinite 1.2s;
+}
+
+.link.highlighted {
+  stroke-dasharray: 1000 !important;
+  animation: drawHighlight 0.8s ease-out forwards !important;
+}
+
+@keyframes drawHighlight {
+  from {
+    stroke-dashoffset: -1000;
+    opacity: 0;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes drawLine {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1000;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes energyPulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.nodeGroup {
+  /* Sin animación en el grupo para evitar cuadrados */
+}
+
+.node {
+  transition: all 0.3s ease;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.node.animate {
+  animation: 
+    popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+    pulse 6s ease-in-out infinite 0.5s,
+    float 4s ease-in-out infinite 0.5s;
+}
+
+.node:hover {
+  filter: url(#glowStrong);
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  60% {
+    transform: scale(1.2) rotate(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.98;
+  }
+}
+
+.nodeRing {
+  animation: ringExpand 0.3s ease forwards;
+}
+
+@keyframes ringExpand {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tooltip {
+  pointer-events: none;
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.legend {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+@media (max-width: 768px) {
+  .graphContainer {
+    padding: 1rem;
+  }
+  .circularGraph {
+    max-width: 100%;
+  }
+  .legend {
+    gap: 1rem;
+  }
+}

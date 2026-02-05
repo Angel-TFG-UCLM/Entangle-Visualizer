@@ -18,6 +18,8 @@ import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
+import NetworkGraph from './components/Dashboard/NetworkGraph'
+import DetailTable from './components/Dashboard/DetailTable'
 import styles from './App.module.css'
 
 function App() {
@@ -33,8 +35,12 @@ function App() {
   const [loadingResult, setLoadingResult] = useState(null) // null | 'success' | 'error'
 
   // === ZUSTAND STORE ===
-  // Datos del ecosistema
-  const { data, fetchDashboardData, kpis, isLoading: storeLoading } = useDashboardStore()
+  // Datos del ecosistema (con valores por defecto)
+  const store = useDashboardStore()
+  const data = store.data || { organizations: [], users: [], repositories: [] }
+  const fetchDashboardData = store.fetchDashboardData
+
+  console.log('[App] Store data:', data)
 
   // === EFECTOS ===
   // Health Check al montar el componente (verificar backend online/offline)
@@ -183,6 +189,9 @@ function App() {
     )
   }
   
+  console.log('[App] Rendering main app - isLoading:', isLoading, 'apiStatus:', apiStatus.status)
+  console.log('[App] Data disponible:', data ? 'SÍ' : 'NO')
+
   return (
     <div className={`${styles.app} ${styles.fadeInApp}`}>
       {/* HEADER */}
@@ -232,6 +241,16 @@ function App() {
 
           {/* Gráficos interactivos con drill-down */}
           <ChartsSection data={data} />
+
+          {/* Grafo de redes de colaboración */}
+          <div className={styles.fadeInStagger4}>
+            <NetworkGraph />
+          </div>
+
+          {/* Tablas de detalle: Top Repos y Top Users */}
+          <div className={styles.fadeInStagger5}>
+            <DetailTable />
+          </div>
 
           {/* Mensaje de alerta si el backend está offline */}
           {apiStatus.status === 'offline' && (

@@ -17,6 +17,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { shallow } from 'zustand/shallow'
 import { organizations, users, repositories } from '../data/mockData'
 
 /**
@@ -225,8 +226,9 @@ export const useDashboardStore = create(
  *   return <ul>{filteredRepos.map(r => <li>{r.name}</li>)}</ul>
  * }
  */
-export const useFilteredRepositories = (repositories) => {
+export const useFilteredRepositories = () => {
   return useDashboardStore((state) => {
+    const repositories = state.data.repositories
     if (!repositories || repositories.length === 0) return []
 
     let filtered = repositories
@@ -253,7 +255,7 @@ export const useFilteredRepositories = (repositories) => {
     }
 
     return filtered
-  })
+  }, shallow)
 }
 
 /**
@@ -268,8 +270,10 @@ export const useFilteredRepositories = (repositories) => {
  * @param {Array} repositories - Array de repositorios (para filtrar por colaboradores)
  * @returns {Array} Usuarios filtrados y ordenados
  */
-export const useFilteredUsers = (users, repositories = []) => {
+export const useFilteredUsers = () => {
   return useDashboardStore((state) => {
+    const users = state.data.users
+    const repositories = state.data.repositories
     if (!users || users.length === 0) return []
 
     let filtered = users
@@ -295,7 +299,7 @@ export const useFilteredUsers = (users, repositories = []) => {
     return filtered.sort((a, b) => 
       (b.quantum_expertise_score || 0) - (a.quantum_expertise_score || 0)
     )
-  })
+  }, shallow)
 }
 
 /**
@@ -310,8 +314,10 @@ export const useFilteredUsers = (users, repositories = []) => {
  * @param {Array} repositories - Array de repositorios (para filtrar por lenguaje)
  * @returns {Array} Organizaciones filtradas y ordenadas
  */
-export const useFilteredOrganizations = (organizations, repositories = []) => {
+export const useFilteredOrganizations = () => {
   return useDashboardStore((state) => {
+    const organizations = state.data.organizations
+    const repositories = state.data.repositories
     if (!organizations || organizations.length === 0) return []
 
     let filtered = organizations
@@ -340,7 +346,7 @@ export const useFilteredOrganizations = (organizations, repositories = []) => {
     return filtered.sort((a, b) => 
       (b.total_repositories || 0) - (a.total_repositories || 0)
     )
-  })
+  }, shallow)
 }
 
 /**

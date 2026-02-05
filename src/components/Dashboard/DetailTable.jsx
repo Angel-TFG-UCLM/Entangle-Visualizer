@@ -11,7 +11,8 @@
  * @module DetailTable
  */
 
-import { useDashboardStore, useFilteredRepositories, useFilteredUsers } from '../../store/dashboardStore'
+import { useMemo } from 'react'
+import { useDashboardStore } from '../../store/dashboardStore'
 import styles from './DetailTable.module.css'
 
 /**
@@ -68,7 +69,7 @@ function TopRepositoriesTable({ repositories }) {
               <tr 
                 key={repo.id} 
                 className={styles.tableRow}
-                onClick={() => setFilter('organization', repo.owner?.login || repo.organization?.login)}
+                onClick={() => setFilter('org', repo.owner?.login || repo.organization?.login)}
               >
                 <td className={styles.rank}>{index + 1}</td>
                 <td className={styles.repoName}>
@@ -173,7 +174,7 @@ function TopUsersTable({ users }) {
                           className={styles.orgTag}
                           onClick={(e) => {
                             e.stopPropagation()
-                            setFilter('organization', org)
+                            setFilter('org', org)
                           }}
                         >
                           {org}
@@ -198,10 +199,54 @@ function TopUsersTable({ users }) {
  * Componente principal - Grid de 2 tablas lado a lado
  */
 export default function DetailTable() {
-  const { data } = useDashboardStore()
-  
-  const filteredRepos = useFilteredRepositories(data.repositories)
-  const filteredUsers = useFilteredUsers(data.users, data.repositories)
+  const { data, selectedOrg, selectedLanguage, selectedRepo } = useDashboardStore()
+
+  const filteredRepos = useMemo(() => {
+    let filtered = data.repositories
+
+    if (selectedOrg) {
+      filtered = filtered.filter(repo => 
+        repo.owner?.login === selectedOrg ||
+        repo.organization?.login === selectedOrg
+      )
+    }
+
+    if (selectedLanguage) {
+      filtered = filtered.filter(repo => 
+        repo.primary_language?.name === selectedLanguage ||
+        repo.language === selectedLanguage
+      )
+    }
+
+    if (selectedRepo) {
+      filtered = filtered.filter(repo => repo.full_name === selectedRepo)
+    }
+
+    return filtered
+  }, [data.repositories, selectedOrg, selectedLanguage, selectedRepo])
+
+  const filteredUsers = useMemo(() => {
+    let filtered = data.users
+
+    if (selectedOrg) {
+      filtered = filtered.filter(user => 
+        user.company === selectedOrg ||
+        user.organizations?.includes(selectedOrg)
+      )
+    }
+
+    if (selectedRepo) {
+      const selectedRepoObj = data.repositories.find(r => r.full_name === selectedRepo)
+      if (selectedRepoObj?.collaborators) {
+        const collaboratorLogins = selectedRepoObj.collaborators.map(c => c.login)
+        filtered = filtered.filter(user => collaboratorLogins.includes(user.login))
+      }
+    }
+
+    return filtered.sort((a, b) => 
+      (b.quantum_expertise_score || 0) - (a.quantum_expertise_score || 0)
+    )
+  }, [data.users, data.repositories, selectedOrg, selectedRepo])
 
   return (
     <section className={styles.detailSection}>

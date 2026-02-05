@@ -133,8 +133,12 @@ export default function NetworkGraph() {
   }, [])
 
   const handleNodeClick = useCallback((node) => {
-    if (node.type === 'org') setFilter('organization', node.data.login)
-    else if (node.type === 'repo') setFilter('repository', node.data.full_name)
+    if (node.type === 'org') {
+      setFilter('org', node.data.login)
+    } else if (node.type === 'repo') {
+      setFilter('repo', node.data.full_name)
+    }
+    // Los usuarios no tienen filtro directo, están vinculados a organizaciones
   }, [setFilter])
 
   const createCurvePath = useCallback((source, target) => {

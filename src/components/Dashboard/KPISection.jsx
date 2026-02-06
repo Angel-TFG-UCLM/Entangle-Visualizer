@@ -26,24 +26,28 @@ import styles from '../../App.module.css'
 
 /**
  * Componente de número animado
- * Hace una transición suave entre valores
+ * Cuenta desde 0 al aparecer y transiciona suavemente entre valores
  */
-function AnimatedNumber({ value, duration = 400 }) {
-  const [displayValue, setDisplayValue] = useState(value)
-  const [isAnimating, setIsAnimating] = useState(false)
-  const prevValue = useRef(value)
+function AnimatedNumber({ value, duration = 800, visible = true }) {
+  const [displayValue, setDisplayValue] = useState(0)
+  const prevValue = useRef(0)
+  const hasAnimatedInitial = useRef(false)
 
   useEffect(() => {
-    if (prevValue.current !== value) {
-      setIsAnimating(true)
-      
+    // No animar hasta que sea visible
+    if (!visible) return
+
+    // Primera vez: animar de 0 al valor real
+    // Resto: animar del valor anterior al nuevo
+    if (!hasAnimatedInitial.current || prevValue.current !== value) {
       const startValue = prevValue.current
       const endValue = value
+      const animDuration = hasAnimatedInitial.current ? 400 : duration
       const startTime = Date.now()
       
       const animate = () => {
         const elapsed = Date.now() - startTime
-        const progress = Math.min(elapsed / duration, 1)
+        const progress = Math.min(elapsed / animDuration, 1)
         
         // Easing function (ease-out cubic)
         const easeOut = 1 - Math.pow(1 - progress, 3)
@@ -54,17 +58,17 @@ function AnimatedNumber({ value, duration = 400 }) {
         if (progress < 1) {
           requestAnimationFrame(animate)
         } else {
-          setIsAnimating(false)
           prevValue.current = value
+          hasAnimatedInitial.current = true
         }
       }
       
       requestAnimationFrame(animate)
     }
-  }, [value, duration])
+  }, [value, duration, visible])
 
   return (
-    <span className={isAnimating ? styles.animating : ''}>
+    <span>
       {displayValue.toLocaleString()}
     </span>
   )
@@ -209,7 +213,7 @@ export default function KPISection({ data }) {
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>
-            <AnimatedNumber value={stats.totalRepos} />
+            <AnimatedNumber value={stats.totalRepos} visible={reposVisible} />
           </h3>
           <p className={styles.statLabel}>Repositorios Analizados</p>
         </div>
@@ -231,7 +235,7 @@ export default function KPISection({ data }) {
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>
-            <AnimatedNumber value={stats.totalUsers} />
+            <AnimatedNumber value={stats.totalUsers} visible={usersVisible} />
           </h3>
           <p className={styles.statLabel}>Usuarios Registrados</p>
         </div>
@@ -253,7 +257,7 @@ export default function KPISection({ data }) {
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>
-            <AnimatedNumber value={stats.totalOrgs} />
+            <AnimatedNumber value={stats.totalOrgs} visible={orgsVisible} />
           </h3>
           <p className={styles.statLabel}>Organizaciones Indexadas</p>
         </div>

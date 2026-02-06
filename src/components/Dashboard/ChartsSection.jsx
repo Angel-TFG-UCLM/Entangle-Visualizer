@@ -198,17 +198,33 @@ export default function ChartsSection({ data }) {
   const repoBarContainerRef = useRef(null)
   const pieContainerRef = useRef(null)
 
-  // Control para animación de Recharts
-  const [hasAnimatedBars, setHasAnimatedBars] = useState(false)
+  // Control para animación de Recharts (solo animar la primera vez que aparecen)
+  const [hasAnimatedOrgBars, setHasAnimatedOrgBars] = useState(false)
+  const [hasAnimatedRepoBars, setHasAnimatedRepoBars] = useState(false)
+  const [hasAnimatedUserBars, setHasAnimatedUserBars] = useState(false)
   const [hasAnimatedPie, setHasAnimatedPie] = useState(false)
   
   // Marcar como animado después de que termine
   useEffect(() => {
-    if (orgChartVisible && !hasAnimatedBars) {
-      const timer = setTimeout(() => setHasAnimatedBars(true), 1200)
+    if (orgChartVisible && !hasAnimatedOrgBars) {
+      const timer = setTimeout(() => setHasAnimatedOrgBars(true), 1200)
       return () => clearTimeout(timer)
     }
-  }, [orgChartVisible, hasAnimatedBars])
+  }, [orgChartVisible, hasAnimatedOrgBars])
+
+  useEffect(() => {
+    if (repoChartVisible && !hasAnimatedRepoBars) {
+      const timer = setTimeout(() => setHasAnimatedRepoBars(true), 1200)
+      return () => clearTimeout(timer)
+    }
+  }, [repoChartVisible, hasAnimatedRepoBars])
+
+  useEffect(() => {
+    if (userChartVisible && !hasAnimatedUserBars) {
+      const timer = setTimeout(() => setHasAnimatedUserBars(true), 1200)
+      return () => clearTimeout(timer)
+    }
+  }, [userChartVisible, hasAnimatedUserBars])
   
   useEffect(() => {
     if (pieChartVisible && !hasAnimatedPie) {
@@ -484,6 +500,10 @@ export default function ChartsSection({ data }) {
                 onClick={handleOrgClick}
                 cursor="pointer"
                 radius={[4, 4, 0, 0]}
+                isAnimationActive={!hasAnimatedOrgBars}
+                animationBegin={200}
+                animationDuration={800}
+                animationEasing="ease-out"
               />
             </BarChart>
           </ResponsiveContainer>
@@ -530,6 +550,10 @@ export default function ChartsSection({ data }) {
                 onClick={handleRepoClick}
                 cursor="pointer"
                 radius={[4, 4, 0, 0]}
+                isAnimationActive={!hasAnimatedRepoBars}
+                animationBegin={200}
+                animationDuration={800}
+                animationEasing="ease-out"
               />
             </BarChart>
           </ResponsiveContainer>
@@ -552,8 +576,12 @@ export default function ChartsSection({ data }) {
               <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
               <Tooltip content={<CustomTooltip />} cursor={false} />
               <Legend />
-              <Bar dataKey="commits" fill="#F97316" radius={[4, 4, 0, 0]} name="Commits" />
-              <Bar dataKey="followers" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Seguidores" />
+              <Bar dataKey="commits" fill="#F97316" radius={[4, 4, 0, 0]} name="Commits"
+                isAnimationActive={!hasAnimatedUserBars} animationBegin={200} animationDuration={800} animationEasing="ease-out"
+              />
+              <Bar dataKey="followers" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Seguidores"
+                isAnimationActive={!hasAnimatedUserBars} animationBegin={400} animationDuration={800} animationEasing="ease-out"
+              />
             </BarChart>
           </ResponsiveContainer>
         ) : null}

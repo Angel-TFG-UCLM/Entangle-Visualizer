@@ -91,14 +91,44 @@
 }
 
 .tableRow {
+  position: relative;
   border-bottom: 1px solid var(--color-border);
   transition: background var(--transition-fast), transform var(--transition-fast);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .tableRow:hover {
   background: rgba(0, 212, 228, 0.05);
   transform: translateX(2px);
+}
+
+/* Efecto quantum tunneling — sweep de luz al hacer hover */
+.tableRow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 212, 228, 0.04),
+    rgba(157, 111, 219, 0.03),
+    transparent
+  );
+  pointer-events: none;
+  transition: none;
+}
+
+.tableRow:hover::after {
+  animation: tunneling 0.6s ease-out forwards;
+}
+
+@keyframes tunneling {
+  from { left: -60%; }
+  to { left: 110%; }
 }
 
 .tableRow:last-child {
@@ -196,12 +226,24 @@
 
 /* === EXPERTISE BADGE === */
 .expertiseBadge {
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
   font-weight: 700;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
+}
+
+.expertiseQuantumLabel {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 500;
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .expertiseMaster {

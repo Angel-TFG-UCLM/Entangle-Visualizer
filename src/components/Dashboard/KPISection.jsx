@@ -22,6 +22,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Users, Database, Building2 } from 'lucide-react'
 import { useDashboardStore } from '../../store/dashboardStore'
+import WavefunctionCollapse from '../WavefunctionCollapse'
 import styles from '../../App.module.css'
 
 /**
@@ -196,18 +197,23 @@ export default function KPISection({ data }) {
   // Determinar si hay filtros activos (para mostrar badge "Filtered")
   const hasFilters = selectedOrg || selectedLanguage || selectedRepo
 
+  // Hover state para wavefunction collapse
+  const [hoveredCard, setHoveredCard] = useState(null)
+
   return (
     <section className={styles.statsGrid}>
       {/* Card: Repositorios */}
       <article 
         ref={reposRef}
         className={`${styles.statCard} ${styles.scrollReveal} ${reposVisible ? styles.scrollRevealed : ''}`}
+        onMouseEnter={() => setHoveredCard('repos')}
+        onMouseLeave={() => setHoveredCard(null)}
       >
         <div className={styles.statHeader}>
           <Database className={styles.statIcon} size={32} />
           {hasFilters && (
             <div className={styles.statBadge}>
-              <span className={styles.badgeText}>FILTERED</span>
+              <span className={styles.badgeText}>|FILTERED⟩</span>
             </div>
           )}
         </div>
@@ -217,6 +223,7 @@ export default function KPISection({ data }) {
           </h3>
           <p className={styles.statLabel}>Repositorios Analizados</p>
         </div>
+        <WavefunctionCollapse collapsed={hoveredCard === 'repos'} width={90} height={24} />
       </article>
 
       {/* Card: Usuarios */}
@@ -224,12 +231,14 @@ export default function KPISection({ data }) {
         ref={usersRef}
         className={`${styles.statCard} ${styles.scrollReveal} ${usersVisible ? styles.scrollRevealed : ''}`}
         style={{ transitionDelay: '0.1s' }}
+        onMouseEnter={() => setHoveredCard('users')}
+        onMouseLeave={() => setHoveredCard(null)}
       >
         <div className={styles.statHeader}>
           <Users className={styles.statIcon} size={32} />
           {hasFilters && (
             <div className={styles.statBadge}>
-              <span className={styles.badgeText}>FILTERED</span>
+              <span className={styles.badgeText}>|FILTERED⟩</span>
             </div>
           )}
         </div>
@@ -239,6 +248,7 @@ export default function KPISection({ data }) {
           </h3>
           <p className={styles.statLabel}>Usuarios Registrados</p>
         </div>
+        <WavefunctionCollapse collapsed={hoveredCard === 'users'} width={90} height={24} />
       </article>
 
       {/* Card: Organizaciones */}
@@ -246,12 +256,14 @@ export default function KPISection({ data }) {
         ref={orgsRef}
         className={`${styles.statCard} ${styles.scrollReveal} ${orgsVisible ? styles.scrollRevealed : ''}`}
         style={{ transitionDelay: '0.2s' }}
+        onMouseEnter={() => setHoveredCard('orgs')}
+        onMouseLeave={() => setHoveredCard(null)}
       >
         <div className={styles.statHeader}>
           <Building2 className={styles.statIcon} size={32} />
           {hasFilters && (
             <div className={styles.statBadge}>
-              <span className={styles.badgeText}>FILTERED</span>
+              <span className={styles.badgeText}>|FILTERED⟩</span>
             </div>
           )}
         </div>
@@ -261,6 +273,7 @@ export default function KPISection({ data }) {
           </h3>
           <p className={styles.statLabel}>Organizaciones Indexadas</p>
         </div>
+        <WavefunctionCollapse collapsed={hoveredCard === 'orgs'} width={90} height={24} />
       </article>
     </section>
   )

@@ -7,37 +7,96 @@
 }
 
 .sectionHeader {
-  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.headerLeft {
+  flex: 1;
+  min-width: 200px;
 }
 
 .sectionTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 0.5rem;
+  font-size: var(--font-size-xl, 1.5rem);
+  font-weight: 700;
+  margin: 0 0 var(--spacing-xs, 0.25rem) 0;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .sectionSubtitle {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.95rem;
+  color: var(--color-text-muted, rgba(255, 255, 255, 0.6));
+  font-size: var(--font-size-sm, 0.9rem);
+  font-style: italic;
+  margin: 0;
 }
 
 .graphContainer {
   position: relative;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 20, 25, 0.85);
+  border: 1px solid rgba(0, 212, 228, 0.15);
   border-radius: 12px;
-  padding: 2rem;
+  padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  backdrop-filter: blur(12px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
+}
+
+.graphContainer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-secondary), var(--color-neon));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+  z-index: 2;
+}
+
+.graphContainer::after {
+  content: 'Ψ̂';
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  font-family: var(--font-family-mono, 'Courier New', monospace);
+  font-size: 2.5rem;
+  font-weight: 300;
+  color: rgba(0, 212, 228, 0.06);
+  pointer-events: none;
+  transition: color 0.3s ease;
+  z-index: 1;
+}
+
+.graphContainer:hover {
+  border-color: rgba(0, 212, 228, 0.35);
+  box-shadow: 0 4px 30px rgba(0, 212, 228, 0.08);
+}
+
+.graphContainer:hover::before {
+  transform: scaleX(1);
+}
+
+.graphContainer:hover::after {
+  color: rgba(0, 212, 228, 0.18);
 }
 
 .circularGraph {
   width: 100%;
   max-width: 700px;
-  height: 500px; /* Altura fija para evitar layout shifts al filtrar */
+  /* Ocupa el espacio disponible sin desbordar la pantalla */
+  height: clamp(400px, calc(100vh - 200px), 650px);
 }
 
 .linksGroup {
@@ -103,7 +162,7 @@
 }
 
 .node {
-  transition: all 0.3s ease;
+  transition: opacity 0.4s ease;
   cursor: pointer;
   opacity: 0;
   transform: scale(0);
@@ -114,6 +173,13 @@
     popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
     pulse 6s ease-in-out infinite 0.5s,
     float 4s ease-in-out infinite 0.5s;
+}
+
+.nodeCircle {
+  transition: cx 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              cy 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.4s ease,
+              filter 0.4s ease;
 }
 
 .node:hover {
@@ -183,14 +249,71 @@
   }
 }
 
+.pulsesGroup {
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.pulsesHidden {
+  opacity: 0;
+}
+
+.pulseWrapper {
+  /* contenedor de cada pulso */
+}
+
+.pulseDot {
+  animation: pulseDotFade 1.5s ease-out forwards;
+}
+
+@keyframes pulseDotFade {
+  0% {
+    opacity: 0;
+    r: 2;
+  }
+  8% {
+    opacity: 1;
+    r: 4;
+  }
+  70% {
+    opacity: 0.9;
+    r: 3.5;
+  }
+  100% {
+    opacity: 0;
+    r: 2;
+  }
+}
+
+.pulseTrail {
+  stroke-linecap: round;
+  animation: pulseTrailDraw 1.5s ease-out forwards;
+  stroke-dasharray: 60 1000;
+  stroke-dashoffset: 0;
+}
+
+@keyframes pulseTrailDraw {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.7;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  100% {
+    stroke-dashoffset: -1000;
+    opacity: 0;
+  }
+}
+
 .legend {
   display: flex;
-  gap: 2rem;
+  gap: 1.25rem;
   flex-wrap: wrap;
-  justify-content: center;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  width: 100%;
+  align-items: center;
 }
 
 .legendItem {
@@ -208,14 +331,179 @@
   box-shadow: 0 0 8px currentColor;
 }
 
+/* === FILTER BADGES ROW === */
+.badgesRow {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.filterLabel {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.filterValueWrapper {
+  overflow: hidden;
+  max-width: 180px;
+  flex: 1;
+  min-width: 0;
+}
+
+.filterValueWrapper strong {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.filterValueMarquee {
+  mask-image: linear-gradient(to right, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+}
+
+.filterValueMarquee strong {
+  animation: badgeMarquee 6s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+@keyframes badgeMarquee {
+  0%, 20% { transform: translateX(0); }
+  45%, 55% { transform: translateX(var(--marquee-distance, -40px)); }
+  80%, 100% { transform: translateX(0); }
+}
+
+.filterIndicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(34, 197, 94, 0.15);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-success);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0.85) translateX(10px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filterIndicator.filterVisible {
+  opacity: 1;
+  transform: scale(1) translateX(0);
+}
+
+.filterIndicator.filterExiting {
+  opacity: 0;
+  transform: scale(0.85) translateX(10px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.filterIndicator strong {
+  color: #4ade80;
+  font-family: var(--font-family-mono);
+  font-weight: 600;
+  transition: all 0.15s ease-out;
+}
+
+.filterIndicator .valueChanging {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.clearButton {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(239, 68, 68, 0.8);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: bold;
+  padding: 0;
+  transition: all 0.2s ease-out;
+  margin-left: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.clearButton:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-error);
+  transform: scale(1.15);
+}
+
+/* === NÚCLEO ATÓMICO CENTRAL === */
+.atomicNucleus {
+  opacity: 0;
+  animation: nucleusFadeIn 1.5s ease-out 0.8s forwards;
+}
+
+@keyframes nucleusFadeIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.nucleusHalo {
+  animation: haloPulse 4s ease-in-out infinite;
+}
+
+@keyframes haloPulse {
+  0%, 100% { r: 45; opacity: 0.06; }
+  50% { r: 52; opacity: 0.12; }
+}
+
+.orbit {
+  animation: orbitSpin 12s linear infinite;
+  transform-origin: 350px 350px;
+}
+
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.electron {
+  opacity: 0.9;
+}
+
+.nucleusCore {
+  animation: corePulse 3s ease-in-out infinite;
+}
+
+@keyframes corePulse {
+  0%, 100% { r: 5; opacity: 0.4; }
+  50% { r: 7; opacity: 0.7; }
+}
+
 @media (max-width: 768px) {
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .graphContainer {
-    padding: 1rem;
+    padding: 0.75rem;
   }
   .circularGraph {
     max-width: 100%;
+    height: clamp(280px, calc(100vh - 220px), 450px);
   }
   .legend {
-    gap: 1rem;
+    gap: 0.75rem;
   }
 }

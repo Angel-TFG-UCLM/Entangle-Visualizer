@@ -155,7 +155,7 @@ code {
   color: var(--color-neon);
 }
 
-/* === SCROLLBAR CUSTOM (Webkit) === */
+/* === SCROLLBAR CUÁNTICO (Webkit) === */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -163,15 +163,37 @@ code {
 
 ::-webkit-scrollbar-track {
   background: var(--color-card);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 212, 228, 0.4);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 228, 0.5) 0%,
+    rgba(157, 111, 219, 0.5) 50%,
+    rgba(0, 212, 228, 0.5) 100%
+  );
+  background-size: 100% 200%;
+  animation: scrollbarPulse 4s ease-in-out infinite;
   border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 212, 228, 0.15);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 212, 228, 0.6);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 228, 0.7) 0%,
+    rgba(157, 111, 219, 0.7) 50%,
+    rgba(0, 255, 255, 0.7) 100%
+  );
+  background-size: 100% 200%;
+  animation: scrollbarPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.4);
+}
+
+@keyframes scrollbarPulse {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 0% 100%; }
 }
 
 /* === UTILIDADES === */

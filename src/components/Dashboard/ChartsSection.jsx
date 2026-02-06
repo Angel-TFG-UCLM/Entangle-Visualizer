@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -184,6 +185,8 @@ export default function ChartsSection({ data }) {
   
   // Estados para métricas y hover
   const [repoMetric, setRepoMetric] = useState('stargazer_count')
+  const [isMetricDropdownOpen, setIsMetricDropdownOpen] = useState(false)
+  const metricDropdownRef = useRef(null)
   const [hoveredPieIndex, setHoveredPieIndex] = useState(null)
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null)
   
@@ -218,6 +221,11 @@ export default function ChartsSection({ data }) {
       return () => clearTimeout(timer)
     }
   }, [repoChartVisible, hasAnimatedRepoBars])
+
+  // Re-animar barras de repos cuando cambia la métrica
+  useEffect(() => {
+    setHasAnimatedRepoBars(false)
+  }, [repoMetric])
 
   useEffect(() => {
     if (userChartVisible && !hasAnimatedUserBars) {
@@ -453,17 +461,20 @@ export default function ChartsSection({ data }) {
     if (entry && entry.name) setFilter('language', entry.name)
   }
 
-  // Custom tooltip
+  // Custom tooltip — estilo medición cuántica
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
         <div className={styles.customTooltip}>
-          <p className={styles.tooltipLabel}>{label}</p>
+          <p className={styles.tooltipLabel}>
+            <span className={styles.tooltipMeasure}>⊕</span> {label}
+          </p>
           {payload.map((entry, index) => (
             <p key={index} style={{ color: entry.color }}>
-              {entry.name}: <strong>{entry.value.toLocaleString()}</strong>
+              ⟨{entry.name}| = <strong>{entry.value.toLocaleString()}</strong>
             </p>
           ))}
+          <span className={styles.tooltipFooter}>medición colapsada</span>
         </div>
       )
     }
@@ -526,15 +537,48 @@ export default function ChartsSection({ data }) {
         </div>
         <div className={styles.subtitleRow}>
           <p className={styles.chartSubtitleInline}>Filtrado por</p>
-          <select 
-            className={styles.metricSelector}
-            value={repoMetric}
-            onChange={(e) => setRepoMetric(e.target.value)}
-          >
-            <option value="stargazer_count">⭐ Estrellas</option>
-            <option value="forks_count">🔱 Forks</option>
-            <option value="contributors">👥 Contribuidores</option>
-          </select>
+          <div className={styles.metricDropdown} ref={metricDropdownRef}>
+            <button
+              className={styles.metricDropdownTrigger}
+              onClick={() => setIsMetricDropdownOpen(prev => !prev)}
+              onBlur={(e) => {
+                if (!metricDropdownRef.current?.contains(e.relatedTarget)) {
+                  setIsMetricDropdownOpen(false)
+                }
+              }}
+            >
+              <span className={styles.metricDropdownIcon}>
+                {repoMetric === 'stargazer_count' && '⭐'}
+                {repoMetric === 'forks_count' && '🔱'}
+                {repoMetric === 'contributors' && '👥'}
+              </span>
+              <span>{repoMetric === 'stargazer_count' ? 'Estrellas' : repoMetric === 'forks_count' ? 'Forks' : 'Contribuidores'}</span>
+              <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isMetricDropdownOpen ? styles.chevronOpen : ''}`} />
+            </button>
+            {isMetricDropdownOpen && (
+              <div className={styles.metricDropdownMenu}>
+                {[
+                  { value: 'stargazer_count', label: 'Estrellas', icon: '⭐' },
+                  { value: 'forks_count', label: 'Forks', icon: '🔱' },
+                  { value: 'contributors', label: 'Contribuidores', icon: '👥' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`${styles.metricDropdownItem} ${repoMetric === opt.value ? styles.metricDropdownItemActive : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setRepoMetric(opt.value)
+                      setIsMetricDropdownOpen(false)
+                    }}
+                  >
+                    <span className={styles.metricDropdownItemIcon}>{opt.icon}</span>
+                    <span>{opt.label}</span>
+                    {repoMetric === opt.value && <span className={styles.metricDropdownCheck}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         {repoChartVisible ? (
           <div ref={repoBarContainerRef}>

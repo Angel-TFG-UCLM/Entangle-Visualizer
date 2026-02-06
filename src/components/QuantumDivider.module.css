@@ -1,0 +1,65 @@
+/**
+ * QuantumDivider — Estilos para onda de probabilidad
+ */
+
+.divider {
+  width: 100%;
+  max-width: 1400px;
+  margin: 1rem auto;
+  padding: 0 var(--spacing-xl);
+  height: 50px;
+  overflow: hidden;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.divider:hover {
+  opacity: 1;
+}
+
+.divider.large {
+  height: 60px;
+  margin: 1.5rem auto;
+}
+
+.wave {
+  width: 100%;
+  height: 100%;
+}
+
+/* Onda principal — animación de ondulación */
+.waveLine {
+  stroke-dasharray: 8 4;
+  animation: waveShift 6s linear infinite;
+}
+
+/* Onda secundaria — desfase diferente */
+.waveLineSecondary {
+  stroke-dasharray: 5 6;
+  animation: waveShift 8s linear infinite reverse;
+}
+
+@keyframes waveShift {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+/* Nodos de probabilidad — colapso de función de onda */
+.probabilityNode {
+  animation: nodeCollapse 3s ease-in-out infinite;
+}
+
+@keyframes nodeCollapse {
+  0%, 100% {
+    r: 1.5;
+    opacity: 0.3;
+  }
+  50% {
+    r: 3;
+    opacity: 0.8;
+  }
+}

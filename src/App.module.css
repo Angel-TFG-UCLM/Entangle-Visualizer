@@ -10,17 +10,69 @@
 
 /* === PANTALLA DE CARGA === */
 .loadingScreen {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--color-bg) 0%, #1a1f2e 50%, #0f1419 100%);
   animation: fadeIn 0.5s ease-out;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+/* Scanlines CRT — efecto terminal cuántico */
+.loadingScreen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 212, 228, 0.015) 2px,
+    rgba(0, 212, 228, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+  animation: scanlineScroll 8s linear infinite;
+}
+
+/* Barrido de luz de escaneo */
+.loadingScreen::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 212, 228, 0.03) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+  animation: scanSweep 4s ease-in-out infinite;
+}
+
+@keyframes scanlineScroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+@keyframes scanSweep {
+  0% { top: -40%; }
+  100% { top: 120%; }
 }
 
 .loadingContent {
   text-align: center;
   padding: var(--spacing-2xl);
+  position: relative;
+  z-index: 2;
 }
 
 .loadingLogo {
@@ -79,10 +131,86 @@
   animation: spin 1s linear infinite;
 }
 
+/* Atom orbital spinner */
+.atomSpinner {
+  animation: atomFadeIn 0.6s ease-out;
+}
+
+.atomOrbit1 {
+  animation: spin 2s linear infinite;
+  transform-origin: 60px 60px;
+}
+
+.atomOrbit2 {
+  animation: spin 2.6s linear infinite;
+  transform-origin: 60px 60px;
+  transform: rotate(60deg);
+}
+
+.atomOrbit3 {
+  animation: spin 3.2s linear infinite;
+  transform-origin: 60px 60px;
+  transform: rotate(120deg);
+}
+
+.atomCore {
+  animation: coreBreathe 2s ease-in-out infinite;
+}
+
+@keyframes coreBreathe {
+  0%, 100% { r: 6; opacity: 0.5; }
+  50% { r: 8; opacity: 0.8; }
+}
+
+@keyframes atomFadeIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .loadingText {
   font-size: var(--font-size-lg);
   color: var(--color-text-muted);
   margin: 0;
+  min-height: 1.8em;
+}
+
+.quantumPhrase {
+  display: inline-block;
+  animation: phraseFade 2.2s ease-in-out;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-base);
+  letter-spacing: 0.03em;
+  color: rgba(0, 212, 228, 0.7);
+}
+
+@keyframes phraseFade {
+  0% { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  15% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  85% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-6px); filter: blur(4px); }
+}
+
+.retryText {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(249, 115, 22, 0.8);
+  margin: var(--spacing-sm) 0 0 0;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  min-height: 1.4em;
+}
+
+.retryVisible {
+  opacity: 1;
+  visibility: visible;
+  animation: retryPulse 2s ease-in-out infinite;
+}
+
+@keyframes retryPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .successIcon {
@@ -165,7 +293,9 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, var(--color-bg) 0%, #1a1f2e 50%, #0f1419 100%);
+  background: linear-gradient(135deg, rgba(15, 20, 25, 0.92) 0%, rgba(26, 31, 46, 0.90) 50%, rgba(15, 20, 25, 0.92) 100%);
+  position: relative;
+  z-index: 1;
 }
 
 .fadeInApp {
@@ -219,6 +349,7 @@
   top: 0;
   z-index: var(--z-sticky);
   backdrop-filter: blur(10px);
+  overflow: hidden;
 }
 
 .headerContent {
@@ -263,15 +394,102 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-shadow: 0 0 40px rgba(0, 212, 228, 0.6);
+  position: relative;
+  display: inline-block;
+}
+
+/* Efecto de superposición cuántica: "ghost" del texto que oscila */
+.logoAccent::before,
+.logoAccent::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  pointer-events: none;
+}
+
+.logoAccent::before {
+  animation: quantumShift 6s ease-in-out infinite;
+  opacity: 0.45;
+  filter: blur(3px);
+}
+
+.logoAccent::after {
+  animation: quantumShift 6s ease-in-out infinite reverse;
+  opacity: 0.35;
+  filter: blur(4px);
+}
+
+@keyframes quantumShift {
+  0%, 100% {
+    transform: translate(0, 0);
+    opacity: 0.1;
+  }
+  20% {
+    transform: translate(-4px, 2px);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translate(3px, -2px);
+    opacity: 0.2;
+  }
+  60% {
+    transform: translate(-3px, -1px);
+    opacity: 0.35;
+  }
+  80% {
+    transform: translate(2px, 1px);
+    opacity: 0.15;
+  }
 }
 
 .logoSub {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
-  margin: var(--spacing-xs) 0 0 0;
+  margin: 0;
   font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* Fila del subtítulo con puntos orbitales decorativos */
+.subtitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--spacing-xs);
+}
+
+/* Punto orbital animado — orbita en elipse */
+.orbitalDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent), 0 0 12px rgba(0, 212, 228, 0.3);
+  animation: orbitalPulse 3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.orbitalDot:last-child {
+  animation-delay: 1.5s;
+  background: var(--color-secondary);
+  box-shadow: 0 0 6px var(--color-secondary), 0 0 12px rgba(157, 111, 219, 0.3);
+}
+
+@keyframes orbitalPulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.6);
+  }
 }
 
 /* === STATUS BADGE === */
@@ -284,6 +502,35 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   transition: all var(--transition-normal);
+}
+
+.statusQubit {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-accent);
+  opacity: 0.6;
+  letter-spacing: 0.02em;
+  min-width: 2.5em;
+  text-align: center;
+}
+
+.statusBadge[data-status="online"] .statusQubit {
+  color: var(--color-success);
+}
+
+.statusBadge[data-status="offline"] .statusQubit {
+  color: var(--color-error);
+}
+
+.statusBadge[data-status="checking"] .statusQubit {
+  animation: superposition 2s ease-in-out infinite;
+  font-size: 0.65rem;
+}
+
+@keyframes superposition {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
 }
 
 .statusBadge[data-status="online"] {
@@ -351,6 +598,14 @@
   flex: 1;
   padding: var(--spacing-2xl) 0;
 }
+
+/* Scroll target para navegación de secciones (ID selector) */
+.sectionAnchor {
+  /* El offset de scroll se calcula dinámicamente en DashboardNav.jsx */
+  position: relative;
+}
+
+
 
 .container {
   max-width: 1400px;
@@ -560,6 +815,44 @@
   font-weight: 500;
 }
 
+/* Notación Dirac cuántica |ψ⟩ en las cards — movida arriba-derecha para no solapar con onda */
+.statCard::after {
+  content: '|ψ⟩';
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(0, 212, 228, 0.08);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+
+.statCard:hover::after {
+  color: rgba(0, 212, 228, 0.2);
+}
+
+/* === HERO — Ecuación de Schrödinger decorativa === */
+.heroQuantumRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+}
+
+.heroEquation {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(0, 212, 228, 0.25);
+  letter-spacing: 0.1em;
+  font-weight: 300;
+  user-select: none;
+  margin: 0;
+}
+
 /* === ALERT BOX === */
 .alertBox {
   background: rgba(239, 68, 68, 0.1);
@@ -616,18 +909,89 @@
   font-family: var(--font-family-mono);
 }
 
-/* === FOOTER === */
+/* === OFFLINE BANNER (sticky bajo el header) === */
+.offlineBanner {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-sticky) - 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(10px);
+  animation: slideIn 0.4s ease-out;
+}
+
+.offlineBanner strong {
+  color: #f87171;
+}
+
+.offlinePulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: offlineBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes offlineBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.decoherenceText {
+  animation: decoherence 4s ease-in-out infinite;
+}
+
+@keyframes decoherence {
+  0%, 100% { opacity: 1; transform: none; }
+  48% { opacity: 1; transform: none; }
+  49% { opacity: 0.7; transform: skewX(-1deg) translateX(1px); }
+  51% { opacity: 0.8; transform: skewX(0.5deg) translateX(-1px); }
+  52% { opacity: 1; transform: none; }
+  72% { opacity: 1; transform: none; }
+  73% { opacity: 0.6; transform: skewX(1deg); }
+  74% { opacity: 1; transform: none; }
+}
+
+/* === FOOTER CON CIRCUITO CUÁNTICO === */
 .footer {
   background: var(--color-card);
   border-top: 1px solid var(--color-border);
-  padding: var(--spacing-lg) 0;
+  padding: var(--spacing-md) 0 var(--spacing-lg) 0;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.footerCircuit {
+  max-width: 500px;
+  margin: 0 auto var(--spacing-sm) auto;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.footer:hover .footerCircuit {
+  opacity: 1;
+}
+
+.circuitSvg {
+  width: 100%;
+  height: 60px;
 }
 
 .footer p {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+  letter-spacing: 0.04em;
 }
 
 /* === RESPONSIVE DESIGN === */

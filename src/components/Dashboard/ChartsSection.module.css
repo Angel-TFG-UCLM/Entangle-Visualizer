@@ -59,9 +59,33 @@
   box-shadow: var(--shadow-lg);
 }
 
+
+
 .chartCard:hover::before {
   transform: scaleX(1);
 }
+
+/* Operador cuántico decorativo en cada card */
+.chartCard::after {
+  content: 'Ĥ';
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(0, 212, 228, 0.06);
+  font-weight: 300;
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+
+.chartCard:hover::after {
+  color: rgba(0, 212, 228, 0.18);
+}
+
+/* Diferentes operadores para cada card */
+.chartsSection > *:nth-child(2) .chartCard::after { content: 'σ̂'; }
+.chartsSection > *:nth-child(3) .chartCard::after { content: 'Û'; }
 
 .chartTitle {
   font-size: var(--font-size-xl);
@@ -103,11 +127,18 @@
   font-style: italic;
 }
 
-/* === METRIC SELECTOR === */
-.metricSelector {
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--color-border);
+/* === METRIC DROPDOWN (custom) === */
+.metricDropdown {
+  position: relative;
+}
+
+.metricDropdownTrigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
   color: var(--color-accent);
   font-size: var(--font-size-sm);
@@ -115,21 +146,98 @@
   cursor: pointer;
   transition: all var(--transition-normal);
   outline: none;
+  white-space: nowrap;
 }
 
-.metricSelector:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--color-accent);
+.metricDropdownTrigger:hover {
+  background: rgba(0, 212, 228, 0.08);
+  border-color: rgba(0, 212, 228, 0.4);
 }
 
-.metricSelector:focus {
+.metricDropdownTrigger:focus-visible {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px rgba(0, 212, 228, 0.2);
 }
 
-.metricSelector option {
-  background: var(--color-card);
-  color: var(--color-text);
+.metricDropdownIcon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.metricDropdownChevron {
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.metricDropdownMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  background: rgba(22, 27, 45, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 0.3rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 50;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.metricDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.metricDropdownItem:hover {
+  background: rgba(0, 212, 228, 0.1);
+  color: #fff;
+}
+
+.metricDropdownItemActive {
+  color: var(--color-accent);
+  background: rgba(0, 212, 228, 0.06);
+}
+
+.metricDropdownItemIcon {
+  font-size: 0.9rem;
+  line-height: 1;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.metricDropdownCheck {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 /* === REMOVE OUTLINE/FOCUS ON CLICK === */
@@ -159,14 +267,22 @@
   outline: none !important;
 }
 
-/* === CUSTOM TOOLTIP === */
+/* === CUSTOM TOOLTIP — Estilo medición cuántica === */
 .customTooltip {
   background: rgba(15, 20, 25, 0.95);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 12px rgba(0, 212, 228, 0.1);
   backdrop-filter: blur(10px);
+  position: relative;
+}
+
+.tooltipMeasure {
+  font-size: var(--font-size-sm);
+  color: var(--color-secondary);
+  margin-right: 4px;
 }
 
 .tooltipLabel {
@@ -174,17 +290,29 @@
   font-weight: 600;
   color: var(--color-accent);
   margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-mono);
 }
 
 .customTooltip p {
   margin: var(--spacing-xs) 0;
   font-size: var(--font-size-sm);
   color: var(--color-text);
+  font-family: var(--font-family-mono);
 }
 
 .customTooltip strong {
   color: var(--color-accent);
   font-weight: 700;
+}
+
+.tooltipFooter {
+  display: block;
+  margin-top: var(--spacing-xs);
+  font-size: 0.6rem;
+  color: rgba(157, 111, 219, 0.4);
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* === TITLE ROW (título + badge alineados) === */

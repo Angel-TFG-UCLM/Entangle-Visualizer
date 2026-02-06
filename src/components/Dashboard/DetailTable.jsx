@@ -71,7 +71,7 @@ function TopRepositoriesTable({ repositories }) {
                 className={styles.tableRow}
                 onClick={() => setFilter('org', repo.owner?.login || repo.organization?.login)}
               >
-                <td className={styles.rank}>{index + 1}</td>
+                <td className={styles.rank}>|{index + 1}⟩</td>
                 <td className={styles.repoName}>
                   <div className={styles.nameCell}>
                     <span className={styles.primaryText}>{repo.name}</span>
@@ -138,13 +138,18 @@ function TopUsersTable({ users }) {
                 expertise >= 75 ? styles.expertiseExpert :
                 expertise >= 50 ? styles.expertiseIntermediate :
                 styles.expertiseBeginner
+              const expertiseLabel =
+                expertise >= 90 ? 'Qubit Master' :
+                expertise >= 75 ? 'Entangled' :
+                expertise >= 50 ? 'Superposed' :
+                'Ground State'
 
               return (
                 <tr 
                   key={user.id} 
                   className={styles.tableRow}
                 >
-                  <td className={styles.rank}>{index + 1}</td>
+                  <td className={styles.rank}>|{index + 1}⟩</td>
                   <td className={styles.userName}>
                     <div className={styles.nameCell}>
                       <img 
@@ -159,8 +164,9 @@ function TopUsersTable({ users }) {
                     </div>
                   </td>
                   <td>
-                    <span className={`${styles.expertiseBadge} ${expertiseClass}`}>
+                    <span className={`${styles.expertiseBadge} ${expertiseClass}`} title={expertiseLabel}>
                       {expertise.toFixed(1)}
+                      <span className={styles.expertiseQuantumLabel}>{expertiseLabel}</span>
                     </span>
                   </td>
                   <td className={styles.numeric}>

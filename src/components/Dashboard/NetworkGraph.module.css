@@ -37,7 +37,7 @@
 .circularGraph {
   width: 100%;
   max-width: 700px;
-  height: auto;
+  height: 500px; /* Altura fija para evitar layout shifts al filtrar */
 }
 
 .linksGroup {

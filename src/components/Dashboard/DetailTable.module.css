@@ -21,7 +21,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
-  transition: all var(--transition-normal);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
   position: relative;
   overflow: hidden;
 }
@@ -61,7 +61,9 @@
 /* === TABLE === */
 .tableWrapper {
   overflow-x: auto;
+  overflow-y: auto;
   border-radius: var(--radius-md);
+  height: 420px; /* Altura fija para evitar layout shifts al filtrar */
 }
 
 .table {
@@ -90,7 +92,7 @@
 
 .tableRow {
   border-bottom: 1px solid var(--color-border);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast);
   cursor: pointer;
 }
 

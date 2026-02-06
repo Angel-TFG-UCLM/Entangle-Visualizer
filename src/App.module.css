@@ -440,7 +440,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
-  transition: all var(--transition-normal);
+  transition: transform var(--transition-normal), border-color var(--transition-normal), box-shadow var(--transition-normal);
   cursor: default;
   position: relative;
   overflow: hidden;
@@ -474,12 +474,13 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: var(--spacing-lg);
+  height: 36px; /* Altura fija: evita layout shift al aparecer/desaparecer badge FILTERED */
 }
 
 .statIcon {
   color: var(--color-accent);
   opacity: 0.8;
-  transition: all var(--transition-normal);
+  transition: opacity var(--transition-normal), transform var(--transition-normal), filter var(--transition-normal);
 }
 
 .statCard:hover .statIcon {
@@ -521,7 +522,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
-  transition: all 0.3s ease-out;
 }
 
 .statValue {

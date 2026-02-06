@@ -83,7 +83,8 @@ html {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-size: 16px; /* Base para rem calculations */
-  scroll-behavior: smooth;
+  overflow-y: scroll; /* Evita desplazamiento lateral al aparecer/desaparecer scrollbar */
+  scrollbar-gutter: stable; /* Reserva espacio para scrollbar siempre */
 }
 
 body {

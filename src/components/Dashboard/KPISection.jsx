@@ -147,11 +147,27 @@ export default function KPISection({ data }) {
         user.organizations?.includes(selectedOrg)
       )
     }
+    if (selectedRepo) {
+      const selectedRepoObj = repositories.find(r => r.full_name === selectedRepo)
+      if (selectedRepoObj?.collaborators) {
+        const collaboratorLogins = selectedRepoObj.collaborators.map(c => c.login)
+        filteredUsers = filteredUsers.filter(user => collaboratorLogins.includes(user.login))
+      }
+    }
 
     // --- Filtrar organizaciones ---
     let filteredOrgs = organizations
     if (selectedOrg) {
       filteredOrgs = filteredOrgs.filter(org => org.login === selectedOrg)
+    }
+    if (selectedRepo) {
+      const selectedRepoObj = repositories.find(r => r.full_name === selectedRepo)
+      if (selectedRepoObj) {
+        const repoOrg = selectedRepoObj.owner?.login || selectedRepoObj.organization?.login
+        if (repoOrg) {
+          filteredOrgs = filteredOrgs.filter(org => org.login === repoOrg)
+        }
+      }
     }
     if (selectedLanguage && repositories.length > 0) {
       const orgsWithLanguage = new Set(

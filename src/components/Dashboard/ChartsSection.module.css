@@ -18,7 +18,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
-  transition: all var(--transition-normal);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
   position: relative;
   overflow: hidden;
 }
@@ -59,9 +59,33 @@
   box-shadow: var(--shadow-lg);
 }
 
+
+
 .chartCard:hover::before {
   transform: scaleX(1);
 }
+
+/* Operador cuántico decorativo en cada card */
+.chartCard::after {
+  content: 'Ĥ';
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(0, 212, 228, 0.06);
+  font-weight: 300;
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+
+.chartCard:hover::after {
+  color: rgba(0, 212, 228, 0.18);
+}
+
+/* Diferentes operadores para cada card */
+.chartsSection > *:nth-child(2) .chartCard::after { content: 'σ̂'; }
+.chartsSection > *:nth-child(3) .chartCard::after { content: 'Û'; }
 
 .chartTitle {
   font-size: var(--font-size-xl);
@@ -71,6 +95,15 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chartTitleIcon {
+  color: var(--color-accent);
+  -webkit-text-fill-color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 .chartSubtitle {
@@ -80,14 +113,261 @@
   font-style: italic;
 }
 
-/* === CUSTOM TOOLTIP === */
+/* === CHART HEADER === */
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-md);
+}
+
+/* === SUBTITLE ROW (inline subtitle + selector) === */
+.subtitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-lg) 0;
+}
+
+.chartSubtitleInline {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+  font-style: italic;
+}
+
+/* === METRIC DROPDOWN (custom) === */
+.metricDropdown {
+  position: relative;
+}
+
+.metricDropdownTrigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  outline: none;
+  white-space: nowrap;
+}
+
+.metricDropdownTrigger:hover {
+  background: rgba(0, 212, 228, 0.08);
+  border-color: rgba(0, 212, 228, 0.4);
+}
+
+.metricDropdownTrigger:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(0, 212, 228, 0.2);
+}
+
+.metricDropdownIcon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.metricDropdownChevron {
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.metricDropdownMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  background: rgba(22, 27, 45, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 0.3rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 50;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.metricDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.metricDropdownItem:hover {
+  background: rgba(0, 212, 228, 0.1);
+  color: #fff;
+}
+
+.metricDropdownItemActive {
+  color: var(--color-accent);
+  background: rgba(0, 212, 228, 0.06);
+}
+
+.metricDropdownItemIcon {
+  font-size: 0.9rem;
+  line-height: 1;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.metricDropdownCheck {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Toggle para incluir bots */
+.botToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  padding: 4px 10px;
+  background: rgba(107, 114, 128, 0.1);
+  border: 1px solid rgba(107, 114, 128, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.botToggle:hover {
+  background: rgba(107, 114, 128, 0.2);
+  border-color: rgba(107, 114, 128, 0.3);
+}
+
+.botToggle.botToggleActive {
+  background: rgba(0, 212, 228, 0.1);
+  border-color: rgba(0, 212, 228, 0.3);
+}
+
+.botToggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.botToggleSwitch {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  background: rgba(107, 114, 128, 0.4);
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+.botToggleSwitch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: #9ca3af;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+.botToggle.botToggleActive .botToggleSwitch {
+  background: rgba(0, 212, 228, 0.5);
+}
+
+.botToggle.botToggleActive .botToggleSwitch::after {
+  transform: translateX(12px);
+  background: var(--color-accent);
+  box-shadow: 0 0 6px rgba(0, 212, 228, 0.5);
+}
+
+.botToggleLabel {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: color 0.2s ease;
+}
+
+.botToggle.botToggleActive .botToggleLabel {
+  color: var(--color-accent);
+}
+
+/* === REMOVE OUTLINE/FOCUS ON CLICK === */
+.chartCard :global(.recharts-wrapper),
+.chartCard :global(.recharts-surface),
+.chartCard :global(.recharts-bar-rectangle),
+.chartCard :global(.recharts-bar-rectangle) path,
+.chartCard :global(.recharts-sector),
+.chartCard :global(.recharts-pie-sector),
+.chartCard :global(.recharts-layer),
+.chartCard :global(.recharts-bar),
+.chartCard :global(.recharts-rectangle) {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.chartCard :global(.recharts-wrapper) *:focus,
+.chartCard :global(.recharts-wrapper) *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chartCard :global(.recharts-wrapper):focus,
+.chartCard :global(.recharts-surface):focus,
+.chartCard :global(.recharts-wrapper):focus-visible,
+.chartCard :global(.recharts-surface):focus-visible {
+  outline: none !important;
+}
+
+/* === CUSTOM TOOLTIP — Estilo medición cuántica === */
 .customTooltip {
   background: rgba(15, 20, 25, 0.95);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 12px rgba(0, 212, 228, 0.1);
   backdrop-filter: blur(10px);
+  position: relative;
+}
+
+.tooltipMeasure {
+  font-size: var(--font-size-sm);
+  color: var(--color-secondary);
+  margin-right: 4px;
 }
 
 .tooltipLabel {
@@ -95,12 +375,14 @@
   font-weight: 600;
   color: var(--color-accent);
   margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-mono);
 }
 
 .customTooltip p {
   margin: var(--spacing-xs) 0;
   font-size: var(--font-size-sm);
   color: var(--color-text);
+  font-family: var(--font-family-mono);
 }
 
 .customTooltip strong {
@@ -108,11 +390,127 @@
   font-weight: 700;
 }
 
+.tooltipFooter {
+  display: block;
+  margin-top: var(--spacing-xs);
+  font-size: 0.6rem;
+  color: rgba(157, 111, 219, 0.4);
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Stats en tooltip de colaboradores */
+.tooltipStats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tooltipStats p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tooltipStats span {
+  opacity: 0.8;
+}
+
+/* Tooltip especial para "Otros" en PieChart */
+.tooltipOthers {
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid rgba(157, 111, 219, 0.2);
+}
+
+.tooltipOthersTitle {
+  font-size: 0.65rem;
+  color: #9ca3af;
+  margin: 0 0 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tooltipOthersList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  max-width: 200px;
+}
+
+.tooltipOthersItem {
+  font-size: 0.7rem;
+  color: #d1d5db;
+  background: rgba(107, 114, 128, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.tooltipOthersMore {
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* === TITLE ROW (título + badge alineados) === */
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xs);
+  height: 32px; /* Altura fija: evita layout shift al aparecer/desaparecer badge */
+}
+
+.titleRow .chartTitle {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* === FILTER VALUE MARQUEE (scroll para nombres largos en badge) === */
+.filterLabel {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.filterValueWrapper {
+  overflow: hidden;
+  max-width: 180px;
+  flex: 1;
+  min-width: 0;
+}
+
+.filterValueWrapper strong {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.filterValueMarquee {
+  mask-image: linear-gradient(to right, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+}
+
+.filterValueMarquee strong {
+  animation: badgeMarquee 6s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+@keyframes badgeMarquee {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  45%, 55% {
+    transform: translateX(var(--marquee-distance, -40px));
+  }
+  80%, 100% {
+    transform: translateX(0);
+  }
+}
+
 /* === FILTER INDICATOR === */
 .filterIndicator {
-  position: absolute;
-  top: var(--spacing-md);
-  right: var(--spacing-md);
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
@@ -124,21 +522,24 @@
   font-size: var(--font-size-xs);
   color: var(--color-success);
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
-  z-index: 10;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
   /* Estado inicial para animación */
   opacity: 0;
-  transform: scale(0.85) translateY(-5px);
+  transform: scale(0.85) translateX(10px);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .filterIndicator.filterVisible {
   opacity: 1;
-  transform: scale(1) translateY(0);
+  transform: scale(1) translateX(0);
 }
 
 .filterIndicator.filterExiting {
   opacity: 0;
-  transform: scale(0.85) translateY(-5px);
+  transform: scale(0.85) translateX(10px);
   transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
 }
 
@@ -177,10 +578,12 @@
   transform: scale(1.15);
 }
 
-/* === CELDAS DE GRÁFICOS CON TRANSICIONES === */
-.barCell,
-.pieCell {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+/* === TRANSICIONES BARRAS SVG === */
+/* Las barras usan style inline via useEffect DOM para que transition funcione */
+:global(.recharts-bar-rectangle) path {
+  transition: fill 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.4s ease !important;
 }
 
 /* === RESPONSIVE === */
@@ -195,5 +598,273 @@
 
   .chartTitle {
     font-size: var(--font-size-lg);
+  }
+}
+
+/* === PANEL "OTROS" LENGUAJES === */
+.othersPanel {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(75, 85, 99, 0.15));
+  border: 1px solid rgba(107, 114, 128, 0.3);
+  border-radius: var(--border-radius-lg);
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.othersPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.othersPanelTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: #d1d5db;
+}
+
+.othersPanelClose {
+  background: rgba(107, 114, 128, 0.3);
+  border: none;
+  color: #9ca3af;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.othersPanelClose:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.othersPanelSubtitle {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.othersPanelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--spacing-xs);
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: var(--spacing-xs);
+}
+
+.othersPanelGrid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.othersPanelGrid::-webkit-scrollbar-track {
+  background: rgba(75, 85, 99, 0.2);
+  border-radius: 3px;
+}
+
+.othersPanelGrid::-webkit-scrollbar-thumb {
+  background: rgba(107, 114, 128, 0.5);
+  border-radius: 3px;
+}
+
+.othersPanelItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(15, 20, 25, 0.4);
+  border: 1px solid rgba(107, 114, 128, 0.2);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.othersPanelItem:hover {
+  background: rgba(0, 212, 228, 0.15);
+  border-color: rgba(0, 212, 228, 0.4);
+  transform: translateY(-1px);
+}
+
+.othersPanelLang {
+  font-size: 0.8rem;
+  color: #d1d5db;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+.othersPanelCount {
+  font-size: 0.7rem;
+  color: #00D4E4;
+  font-family: var(--font-family-mono);
+  background: rgba(0, 212, 228, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* === REPO LANGUAGE MESSAGE (cuando hay repo seleccionado) === */
+.repoLanguageMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 350px;
+  text-align: center;
+  padding: var(--spacing-xl);
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.repoLanguageIcon {
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-md);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.repoLanguageIcon svg {
+  display: block;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.repoLanguageText {
+  color: #9ca3af;
+  font-size: 1rem;
+  margin-bottom: var(--spacing-sm);
+}
+.repoLanguageText strong {
+  color: #00D4E4;
+  font-weight: 600;
+}
+
+.repoLanguageBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.2), rgba(157, 111, 219, 0.2));
+  border: 1px solid rgba(0, 212, 228, 0.4);
+  border-radius: 20px;
+  padding: 12px 24px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #00D4E4;
+  margin: var(--spacing-md) 0;
+  box-shadow: 0 0 20px rgba(0, 212, 228, 0.15);
+}
+
+.repoLanguageHint {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-top: var(--spacing-md);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.repoLanguageButton {
+  margin-top: var(--spacing-lg);
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid rgba(0, 212, 228, 0.5);
+  border-radius: var(--radius-md);
+  color: #00D4E4;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.repoLanguageButton:hover {
+  background: rgba(0, 212, 228, 0.1);
+  border-color: #00D4E4;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 212, 228, 0.2);
+}
+
+/* === CHART CONTAINER CON OVERLAY === */
+.chartContainer {
+  position: relative;
+  min-height: 350px;
+}
+
+/* Overlay de carga para gráficos */
+.chartLoadingOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 20, 25, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 10;
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.chartLoadingOverlay span {
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.chartLoadingSpinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(0, 212, 228, 0.2);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

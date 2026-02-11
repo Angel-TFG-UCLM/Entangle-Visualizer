@@ -1,0 +1,105 @@
+/**
+ * WavefunctionCollapse - Estilos
+ * 
+ * El estado de colapso se controla con la clase .active
+ * que se aplica vía prop collapsed desde React.
+ */
+
+.container {
+  position: absolute;
+  bottom: 4px;
+  right: 12px;
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.container.active {
+  opacity: 0.8;
+}
+
+/* Onda superpuesta — visible por defecto, se oculta en collapse */
+.wave {
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+  stroke-dashoffset: 0;
+  animation: wavePropagation 2s linear infinite;
+}
+
+.active .wave {
+  opacity: 0;
+  animation: none;
+  transition: opacity 0.3s ease-out;
+}
+
+/* Animación de propagación: la onda "fluye" horizontalmente */
+@keyframes wavePropagation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* Delta colapsada — oculta por defecto, visible en collapse */
+.collapsed {
+  opacity: 0;
+  transition: opacity 0.5s ease-out 0.2s;
+}
+
+.active .collapsed {
+  opacity: 1;
+  transition: opacity 0.4s ease-in 0.1s;
+}
+
+/* Punto de medición */
+.measureDot {
+  opacity: 0;
+  transform: scale(0);
+  transform-origin: center;
+  transform-box: fill-box;
+  transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s;
+}
+
+.active .measureDot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Label |ψ|² — visible por defecto */
+.label {
+  position: absolute;
+  bottom: -2px;
+  left: -6px;
+  font-family: var(--font-family-mono);
+  font-size: 0.55rem;
+  color: rgba(0, 212, 228, 0.3);
+  transition: opacity 0.3s ease;
+  opacity: 1;
+}
+
+.active .label {
+  opacity: 0;
+}
+
+/* Label δ(x) — oculto por defecto */
+.labelCollapsed {
+  position: absolute;
+  bottom: -2px;
+  left: -6px;
+  font-family: var(--font-family-mono);
+  font-size: 0.55rem;
+  color: rgba(157, 111, 219, 0.5);
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.active .labelCollapsed {
+  opacity: 1;
+}
+
+.svg {
+  display: block;
+}

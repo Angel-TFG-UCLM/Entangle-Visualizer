@@ -1,0 +1,218 @@
+/**
+ * DashboardNav Styles
+ * ====================
+ * Dock flotante lateral con glassmorphism
+ * Coherente con el design system de ENTANGLE
+ */
+
+/* === DOCK FLOTANTE === */
+.dashboardNav {
+  position: fixed;
+  left: var(--spacing-lg);
+  top: 50%;
+  transform: translateY(-50%) translateX(-20px);
+  z-index: var(--z-sticky);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navVisible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* === TRACK (contenedor de items) === */
+.navTrack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: rgba(26, 31, 46, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 212, 228, 0.15);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+/* === NAV ITEM (botón individual) === */
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease,
+              background 0.2s ease,
+              transform 0.15s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.navItem:hover {
+  color: var(--color-accent);
+  background: rgba(0, 212, 228, 0.08);
+  transform: scale(1.08);
+}
+
+.navItem:active {
+  transform: scale(0.95);
+}
+
+/* === ITEM ACTIVO === */
+.navItemActive {
+  color: var(--color-accent);
+  background: rgba(0, 212, 228, 0.12);
+}
+
+.navItemActive:hover {
+  background: rgba(0, 212, 228, 0.18);
+}
+
+/* === DOT INDICADOR ACTIVO === */
+.activeDot {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.6),
+              0 0 16px rgba(0, 212, 228, 0.3),
+              0 0 24px rgba(157, 111, 219, 0.15);
+  animation: dotAppear 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+             quantumPulse 2.5s ease-in-out infinite 0.3s;
+}
+
+@keyframes quantumPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(0, 212, 228, 0.6),
+                0 0 16px rgba(0, 212, 228, 0.3);
+    height: 14px;
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(0, 212, 228, 0.8),
+                0 0 24px rgba(157, 111, 219, 0.4);
+    height: 18px;
+  }
+}
+
+@keyframes dotAppear {
+  from {
+    opacity: 0;
+    height: 0;
+  }
+  to {
+    opacity: 1;
+    height: 14px;
+  }
+}
+
+/* === TOOLTIP === */
+.navTooltip {
+  position: absolute;
+  left: calc(100% + var(--spacing-sm));
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  white-space: nowrap;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: rgba(26, 31, 46, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 212, 228, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease,
+              transform 0.15s ease;
+}
+
+.tooltipVisible {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* === DIVISOR === */
+.navDivider {
+  width: 20px;
+  height: 1px;
+  background: rgba(0, 212, 228, 0.15);
+  margin: var(--spacing-xs) 0;
+}
+
+/* === RESPONSIVE === */
+
+/* Ocultar en pantallas pequeñas donde no cabe */
+@media (max-width: 1200px) {
+  .dashboardNav {
+    left: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 900px) {
+  /* En móvil: dock horizontal abajo */
+  .dashboardNav {
+    left: 50%;
+    top: auto;
+    bottom: var(--spacing-md);
+    transform: translateX(-50%) translateY(20px);
+  }
+
+  .navVisible {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .navTrack {
+    flex-direction: row;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .navDivider {
+    width: 1px;
+    height: 20px;
+    margin: 0 var(--spacing-xs);
+  }
+
+  .activeDot {
+    right: auto;
+    bottom: 2px;
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 3px;
+  }
+
+  @keyframes dotAppear {
+    from {
+      opacity: 0;
+      width: 0;
+    }
+    to {
+      opacity: 1;
+      width: 14px;
+    }
+  }
+
+  .navTooltip {
+    display: none;
+  }
+}

@@ -1,0 +1,25 @@
+/**
+ * EntanglementLines Styles
+ */
+
+.entanglementSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+
+.line {
+  animation: entangleBreathe 4s ease-in-out infinite;
+}
+
+.line:nth-child(2) { animation-delay: 1.3s; }
+.line:nth-child(3) { animation-delay: 2.6s; }
+
+@keyframes entangleBreathe {
+  0%, 100% { opacity: 0.5; stroke-dashoffset: 0; }
+  50% { opacity: 1; stroke-dashoffset: 14; }
+}

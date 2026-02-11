@@ -113,31 +113,39 @@ export async function getSimpleStats() {
  * 
  * Endpoint: GET /dashboard/stats
  * 
- * Respuesta:
- * - kpis: { totalRepos, totalUsers, totalOrgs }
- * - topLanguages: [{ name, count, percentage }, ...] (Top 5)
- * - topOrganizations: [{ name, repoCount, totalStars }, ...] (Top 5)
+ * Respuesta COMPLETA (pre-calculada en backend):
+ * - kpis: { totalRepos, totalUsers, totalOrgs, avgStars, avgExpertise, topLanguage }
+ * - charts: { organizations, repositories, users, languageDistribution }
+ * - graph: { organizations, repositories, users } (nodos pre-filtrados para el grafo)
+ * - tables: { repositories, users } (top 20 para tablas de detalle)
+ * - filters: { organizations, languages } (listas para dropdowns)
  * - metadata: { cached, calculatedAt, expiresAt, ageHours }
  * 
- * Caché Backend: Los datos se cachean en MongoDB por 24h.
+ * Caché Backend: Los datos se cachean en MongoDB por 1h.
  * Si el caché está fresco, la respuesta es instantánea (~0ms).
- * Si está expirado, se recalcula con agregaciones y se guarda.
  * 
+ * @param {boolean} forceRefresh - Si true, fuerza recálculo ignorando caché
+ * @param {Object} filters - Filtros opcionales { org, language, repo, collabType, includeBots }
  * @returns {Promise<Object>} Dashboard stats completo
- * 
- * @example
- * const stats = await getDashboardStats()
- * console.log(stats.kpis.totalRepos) // 1658
- * console.log(stats.topLanguages[0].name) // "Python"
- * console.log(stats.metadata.cached) // true/false
  */
-export async function getDashboardStats() {
+export async function getDashboardStats(forceRefresh = false, filters = {}) {
   try {
-    const response = await apiClient.get('/dashboard/stats');
+    const params = {};
+    
+    if (forceRefresh) params.force_refresh = true;
+    if (filters.org) params.org = filters.org;
+    if (filters.language) params.language = filters.language;
+    if (filters.repo) params.repo = filters.repo;
+    if (filters.collabType) params.collab_type = filters.collabType;
+    if (filters.includeBots !== undefined) params.include_bots = filters.includeBots;
+    
+    const response = await apiClient.get('/dashboard/stats', { params });
     
     // Log para debugging (ver si viene de caché o calculado)
     if (response.data.metadata?.cached) {
       console.log(`📊 Dashboard stats from CACHE (${response.data.metadata.ageHours}h old)`);
+    } else if (response.data.metadata?.activeFilters) {
+      console.log('📊 Dashboard stats FILTERED:', response.data.metadata.activeFilters);
     } else {
       console.log('📊 Dashboard stats CALCULATED fresh');
     }
@@ -146,6 +154,22 @@ export async function getDashboardStats() {
   } catch (error) {
     console.error('[getDashboardStats] Error:', error);
     // Propagar el error para que el componente pueda manejarlo con retry
+    throw error;
+  }
+}
+
+/**
+ * Fuerza el recálculo de métricas del dashboard
+ * Útil después de ingestas/enriquecimientos
+ * @returns {Promise<Object>} Dashboard stats recalculado
+ */
+export async function refreshDashboardMetrics() {
+  try {
+    const response = await apiClient.post('/dashboard/refresh-metrics');
+    console.log('🔄 Dashboard metrics refreshed');
+    return response.data;
+  } catch (error) {
+    console.error('[refreshDashboardMetrics] Error:', error);
     throw error;
   }
 }

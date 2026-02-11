@@ -15,6 +15,9 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { 
+  FiUsers, FiCode, FiEye, FiPackage, FiStar, FiGitBranch, FiUserCheck 
+} from 'react-icons/fi'
 import {
   BarChart,
   Bar,
@@ -181,7 +184,7 @@ function FilterBadge({ value, onClear, label }) {
  * Componente principal de gráficos
  */
 export default function ChartsSection({ data }) {
-  const { selectedOrg, selectedLanguage, selectedRepo, setFilter } = useDashboardStore()
+  const { selectedOrg, selectedLanguage, selectedRepo, setFilter, resetFilters } = useDashboardStore()
   
   // Estados para métricas y hover
   const [repoMetric, setRepoMetric] = useState('stargazer_count')
@@ -189,6 +192,14 @@ export default function ChartsSection({ data }) {
   const metricDropdownRef = useRef(null)
   const [hoveredPieIndex, setHoveredPieIndex] = useState(null)
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null)
+  const [showOthersPanel, setShowOthersPanel] = useState(false) // Panel para "Otros" lenguajes
+  
+  // Estado para tipo de colaborador (solo aplica cuando hay repo seleccionado)
+  const [collabType, setCollabType] = useState('all') // 'all', 'contributors', 'reviewers'
+  const [includeBots, setIncludeBots] = useState(false) // Excluir bots por defecto
+  const [isCollabDropdownOpen, setIsCollabDropdownOpen] = useState(false)
+  const collabDropdownRef = useRef(null)
+  const [isUpdatingUsers, setIsUpdatingUsers] = useState(false) // Estado de carga para colaboradores
   
   // Animaciones de scroll
   const [orgChartRef, orgChartVisible] = useScrollAnimation(0.3)
@@ -220,46 +231,145 @@ export default function ChartsSection({ data }) {
   }, [pieChartVisible, hasAnimatedPie])
 
   // Protección contra datos no disponibles
-  const organizations = data?.organizations || []
-  const repositories = data?.repositories || []
-  const users = data?.users || []
+  // NUEVA ARQUITECTURA: El backend ahora maneja el filtrado dinámico
+  // Los datos en charts/tables ya vienen filtrados cuando hay filtros activos
+  const charts = useDashboardStore(state => state.charts)
+  const tables = useDashboardStore(state => state.tables)
+  const isLoading = useDashboardStore(state => state.isLoading)
+  const isFiltering = useDashboardStore(state => state.isFiltering)
+  
+  // Datos legacy como fallback - asegurar que siempre sean arrays
+  const organizations = Array.isArray(data?.organizations) ? data.organizations : []
+  const repositories = Array.isArray(data?.repositories) ? data.repositories : []
+  const users = Array.isArray(data?.users) ? data.users : []
 
-  // Filtrar datos según selección actual
-  const filteredRepos = useMemo(() => {
-    let filtered = repositories
-
-    if (selectedOrg) {
-      filtered = filtered.filter(repo => 
-        repo.owner?.login === selectedOrg ||
-        repo.organization?.login === selectedOrg
-      )
+  // SIMPLIFICADO: Usar directamente datos del backend (ya filtrados si hay filtros activos)
+  // No necesitamos combinar pools ni filtrar localmente
+  const chartRepos = useMemo(() => {
+    if (charts?.repositories) {
+      if (Array.isArray(charts.repositories)) {
+        return charts.repositories
+      }
+      // Combinar todas las métricas en un pool único
+      const allRepos = new Map()
+      const keys = ['byStars', 'byForks', 'byCollaborators']
+      keys.forEach(key => {
+        const list = charts.repositories[key] || []
+        list.forEach(r => allRepos.set(r.full_name || r.id, r))
+      })
+      return Array.from(allRepos.values())
     }
+    return repositories
+  }, [charts?.repositories, repositories])
 
-    if (selectedLanguage) {
-      filtered = filtered.filter(repo => 
-        repo.primary_language?.name === selectedLanguage ||
-        repo.language === selectedLanguage
-      )
+  const chartUsers = useMemo(() => {
+    return Array.isArray(charts?.users) ? charts.users : users
+  }, [charts?.users, users])
+
+  // Obtener info del repo seleccionado para mostrar su lenguaje
+  const selectedRepoInfo = useMemo(() => {
+    if (!selectedRepo) return null
+    // Buscar en todos los repos disponibles
+    const allRepos = chartRepos
+    const repo = allRepos.find(r => r.full_name === selectedRepo)
+    if (repo) {
+      return {
+        name: repo.name || repo.full_name,
+        language: repo.primary_language?.name || repo.primary_language || 'No especificado'
+      }
     }
+    return { name: selectedRepo.split('/')[1] || selectedRepo, language: 'No especificado' }
+  }, [selectedRepo, chartRepos])
 
-    return filtered
-  }, [repositories, selectedOrg, selectedLanguage])
-
-  const filteredUsers = useMemo(() => {
-    let filtered = users
-
-    if (selectedOrg) {
-      filtered = filtered.filter(user => 
-        user.company === selectedOrg ||
-        user.organizations?.includes(selectedOrg)
-      )
+  // Ref para evitar doble carga inicial
+  // Refs para controlar cuándo recargar
+  const initialLoadRef = useRef(true)
+  const prevCollabTypeRef = useRef(collabType)
+  const prevIncludeBotsRef = useRef(includeBots)
+  
+  // Efecto para recargar colaboradores cuando cambia el tipo de colaborador o bots
+  // SOLO se dispara cuando cambia collabType o includeBots, NO cuando cambian filtros globales
+  useEffect(() => {
+    // Skip en la carga inicial (los datos ya vienen del store)
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false
+      prevCollabTypeRef.current = collabType
+      prevIncludeBotsRef.current = includeBots
+      return
     }
+    
+    // Solo recargar si realmente cambió collabType o includeBots
+    const collabTypeChanged = prevCollabTypeRef.current !== collabType
+    const includeBotsChanged = prevIncludeBotsRef.current !== includeBots
+    
+    if (!collabTypeChanged && !includeBotsChanged) {
+      return
+    }
+    
+    prevCollabTypeRef.current = collabType
+    prevIncludeBotsRef.current = includeBots
+    
+    const loadFilteredCollaborators = async () => {
+      setIsUpdatingUsers(true)
+      try {
+        const { getDashboardStats } = await import('../../services/api')
+        const filters = {}
+        
+        // Solo añadir collabType si no es 'all'
+        if (collabType !== 'all') {
+          filters.collabType = collabType
+        }
+        
+        // Añadir filtro de bots
+        filters.includeBots = includeBots
+        
+        // Añadir filtros activos
+        if (selectedRepo) filters.repo = selectedRepo
+        if (selectedOrg) filters.org = selectedOrg
+        if (selectedLanguage) filters.language = selectedLanguage
+        
+        const stats = await getDashboardStats(false, filters)
+        
+        // Actualizar solo los usuarios
+        useDashboardStore.setState(state => ({
+          charts: {
+            ...state.charts,
+            users: stats.charts?.users || []
+          }
+        }))
+      } catch (error) {
+        console.warn('Error cargando colaboradores filtrados:', error)
+      } finally {
+        setIsUpdatingUsers(false)
+      }
+    }
+    
+    loadFilteredCollaborators()
+  }, [collabType, includeBots, selectedRepo, selectedOrg, selectedLanguage])
 
-    return filtered
-  }, [users, selectedOrg])
+  // Reset collabType cuando se deselecciona el repo (sin disparar nueva llamada API)
+  useEffect(() => {
+    if (!selectedRepo && collabType !== 'all') {
+      // Actualizar el ref primero para evitar que el efecto anterior dispare una llamada
+      prevCollabTypeRef.current = 'all'
+      setCollabType('all')
+    }
+  }, [selectedRepo, collabType])
 
   // GRÁFICO 1: Top Organizaciones por número de repos
+  // Usa datos pre-calculados si están disponibles
   const orgData = useMemo(() => {
+    // Si tenemos datos pre-calculados del backend, usarlos directamente
+    if (charts?.organizations?.length > 0) {
+      return charts.organizations.map(org => ({
+        name: org.login,
+        repositories: org.quantum_repositories_count || 0,
+        stars: org.total_stars || 0,
+        isSelected: selectedOrg === org.login,
+      }))
+    }
+    
+    // Fallback: calcular desde datos raw (solo con mockData o pocos datos)
     return organizations.map(org => {
       const orgRepos = repositories.filter(r => 
         r.owner?.login === org.login || r.organization?.login === org.login
@@ -273,57 +383,128 @@ export default function ChartsSection({ data }) {
     })
     .sort((a, b) => b.repositories - a.repositories)
     .slice(0, 10)
-  }, [organizations, repositories, selectedOrg])
+  }, [charts?.organizations, organizations, repositories, selectedOrg])
 
   // GRÁFICO 2: Top Repos (por métrica seleccionada)
   const repoData = useMemo(() => {
     const metricLabels = {
       stargazer_count: 'Estrellas',
-      forks_count: 'Forks',
-      contributors: 'Contribuidores',
+      fork_count: 'Forks',
+      collaborators_count: 'Contribuidores',
+    }
+    
+    // Mapeo de métrica a clave del backend
+    const metricToKey = {
+      stargazer_count: 'byStars',
+      fork_count: 'byForks',
+      collaborators_count: 'byCollaborators',
+    }
+    
+    // SIMPLIFICADO: El backend ya devuelve datos filtrados
+    // Solo elegimos la métrica correcta
+    let sourceRepos = []
+    
+    if (charts?.repositories) {
+      if (Array.isArray(charts.repositories)) {
+        sourceRepos = charts.repositories
+      } else {
+        sourceRepos = charts.repositories[metricToKey[repoMetric]] || []
+      }
+    }
+    
+    // Fallback si no hay datos
+    if (sourceRepos.length === 0) {
+      sourceRepos = chartRepos
     }
 
-    return filteredRepos
+    return sourceRepos
       .map(repo => ({
-        name: repo.name.length > 15 ? repo.name.slice(0, 15) + '...' : repo.name,
+        name: (repo.name || '').length > 15 ? repo.name.slice(0, 15) + '...' : (repo.name || ''),
         fullName: repo.full_name,
         [metricLabels[repoMetric]]: repo[repoMetric] || 0,
         isSelected: selectedRepo === repo.full_name,
       }))
       .sort((a, b) => b[metricLabels[repoMetric]] - a[metricLabels[repoMetric]])
       .slice(0, 10)
-  }, [filteredRepos, repoMetric, selectedRepo])
+  }, [charts?.repositories, chartRepos, repoMetric, selectedRepo])
 
-  // GRÁFICO 3: Top Usuarios por commits y followers
+  // GRÁFICO 3: Top Usuarios por score de colaboración (contribuciones × diversidad de repos)
   const userData = useMemo(() => {
-    return filteredUsers
-      .map(user => ({
-        name: user.login,
-        commits: user.contributions_to_quantum || user.quantum_repos_count || 0,
-        followers: user.followers || 0,
-      }))
-      .sort((a, b) => b.commits - a.commits)
-      .slice(0, 10)
-  }, [filteredUsers])
+    // SIMPLIFICADO: El backend ya devuelve datos filtrados
+    const sourceUsers = Array.isArray(charts?.users) ? charts.users : chartUsers
 
-  // GRÁFICO 4: Distribución de lenguajes
-  const languageData = useMemo(() => {
-    const languageCounts = {}
-    repositories.forEach(repo => {
-      const lang = repo.primary_language?.name || repo.language
-      if (lang) {
-        languageCounts[lang] = (languageCounts[lang] || 0) + 1
+    const usersWithScore = sourceUsers.map(user => {
+      // Soportar múltiples formatos de campos (backend real vs mockData)
+      const contributions = user.total_contributions || 
+        user.contributions_to_quantum || // Campo de mockData
+        (
+          (user.total_commit_contributions || 0) +
+          (user.total_pr_contributions || 0) +
+          (user.total_pr_review_contributions || 0) +
+          (user.total_issue_contributions || 0)
+        )
+      const repos = user.relevant_repos_count || user.quantum_repos_count || 0
+      // Score: raíz cuadrada de (contribuciones × repos) para balancear ambas métricas
+      // Multiplicamos repos por 100 para darle más peso a la diversidad
+      const collaborationScore = Math.round(Math.sqrt(contributions * (repos * 100)))
+      
+      return {
+        name: user.login,
+        score: collaborationScore,
+        contributions,
+        repos,
       }
     })
+    
+    return usersWithScore
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+  }, [charts?.users, chartUsers])
 
-    return Object.entries(languageCounts)
-      .map(([name, value]) => ({
-        name,
-        value,
-      }))
-      .sort((a, b) => b.value - a.value)
-  }, [repositories])
+  // GRÁFICO 4: Distribución de lenguajes (Top 6 + "Otros")
+  // Guardamos también los lenguajes que componen "Otros" para el tooltip
+  const { languageData, othersLanguages } = useMemo(() => {
+    let allLanguages = []
+    
+    // Si tenemos datos pre-calculados, usarlos directamente
+    if (charts?.languageDistribution?.length > 0) {
+      allLanguages = charts.languageDistribution
+    } else {
+      // Fallback: calcular desde datos raw
+      const languageCounts = {}
+      repositories.forEach(repo => {
+        const lang = repo.primary_language?.name || repo.language
+        if (lang) {
+          languageCounts[lang] = (languageCounts[lang] || 0) + 1
+        }
+      })
 
+      allLanguages = Object.entries(languageCounts)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+    }
+    
+    // Limitar a top 6 y agrupar el resto en "Otros"
+    const TOP_N = 6
+    if (allLanguages.length <= TOP_N) {
+      return { languageData: allLanguages, othersLanguages: [] }
+    }
+    
+    const topLanguages = allLanguages.slice(0, TOP_N)
+    const others = allLanguages.slice(TOP_N)
+    const othersValue = others.reduce((sum, lang) => sum + lang.value, 0)
+    
+    return {
+      languageData: [
+        ...topLanguages,
+        { name: 'Otros', value: othersValue }
+      ],
+      othersLanguages: others // Guardamos para mostrar en tooltip
+    }
+  }, [charts?.languageDistribution, repositories])
+
+  // Colores para PieChart: 6 colores principales + gris para "Otros"
+  const PIE_COLORS = ['#00D4E4', '#9D6FDB', '#F97316', '#3B82F6', '#EC4899', '#22C55E', '#6B7280']
   const CHART_COLORS = ['#00D4E4', '#9D6FDB', '#F97316', '#3B82F6', '#EC4899']
 
   // Verificar si hay algún sector/barra seleccionado
@@ -436,7 +617,18 @@ export default function ChartsSection({ data }) {
   }
 
   const handleLanguageClick = (entry, index) => {
-    if (entry && entry.name) setFilter('language', entry.name)
+    if (entry && entry.name) {
+      if (entry.name === 'Otros') {
+        setShowOthersPanel(true) // Abrir panel de lenguajes agrupados
+      } else {
+        setFilter('language', entry.name)
+      }
+    }
+  }
+  
+  const handleOthersLanguageSelect = (langName) => {
+    setFilter('language', langName)
+    setShowOthersPanel(false)
   }
 
   // Custom tooltip — estilo medición cuántica
@@ -453,6 +645,69 @@ export default function ChartsSection({ data }) {
             </p>
           ))}
           <span className={styles.tooltipFooter}>medición colapsada</span>
+        </div>
+      )
+    }
+    return null
+  }
+  
+  // Tooltip especial para Colaboradores con información detallada
+  const CollaboratorTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div className={styles.customTooltip}>
+          <p className={styles.tooltipLabel}>
+            <span className={styles.tooltipMeasure}>👤</span> {data.name}
+          </p>
+          <div className={styles.tooltipStats}>
+            <p><span style={{color: '#00D4E4'}}>Score:</span> <strong>{data.score.toLocaleString()}</strong></p>
+            <p><span style={{color: '#9D6FDB'}}>Contribuciones:</span> <strong>{data.contributions.toLocaleString()}</strong></p>
+            <p><span style={{color: '#F97316'}}>Repos:</span> <strong>{data.repos}</strong></p>
+          </div>
+          <span className={styles.tooltipFooter}>
+            Score = √(contribuciones × repos × 100)
+          </span>
+        </div>
+      )
+    }
+    return null
+  }
+
+  // Tooltip especial para PieChart que muestra detalle de "Otros"
+  const PieTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const entry = payload[0]
+      const isOtros = entry.name === 'Otros'
+      
+      return (
+        <div className={styles.customTooltip}>
+          <p className={styles.tooltipLabel}>
+            <span className={styles.tooltipMeasure}>⊕</span> {entry.name}
+          </p>
+          <p style={{ color: entry.payload.fill }}>
+            ⟨repos| = <strong>{entry.value.toLocaleString()}</strong>
+          </p>
+          {isOtros && othersLanguages.length > 0 && (
+            <div className={styles.tooltipOthers}>
+              <p className={styles.tooltipOthersTitle}>Incluye:</p>
+              <div className={styles.tooltipOthersList}>
+                {othersLanguages.slice(0, 10).map((lang, i) => (
+                  <span key={i} className={styles.tooltipOthersItem}>
+                    {lang.name}: {lang.value}
+                  </span>
+                ))}
+                {othersLanguages.length > 10 && (
+                  <span className={styles.tooltipOthersMore}>
+                    +{othersLanguages.length - 10} más...
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          <span className={styles.tooltipFooter}>
+            {isOtros ? `${othersLanguages.length} lenguajes agrupados` : 'click para filtrar'}
+          </span>
         </div>
       )
     }
@@ -475,29 +730,37 @@ export default function ChartsSection({ data }) {
           />
         </div>
         <p className={styles.chartSubtitle}>Por número de repositorios</p>
-        {orgChartVisible ? (
-          <div ref={orgBarContainerRef}>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={orgData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-              <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <Tooltip content={<CustomTooltip />} cursor={false} />
-              <Bar 
-                dataKey="repositories" 
-                fill="#00D4E4"
-                onClick={handleOrgClick}
-                cursor="pointer"
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={!hasAnimatedOrgBars}
-                animationBegin={200}
-                animationDuration={800}
-                animationEasing="ease-out"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-          </div>
-        ) : null}
+        <div className={styles.chartContainer}>
+          {isFiltering && (
+            <div className={styles.chartLoadingOverlay}>
+              <div className={styles.chartLoadingSpinner}></div>
+              <span>Actualizando...</span>
+            </div>
+          )}
+          {orgChartVisible ? (
+            <div ref={orgBarContainerRef}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={orgData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
+                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Bar 
+                  dataKey="repositories" 
+                  fill="#00D4E4"
+                  onClick={handleOrgClick}
+                  cursor="pointer"
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={true}
+                  animationBegin={hasAnimatedOrgBars ? 0 : 200}
+                  animationDuration={hasAnimatedOrgBars ? 300 : 800}
+                  animationEasing="ease-out"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* GRÁFICO 2: Top Repositorios */}
@@ -526,19 +789,19 @@ export default function ChartsSection({ data }) {
               }}
             >
               <span className={styles.metricDropdownIcon}>
-                {repoMetric === 'stargazer_count' && '⭐'}
-                {repoMetric === 'forks_count' && '🔱'}
-                {repoMetric === 'contributors' && '👥'}
+                {repoMetric === 'stargazer_count' && <FiStar size={14} />}
+                {repoMetric === 'fork_count' && <FiGitBranch size={14} />}
+                {repoMetric === 'collaborators_count' && <FiUserCheck size={14} />}
               </span>
-              <span>{repoMetric === 'stargazer_count' ? 'Estrellas' : repoMetric === 'forks_count' ? 'Forks' : 'Contribuidores'}</span>
+              <span>{repoMetric === 'stargazer_count' ? 'Estrellas' : repoMetric === 'fork_count' ? 'Forks' : 'Contribuidores'}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isMetricDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
             {isMetricDropdownOpen && (
               <div className={styles.metricDropdownMenu}>
                 {[
-                  { value: 'stargazer_count', label: 'Estrellas', icon: '⭐' },
-                  { value: 'forks_count', label: 'Forks', icon: '🔱' },
-                  { value: 'contributors', label: 'Contribuidores', icon: '👥' },
+                  { value: 'stargazer_count', label: 'Estrellas', Icon: FiStar },
+                  { value: 'fork_count', label: 'Forks', Icon: FiGitBranch },
+                  { value: 'collaborators_count', label: 'Contribuidores', Icon: FiUserCheck },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -549,7 +812,7 @@ export default function ChartsSection({ data }) {
                       setIsMetricDropdownOpen(false)
                     }}
                   >
-                    <span className={styles.metricDropdownItemIcon}>{opt.icon}</span>
+                    <span className={styles.metricDropdownItemIcon}><opt.Icon size={14} /></span>
                     <span>{opt.label}</span>
                     {repoMetric === opt.value && <span className={styles.metricDropdownCheck}>✓</span>}
                   </button>
@@ -558,29 +821,37 @@ export default function ChartsSection({ data }) {
             )}
           </div>
         </div>
-        {repoChartVisible ? (
-          <div ref={repoBarContainerRef}>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={repoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-              <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <Tooltip content={<CustomTooltip />} cursor={false} />
-              <Bar 
-                dataKey={Object.keys(repoData[0] || {}).find(k => !['name', 'fullName', 'isSelected'].includes(k))}
-                fill="#9D6FDB"
-                onClick={handleRepoClick}
-                cursor="pointer"
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={true}
-                animationBegin={0}
-                animationDuration={600}
-                animationEasing="ease-in-out"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-          </div>
-        ) : null}
+        <div className={styles.chartContainer}>
+          {isFiltering && (
+            <div className={styles.chartLoadingOverlay}>
+              <div className={styles.chartLoadingSpinner}></div>
+              <span>Actualizando...</span>
+            </div>
+          )}
+          {repoChartVisible ? (
+            <div ref={repoBarContainerRef}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={repoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
+                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Bar 
+                  dataKey={Object.keys(repoData[0] || {}).find(k => !['name', 'fullName', 'isSelected'].includes(k))}
+                  fill="#9D6FDB"
+                  onClick={handleRepoClick}
+                  cursor="pointer"
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={true}
+                  animationBegin={0}
+                  animationDuration={600}
+                  animationEasing="ease-in-out"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* GRÁFICO 3: Top Usuarios */}
@@ -588,25 +859,98 @@ export default function ChartsSection({ data }) {
         ref={userChartRef}
         className={`${styles.chartCard} ${styles.scrollReveal} ${userChartVisible ? styles.scrollRevealed : ''}`}
       >
-        <h3 className={styles.chartTitle}>👥 Top Contribuidores</h3>
-        <p className={styles.chartSubtitle}>Por commits y seguidores</p>
-        {userChartVisible ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-              <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <Tooltip content={<CustomTooltip />} cursor={false} />
-              <Legend />
-              <Bar dataKey="commits" fill="#F97316" radius={[4, 4, 0, 0]} name="Commits"
-                isAnimationActive={true} animationBegin={0} animationDuration={600} animationEasing="ease-in-out"
-              />
-              <Bar dataKey="followers" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Seguidores"
-                isAnimationActive={true} animationBegin={0} animationDuration={600} animationEasing="ease-in-out"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : null}
+        <div className={styles.titleRow}>
+          <h3 className={styles.chartTitle}>
+            <FiUsers className={styles.chartTitleIcon} /> Top Contribuidores
+          </h3>
+        </div>
+        
+        {/* Selector de tipo de colaborador - siempre visible */}
+        <div className={styles.subtitleRow}>
+          <p className={styles.chartSubtitleInline}>Mostrar</p>
+          <div className={styles.metricDropdown} ref={collabDropdownRef}>
+            <button
+              className={styles.metricDropdownTrigger}
+              onClick={() => setIsCollabDropdownOpen(prev => !prev)}
+              onBlur={(e) => {
+                if (!collabDropdownRef.current?.contains(e.relatedTarget)) {
+                  setIsCollabDropdownOpen(false)
+                }
+              }}
+            >
+              <span className={styles.metricDropdownIcon}>
+                {collabType === 'all' && <FiUsers size={14} />}
+                {collabType === 'contributors' && <FiCode size={14} />}
+                {collabType === 'reviewers' && <FiEye size={14} />}
+              </span>
+              <span>
+                {collabType === 'all' && 'Todos'}
+                {collabType === 'contributors' && 'Con commits'}
+                {collabType === 'reviewers' && 'Reviewers'}
+              </span>
+              <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isCollabDropdownOpen ? styles.chevronOpen : ''}`} />
+            </button>
+            {isCollabDropdownOpen && (
+              <div className={styles.metricDropdownMenu}>
+                {[
+                  { value: 'all', label: 'Todos', Icon: FiUsers, desc: 'Contributors + Reviewers' },
+                  { value: 'contributors', label: 'Con commits', Icon: FiCode, desc: 'Han contribuido código' },
+                  { value: 'reviewers', label: 'Reviewers', Icon: FiEye, desc: 'Solo revisan/triage' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`${styles.metricDropdownItem} ${collabType === opt.value ? styles.metricDropdownItemActive : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setCollabType(opt.value)
+                      setIsCollabDropdownOpen(false)
+                    }}
+                    title={opt.desc}
+                  >
+                    <span className={styles.metricDropdownItemIcon}><opt.Icon size={14} /></span>
+                    <span>{opt.label}</span>
+                    {collabType === opt.value && <span className={styles.metricDropdownCheck}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Toggle para incluir bots */}
+          <label className={`${styles.botToggle} ${includeBots ? styles.botToggleActive : ''}`} title="Incluir cuentas de bots como dependabot, github-actions, etc.">
+            <input
+              type="checkbox"
+              checked={includeBots}
+              onChange={(e) => setIncludeBots(e.target.checked)}
+            />
+            <span className={styles.botToggleSwitch}></span>
+            <span className={styles.botToggleLabel}>Incluir bots</span>
+          </label>
+        </div>
+        
+        <div className={styles.chartContainer}>
+          {/* Overlay de carga */}
+          {(isUpdatingUsers || isFiltering) && (
+            <div className={styles.chartLoadingOverlay}>
+              <div className={styles.chartLoadingSpinner}></div>
+              <span>Actualizando...</span>
+            </div>
+          )}
+          
+          {userChartVisible ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
+                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <Tooltip content={<CollaboratorTooltip />} cursor={false} />
+                <Bar dataKey="score" fill="#00D4E4" radius={[4, 4, 0, 0]} name="Score Colaboración"
+                  isAnimationActive={true} animationBegin={0} animationDuration={600} animationEasing="ease-in-out"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : null}
+        </div>
       </div>
 
       {/* GRÁFICO 4: Distribución de Lenguajes */}
@@ -622,8 +966,40 @@ export default function ChartsSection({ data }) {
             onClear={() => setFilter('language', selectedLanguage)}
           />
         </div>
-        <p className={styles.chartSubtitle}>Haz click en un segmento para filtrar</p>
-        {pieChartVisible ? (
+        
+        {/* Si hay repo seleccionado, mostrar mensaje en vez del gráfico */}
+        {selectedRepo ? (
+          <div className={styles.repoLanguageMessage}>
+            <div className={styles.repoLanguageIcon}>
+              <FiPackage size={48} />
+            </div>
+            <p className={styles.repoLanguageText}>
+              <strong>{selectedRepoInfo?.name}</strong> utiliza
+            </p>
+            <div className={styles.repoLanguageBadge}>
+              {selectedRepoInfo?.language}
+            </div>
+            <p className={styles.repoLanguageHint}>
+              Para ver la distribución completa de lenguajes, elimina el filtro de repositorio
+            </p>
+            <button 
+              className={styles.repoLanguageButton}
+              onClick={() => setFilter('repo', selectedRepo)}
+            >
+              Quitar filtro de repo
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className={styles.chartSubtitle}>Haz click en un segmento para filtrar</p>
+            <div className={styles.chartContainer}>
+              {isFiltering && (
+                <div className={styles.chartLoadingOverlay}>
+                  <div className={styles.chartLoadingSpinner}></div>
+                  <span>Actualizando...</span>
+                </div>
+              )}
+              {pieChartVisible ? (
         <div ref={pieContainerRef}>
         <ResponsiveContainer width="100%" height={350}>
           <PieChart>
@@ -639,46 +1015,80 @@ export default function ChartsSection({ data }) {
               onMouseLeave={() => setHoveredPieIndex(null)}
               cursor="pointer"
               isAnimationActive={!hasAnimatedPie}
-              animationBegin={200}
+              animationBegin={0}
               animationDuration={800}
               animationEasing="ease-out"
-              label={({ name, value, cx, cy, midAngle, outerRadius }) => {
+              label={({ name, value, cx, cy, midAngle, outerRadius, index }) => {
                 const RADIAN = Math.PI / 180
                 const radius = outerRadius + 25
                 const x = cx + radius * Math.cos(-midAngle * RADIAN)
                 const y = cy + radius * Math.sin(-midAngle * RADIAN)
                 return (
                   <text
+                    key={`pie-label-${index}-${name}`}
                     x={x}
                     y={y}
                     fill="#9ca3af"
                     textAnchor={x > cx ? 'start' : 'end'}
                     dominantBaseline="central"
-                    style={{ fontSize: '12px', fontWeight: 500 }}
+                    style={{ fontSize: '12px', fontWeight: 500, pointerEvents: 'none' }}
                   >
                     {`${name} (${value})`}
                   </text>
                 )
               }}
-              labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1 }}
+              labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1, pointerEvents: 'none' }}
             >
               {languageData.map((entry, index) => (
                 <Cell 
                   key={`cell-${index}`}
-                  fill={CHART_COLORS[index % CHART_COLORS.length]}
+                  fill={PIE_COLORS[index % PIE_COLORS.length]}
                   stroke="rgba(15, 20, 25, 0.6)"
                   strokeWidth={1}
+                  style={{ cursor: 'pointer' }}
                 />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<PieTooltip />} />
           </PieChart>
         </ResponsiveContainer>
         </div>
-        ) : (
-          <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+              ) : (
+                <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+                </div>
+              )}
+            </div>
+        
+        {/* Panel expandible para "Otros" lenguajes */}
+        {showOthersPanel && othersLanguages.length > 0 && (
+          <div className={styles.othersPanel}>
+            <div className={styles.othersPanelHeader}>
+              <h4 className={styles.othersPanelTitle}>🔬 Otros Lenguajes ({othersLanguages.length})</h4>
+              <button 
+                className={styles.othersPanelClose}
+                onClick={() => setShowOthersPanel(false)}
+                aria-label="Cerrar panel"
+              >
+                ✕
+              </button>
+            </div>
+            <p className={styles.othersPanelSubtitle}>Click en un lenguaje para filtrar</p>
+            <div className={styles.othersPanelGrid}>
+              {othersLanguages.map((lang, index) => (
+                <button
+                  key={lang.name}
+                  className={styles.othersPanelItem}
+                  onClick={() => handleOthersLanguageSelect(lang.name)}
+                >
+                  <span className={styles.othersPanelLang}>{lang.name}</span>
+                  <span className={styles.othersPanelCount}>{lang.value}</span>
+                </button>
+              ))}
+            </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </section>

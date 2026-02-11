@@ -27,7 +27,7 @@ function generateCircularGraphData(data, selectedOrg, selectedLanguage) {
     const matchesLang = !selectedLanguage || repo.primary_language?.name === selectedLanguage || repo.language === selectedLanguage
     return matchesOrg && matchesLang
   })
-  const filteredUsers = selectedOrg ? users.filter(user => user.company === selectedOrg || user.organizations?.includes(selectedOrg)) : users
+  const filteredUsers = selectedOrg ? users.filter(user => user.company === selectedOrg || user.organizations?.some(org => (typeof org === 'string' ? org : org?.login) === selectedOrg)) : users
 
   filteredOrgs.forEach(org => {
     nodes.push({
@@ -70,7 +70,8 @@ function generateCircularGraphData(data, selectedOrg, selectedLanguage) {
     nodes.push(node)
     nodeMap.set(node.id, node)
     if (user.organizations && Array.isArray(user.organizations)) {
-      user.organizations.forEach(orgName => {
+      user.organizations.forEach(org => {
+        const orgName = typeof org === 'string' ? org : (org?.login || org?.name || '')
         const orgId = `org_${orgName}`
         if (nodeMap.has(orgId)) links.push({ source: node.id, target: orgId })
       })

@@ -174,18 +174,21 @@ function TopUsersTable({ users }) {
                   </td>
                   <td>
                     <div className={styles.orgList}>
-                      {user.organizations?.slice(0, 2).map(org => (
-                        <span 
-                          key={org}
-                          className={styles.orgTag}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setFilter('org', org)
-                          }}
-                        >
-                          {org}
-                        </span>
-                      ))}
+                      {user.organizations?.slice(0, 2).map(org => {
+                        const orgName = typeof org === 'string' ? org : (org.login || org.name || '')
+                        return (
+                          <span 
+                            key={orgName}
+                            className={styles.orgTag}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setFilter('org', orgName)
+                            }}
+                          >
+                            {orgName}
+                          </span>
+                        )
+                      })}
                       {user.organizations?.length > 2 && (
                         <span className={styles.moreOrgs}>+{user.organizations.length - 2}</span>
                       )}
@@ -203,11 +206,22 @@ function TopUsersTable({ users }) {
 
 /**
  * Componente principal - Grid de 2 tablas lado a lado
+ * 
+ * OPTIMIZADO: Usa datos pre-calculados del backend cuando no hay filtros.
  */
 export default function DetailTable() {
-  const { data, selectedOrg, selectedLanguage, selectedRepo } = useDashboardStore()
+  const { data, selectedOrg, selectedLanguage, selectedRepo, tables } = useDashboardStore()
+  
+  // Verificar si hay filtros activos
+  const hasFilters = selectedOrg || selectedLanguage || selectedRepo
 
   const filteredRepos = useMemo(() => {
+    // Si no hay filtros y tenemos tablas pre-calculadas, usarlas
+    if (!hasFilters && tables?.repositories?.length > 0) {
+      return tables.repositories
+    }
+    
+    // Con filtros: calcular desde data
     let filtered = data.repositories
 
     if (selectedOrg) {
@@ -229,15 +243,21 @@ export default function DetailTable() {
     }
 
     return filtered
-  }, [data.repositories, selectedOrg, selectedLanguage, selectedRepo])
+  }, [data.repositories, selectedOrg, selectedLanguage, selectedRepo, hasFilters, tables?.repositories])
 
   const filteredUsers = useMemo(() => {
+    // Si no hay filtros y tenemos tablas pre-calculadas, usarlas
+    if (!hasFilters && tables?.users?.length > 0) {
+      return tables.users
+    }
+    
+    // Con filtros: calcular desde data
     let filtered = data.users
 
     if (selectedOrg) {
       filtered = filtered.filter(user => 
         user.company === selectedOrg ||
-        user.organizations?.includes(selectedOrg)
+        user.organizations?.some(org => (typeof org === 'string' ? org : org?.login) === selectedOrg)
       )
     }
 
@@ -252,7 +272,7 @@ export default function DetailTable() {
     return filtered.sort((a, b) => 
       (b.quantum_expertise_score || 0) - (a.quantum_expertise_score || 0)
     )
-  }, [data.users, data.repositories, selectedOrg, selectedRepo])
+  }, [data.users, data.repositories, selectedOrg, selectedRepo, hasFilters, tables?.users])
 
   return (
     <section className={styles.detailSection}>

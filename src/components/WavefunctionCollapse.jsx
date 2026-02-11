@@ -77,6 +77,7 @@ export default function WavefunctionCollapse({ collapsed = false, width = 120, h
           fill="none"
           stroke="url(#waveGrad)"
           strokeWidth="1.5"
+          strokeDasharray="4 2"
           filter="url(#wfGlow)"
           className={styles.wave}
         />

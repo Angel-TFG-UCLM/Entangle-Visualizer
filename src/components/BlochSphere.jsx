@@ -3,16 +3,31 @@
  * ===============================================
  * Representación minimalista de la esfera de Bloch (espacio de estados
  * de un qubit). Decorativa, con órbitas animadas y vector de estado.
+ * 
+ * Props:
+ * - size: Tamaño en píxeles
+ * - collapsed: Si true, el vector de estado colapsa hacia |0⟩ (polo norte)
  */
 
 import styles from './BlochSphere.module.css'
 
-export default function BlochSphere({ size = 120 }) {
+export default function BlochSphere({ size = 120, collapsed = false }) {
   const half = size / 2
   const r = size * 0.38
 
+  // Posición del vector de estado:
+  // - Superposición: diagonal (hacia arriba-derecha)
+  // - Colapsado: apunta al polo norte |0⟩
+  const vectorEndX = collapsed ? half : half + r * 0.55
+  const vectorEndY = collapsed ? half - r : half - r * 0.7
+
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className={styles.blochSphere}>
+    <svg 
+      viewBox={`0 0 ${size} ${size}`} 
+      width={size} 
+      height={size} 
+      className={`${styles.blochSphere} ${collapsed ? styles.collapsed : ''}`}
+    >
       <defs>
         <linearGradient id="blochGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="rgba(0, 212, 228, 0.15)" />
@@ -38,11 +53,23 @@ export default function BlochSphere({ size = 120 }) {
       <text x={half} y={half + r + 16} textAnchor="middle" fill="rgba(157, 111, 219, 0.4)" fontSize="8" fontFamily="var(--font-family-mono)">|1⟩</text>
       
       {/* Vector de estado ψ (flecha del centro hacia la superficie) */}
-      <line x1={half} y1={half} x2={half + r * 0.55} y2={half - r * 0.7} stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.2" className={styles.stateVector} />
-      <circle cx={half + r * 0.55} cy={half - r * 0.7} r="2.5" fill="#00D4E4" filter="url(#blochGlow)" className={styles.statePoint} />
-      
-      {/* Etiqueta |ψ⟩ junto al punto */}
-      <text x={half + r * 0.55 + 8} y={half - r * 0.7 + 3} fill="rgba(0, 212, 228, 0.5)" fontSize="8" fontFamily="var(--font-family-mono)" fontWeight="600">|ψ⟩</text>
+      <line 
+        x1={half} 
+        y1={half} 
+        x2={vectorEndX} 
+        y2={vectorEndY} 
+        stroke={collapsed ? "#00D4E4" : "rgba(0, 212, 228, 0.5)"} 
+        strokeWidth={collapsed ? "1.5" : "1.2"} 
+        className={styles.stateVector} 
+      />
+      <circle 
+        cx={vectorEndX} 
+        cy={vectorEndY} 
+        r={collapsed ? "3.5" : "2.5"} 
+        fill="#00D4E4" 
+        filter="url(#blochGlow)" 
+        className={`${styles.statePoint} ${collapsed ? styles.collapsedPoint : ''}`} 
+      />
 
       {/* Centro */}
       <circle cx={half} cy={half} r="1.5" fill="rgba(255, 255, 255, 0.3)" />

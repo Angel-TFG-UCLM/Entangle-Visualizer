@@ -8,13 +8,14 @@
  * 
  * Decisión arquitectónica: Este componente es el "layout base".
  * Usa Service Layer (api.js) para checkHealth del backend.
- * Los datos visualizados provienen de mockData (integrado via Zustand).
+ * Si el backend está online, carga datos reales desde MongoDB.
+ * Si está offline, usa datos simulados (mockData) como fallback.
  */
 
 import { useEffect, useState } from 'react'
 import { checkHealth } from './services/api'
-import { Server } from 'lucide-react'
-import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa'
+import { Server, RefreshCw } from 'lucide-react'
+import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
@@ -44,7 +45,11 @@ function App() {
   // Datos del ecosistema (con valores por defecto)
   const store = useDashboardStore()
   const data = store.data || { organizations: [], users: [], repositories: [] }
-  const fetchDashboardData = store.fetchDashboardData
+  const loadFullData = store.loadFullData
+  const refreshMetrics = store.refreshMetrics
+
+  // Estado para refresh manual
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   console.log('[App] Store data:', data)
 
@@ -91,17 +96,18 @@ function App() {
           message: healthResult.message,
         })
 
-        // Backend online → Cargar datos reales
+        // Backend online → Cargar métricas pre-calculadas del backend
         if (healthResult.status === 'online') {
           setRetryCount(0)
           
-          // Cargar datos del dashboard desde backend (con caché inteligente)
-          try {
-            await fetchDashboardData()
-            console.log('✅ Dashboard data loaded from backend')
-          } catch (fetchError) {
-            console.warn('⚠️ Backend online pero error al cargar datos:', fetchError)
-            // No bloqueamos la UI, mockData sigue disponible
+          // Una sola llamada carga TODO: KPIs, charts, graph, tables, filters
+          // El backend pre-calcula y cachea las métricas (~0ms si cache hit)
+          const metricsLoaded = await loadFullData()
+          
+          if (metricsLoaded) {
+            console.log('🔬 Usando métricas REALES del backend (pre-calculadas)')
+          } else {
+            console.log('🧪 Usando datos de PRUEBA (mockData)')
           }
           
           // Éxito: mostrar check verde
@@ -238,7 +244,7 @@ function App() {
             {loadingResult === 'error' && 'Error de conexión — Decoherencia detectada'}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
-                {QUANTUM_PHRASES[quantumPhrase]}
+                {isRefreshing ? 'Recalculando métricas...' : QUANTUM_PHRASES[quantumPhrase]}
               </span>
             )}
           </p>
@@ -248,6 +254,47 @@ function App() {
         </div>
       </div>
     )
+  }
+
+  /**
+   * Maneja el refresh manual de métricas
+   * Muestra la pantalla de carga mientras recalcula
+   */
+  async function handleRefreshMetrics() {
+    if (isRefreshing) return // Evitar múltiples clicks
+    
+    setIsRefreshing(true)
+    setIsLoading(true)
+    setLoadingResult(null)
+    setQuantumPhrase(0)
+    
+    try {
+      // Forzar recálculo en el backend
+      await refreshMetrics()
+      
+      setLoadingResult('success')
+      
+      // Esperar un momento para mostrar el éxito
+      setTimeout(() => {
+        setIsExiting(true)
+        setTimeout(() => {
+          setIsLoading(false)
+          setIsExiting(false)
+          setIsRefreshing(false)
+        }, 500)
+      }, 800)
+    } catch (error) {
+      console.error('Error al refrescar métricas:', error)
+      setLoadingResult('error')
+      setTimeout(() => {
+        setIsExiting(true)
+        setTimeout(() => {
+          setIsLoading(false)
+          setIsExiting(false)
+          setIsRefreshing(false)
+        }, 500)
+      }, 1500)
+    }
   }
   
   console.log('[App] Rendering main app - isLoading:', isLoading, 'apiStatus:', apiStatus.status)
@@ -279,20 +326,36 @@ function App() {
             </div>
           </div>
 
-          {/* Indicador de estado del backend — notación cuántica */}
-          <div className={styles.statusBadge} data-status={apiStatus.status}>
-            <span className={styles.statusQubit}>
-              {apiStatus.status === 'online' && '|1⟩'}
-              {apiStatus.status === 'offline' && '|0⟩'}
-              {apiStatus.status === 'checking' && 'α|0⟩+β|1⟩'}
-            </span>
-            <Server size={18} className={styles.statusIcon} />
-            <span className={styles.statusText}>
-              {apiStatus.status === 'checking' && 'Verificando...'}
-              {apiStatus.status === 'online' && 'Backend Online'}
-              {apiStatus.status === 'offline' && 'Backend Offline'}
-            </span>
-            <div className={styles.statusIndicator}></div>
+          {/* Controles del header: refresh + status */}
+          <div className={styles.headerControls}>
+            {/* Botón de refresh métricas */}
+            {apiStatus.status === 'online' && (
+              <button 
+                className={styles.refreshButton}
+                onClick={handleRefreshMetrics}
+                disabled={isRefreshing}
+                title="Recalcular métricas del dashboard"
+              >
+                <RefreshCw size={16} className={isRefreshing ? styles.spinning : ''} />
+                <span>Actualizar</span>
+              </button>
+            )}
+
+            {/* Indicador de estado del backend — notación cuántica */}
+            <div className={styles.statusBadge} data-status={apiStatus.status}>
+              <span className={styles.statusQubit}>
+                {apiStatus.status === 'online' && '|1⟩'}
+                {apiStatus.status === 'offline' && '|0⟩'}
+                {apiStatus.status === 'checking' && 'α|0⟩+β|1⟩'}
+              </span>
+              <Server size={18} className={styles.statusIcon} />
+              <span className={styles.statusText}>
+                {apiStatus.status === 'checking' && 'Verificando...'}
+                {apiStatus.status === 'online' && 'Backend Online'}
+                {apiStatus.status === 'offline' && 'Backend Offline'}
+              </span>
+              <div className={styles.statusIndicator}></div>
+            </div>
           </div>
         </div>
       </header>
@@ -301,7 +364,7 @@ function App() {
       {apiStatus.status === 'offline' && (
         <div className={styles.offlineBanner}>
           <span className={styles.offlinePulse} />
-          <span className={styles.decoherenceText}>⚠️ Decoherencia detectada — Backend offline — Los datos mostrados son <strong>simulados</strong></span>
+          <span className={styles.decoherenceText}><FaExclamationTriangle className={styles.decoherenceIcon} /> Decoherencia detectada - Backend offline - Los datos mostrados son <strong>simulados</strong></span>
         </div>
       )}
 
@@ -311,24 +374,31 @@ function App() {
       {/* MAIN CONTENT */}
       <main className={styles.main}>
         <div className={styles.container}>
-          {/* Mensaje de bienvenida */}
-          <section className={`${styles.hero} ${styles.fadeInStagger2}`}>
-            <h2>Sistema de Análisis de Ecosistemas de Software Cuántico</h2>
-            <p className={styles.heroDescription}>
-              Plataforma de extracción, procesamiento y visualización de datos del ecosistema GitHub.
-              Desarrollado como TFG en la Universidad de Castilla-La Mancha.
-            </p>
-            <div className={styles.heroQuantumRow}>
-              <BlochSphere size={90} />
-              <p className={styles.heroEquation}>iℏ ∂/∂t |ψ(t)⟩ = Ĥ |ψ(t)⟩</p>
-              <BlochSphere size={90} />
+          {/* Hero compacto + KPIs integrados para overview inmediato */}
+          <section className={`${styles.heroCompact} ${styles.fadeInStagger2}`}>
+            <div className={styles.heroHeader}>
+              <div className={styles.heroTitleContainer}>
+                <span className={styles.heroKet}>|</span>
+                <h2 className={styles.heroTitle}>
+                  <span className={styles.heroWord}>Quantum</span>
+                  <span className={styles.heroWord}>Software</span>
+                  <span className={styles.heroWord}>Ecosystem</span>
+                  <span className={styles.heroWord}>Analytics</span>
+                </h2>
+                <span className={styles.heroKet}>⟩</span>
+              </div>
+              <p className={styles.heroSubtitle}>ENTANGLE</p>
             </div>
+            
+            {/* KPIs integrados en el hero para visibilidad inmediata */}
+            <div id="section-kpis" className={styles.heroKPIs}>
+              <KPISection data={data} />
+            </div>
+            
+            <p className={styles.heroFooter}>
+              <span className={styles.heroEquation}>iℏ ∂/∂t |ψ⟩ = Ĥ |ψ⟩</span>
+            </p>
           </section>
-
-          {/* KPIs dinámicos conectados a Zustand */}
-          <div id="section-kpis" className={styles.sectionAnchor}>
-            <KPISection data={data} />
-          </div>
 
           <QuantumDivider />
 
@@ -354,12 +424,14 @@ function App() {
           {/* Mensaje de alerta si el backend está offline */}
           {apiStatus.status === 'offline' && (
             <div className={styles.alertBox}>
-              <div className={styles.alertIcon}>⚠️</div>
+              <div className={styles.alertIconWrapper}>
+                <FaExclamationTriangle className={styles.alertIconSvg} />
+              </div>
               <div className={styles.alertContent}>
-                <h3>Backend no disponible</h3>
-                <p>{apiStatus.message}</p>
+                <h3>Decoherencia del Sistema</h3>
+                <p className={styles.alertError}>{apiStatus.message}</p>
                 <p className={styles.alertHint}>
-                  Mostrando datos de demostración. Verifica que el backend esté corriendo para ver datos reales.
+                  El backend no responde - mostrando datos simulados. Los valores mostrados son de demostración y no reflejan el estado real del ecosistema cuántico.
                 </p>
               </div>
             </div>
@@ -369,48 +441,86 @@ function App() {
 
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
       <footer className={styles.footer}>
-        <div className={styles.footerCircuit}>
-          <svg viewBox="0 0 600 60" className={styles.circuitSvg} preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient id="circuitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="rgba(0, 212, 228, 0)" />
-                <stop offset="20%" stopColor="rgba(0, 212, 228, 0.4)" />
-                <stop offset="50%" stopColor="rgba(157, 111, 219, 0.4)" />
-                <stop offset="80%" stopColor="rgba(0, 212, 228, 0.4)" />
-                <stop offset="100%" stopColor="rgba(0, 212, 228, 0)" />
-              </linearGradient>
-            </defs>
-            {/* Líneas de qubit */}
-            <line x1="50" y1="20" x2="550" y2="20" stroke="url(#circuitGrad)" strokeWidth="1" />
-            <line x1="50" y1="40" x2="550" y2="40" stroke="url(#circuitGrad)" strokeWidth="1" />
-            {/* Etiquetas de qubit */}
-            <text x="30" y="24" fill="rgba(0, 212, 228, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
-            <text x="30" y="44" fill="rgba(157, 111, 219, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
-            {/* Puerta Hadamard */}
-            <rect x="115" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <text x="125" y="24" fill="rgba(0, 212, 228, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
-            {/* CNOT */}
-            <circle cx="200" cy="20" r="6" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <line x1="200" y1="14" x2="200" y2="26" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <line x1="194" y1="20" x2="206" y2="20" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <line x1="200" y1="26" x2="200" y2="40" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1" strokeDasharray="3 2" />
-            <circle cx="200" cy="40" r="4" fill="rgba(157, 111, 219, 0.4)" />
-            {/* Puerta Z */}
-            <rect x="280" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 255, 159, 0.4)" strokeWidth="1" />
-            <text x="290" y="24" fill="rgba(0, 255, 159, 0.6)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">Z</text>
-            {/* Segundo Hadamard */}
-            <rect x="355" y="30" width="20" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1" />
-            <text x="365" y="44" fill="rgba(157, 111, 219, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
-            {/* Medición */}
-            <rect x="440" y="10" width="24" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.4)" strokeWidth="1" />
-            <path d="M 446,26 Q 452,16 458,26" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <line x1="452" y1="20" x2="456" y2="14" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1" />
-            <rect x="440" y="30" width="24" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1" />
-            <path d="M 446,46 Q 452,36 458,46" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1" />
-            <line x1="452" y1="40" x2="456" y2="34" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1" />
+        {/* Separador ondulado */}
+        <div className={styles.footerWave}>
+          <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
+            <path 
+              d="M0,20 Q150,0 300,20 T600,20 T900,20 T1200,20 L1200,40 L0,40 Z" 
+              fill="var(--color-card)"
+            />
           </svg>
         </div>
-        <p>TFG UCLM 2025 · Análisis del Ecosistema de Software Cuántico</p>
+
+        <div className={styles.footerContent}>
+          {/* Circuito cuántico decorativo */}
+          <div className={styles.footerCircuit}>
+            <svg viewBox="0 0 600 60" className={styles.circuitSvg} preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="circuitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(0, 212, 228, 0)" />
+                  <stop offset="20%" stopColor="rgba(0, 212, 228, 0.4)" />
+                  <stop offset="50%" stopColor="rgba(157, 111, 219, 0.4)" />
+                  <stop offset="80%" stopColor="rgba(0, 212, 228, 0.4)" />
+                  <stop offset="100%" stopColor="rgba(0, 212, 228, 0)" />
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              {/* Líneas de qubit */}
+              <line x1="50" y1="20" x2="550" y2="20" stroke="url(#circuitGrad)" strokeWidth="1.5" />
+              <line x1="50" y1="40" x2="550" y2="40" stroke="url(#circuitGrad)" strokeWidth="1.5" />
+              {/* Etiquetas de qubit */}
+              <text x="30" y="24" fill="rgba(0, 212, 228, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
+              <text x="30" y="44" fill="rgba(157, 111, 219, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
+              {/* Puerta Hadamard */}
+              <rect x="115" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" className={styles.gateH} />
+              <text x="125" y="24" fill="rgba(0, 212, 228, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
+              {/* CNOT */}
+              <circle cx="200" cy="20" r="6" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" className={styles.gateCNOT} />
+              <line x1="200" y1="14" x2="200" y2="26" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
+              <line x1="194" y1="20" x2="206" y2="20" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
+              <line x1="200" y1="26" x2="200" y2="40" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1.5" strokeDasharray="3 2" />
+              <circle cx="200" cy="40" r="4" fill="rgba(157, 111, 219, 0.4)" className={styles.gateCNOT} />
+              {/* Puerta Z */}
+              <rect x="280" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 255, 159, 0.4)" strokeWidth="1.5" className={styles.gateZ} />
+              <text x="290" y="24" fill="rgba(0, 255, 159, 0.6)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">Z</text>
+              {/* Segundo Hadamard */}
+              <rect x="355" y="30" width="20" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" className={styles.gateH2} />
+              <text x="365" y="44" fill="rgba(157, 111, 219, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
+              {/* Medición */}
+              <rect x="440" y="10" width="24" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.4)" strokeWidth="1.5" className={styles.gateMeasure} />
+              <path d="M 446,26 Q 452,16 458,26" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
+              <line x1="452" y1="20" x2="456" y2="14" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
+              <rect x="440" y="30" width="24" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1.5" className={styles.gateMeasure} />
+              <path d="M 446,46 Q 452,36 458,46" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" />
+              <line x1="452" y1="40" x2="456" y2="34" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" />
+              {/* Estado final Bell */}
+              <text x="570" y="32" fill="rgba(0, 212, 228, 0.4)" fontSize="9" fontFamily="var(--font-family-mono)" textAnchor="start">|Φ⁺⟩</text>
+            </svg>
+            <p className={styles.circuitLabel}>Circuito de Par de Bell — Estado máximamente entrelazado</p>
+          </div>
+
+          {/* Info del proyecto */}
+          <div className={styles.footerInfo}>
+            <div className={styles.footerBrand}>
+              <span className={styles.footerLogo}>ENTANGLE</span>
+              <span className={styles.footerTagline}>Quantum Software Ecosystem Analytics</span>
+            </div>
+            
+            <div className={styles.footerMeta}>
+              <span className={styles.footerYear}>© 2026</span>
+              <span className={styles.footerDivider}>·</span>
+              <span className={styles.footerProject}>Trabajo Fin de Grado</span>
+              <span className={styles.footerDivider}>·</span>
+              <span className={styles.footerUniversity}>Universidad de Castilla-La Mancha</span>
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   )

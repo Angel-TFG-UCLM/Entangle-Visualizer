@@ -23,13 +23,14 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { Users, Database, Building2 } from 'lucide-react'
 import { useDashboardStore } from '../../store/dashboardStore'
 import WavefunctionCollapse from '../WavefunctionCollapse'
+import BlochSphere from '../BlochSphere'
 import styles from '../../App.module.css'
 
 /**
  * Componente de número animado
  * Cuenta desde 0 al aparecer y transiciona suavemente entre valores
  */
-function AnimatedNumber({ value, duration = 800, visible = true }) {
+function AnimatedNumber({ value, duration = 1500, visible = true }) {
   const [displayValue, setDisplayValue] = useState(0)
   const prevValue = useRef(0)
   const hasAnimatedInitial = useRef(false)
@@ -50,8 +51,8 @@ function AnimatedNumber({ value, duration = 800, visible = true }) {
         const elapsed = Date.now() - startTime
         const progress = Math.min(elapsed / animDuration, 1)
         
-        // Easing function (ease-out cubic)
-        const easeOut = 1 - Math.pow(1 - progress, 3)
+        // Easing function (ease-out expo para más dramatismo)
+        const easeOut = 1 - Math.pow(1 - progress, 4)
         
         const currentValue = Math.round(startValue + (endValue - startValue) * easeOut)
         setDisplayValue(currentValue)
@@ -106,13 +107,16 @@ function useScrollAnimation(threshold = 0.3) {
 /**
  * Componente principal de KPIs
  * 
+ * OPTIMIZADO: Usa KPIs pre-calculados del backend cuando están disponibles.
+ * Solo calcula desde datos raw cuando hay filtros activos o como fallback.
+ * 
  * @param {Object} props
  * @param {Object} props.data - Datos del ecosistema { repositories, users, organizations }
  * @returns {JSX.Element}
  */
 export default function KPISection({ data }) {
-  // Obtener filtros activos del store
-  const { selectedOrg, selectedLanguage, selectedRepo } = useDashboardStore()
+  // Obtener filtros activos y KPIs pre-calculados del store
+  const { selectedOrg, selectedLanguage, selectedRepo, kpis: precomputedKpis } = useDashboardStore()
 
   // Animaciones de scroll para cada tarjeta
   const [reposRef, reposVisible] = useScrollAnimation(0.2)
@@ -123,9 +127,24 @@ export default function KPISection({ data }) {
   const repositories = data?.repositories || []
   const users = data?.users || []
   const organizations = data?.organizations || []
+  
+  // Verificar si hay filtros activos
+  const hasFilters = selectedOrg || selectedLanguage || selectedRepo
 
-  // Calcular stats dinámicas basadas en filtros (con useMemo para optimizar)
+  // Calcular stats: SIEMPRE usar pre-calculados del backend cuando estén disponibles
+  // El backend ya devuelve KPIs filtrados correctamente
   const stats = useMemo(() => {
+    // Si tenemos KPIs pre-calculados del backend, usarlos directamente
+    // El backend ya los calcula considerando los filtros activos
+    if (precomputedKpis && precomputedKpis.totalRepos !== undefined) {
+      return {
+        totalRepos: precomputedKpis.totalRepos,
+        totalUsers: precomputedKpis.totalUsers,
+        totalOrgs: precomputedKpis.totalOrgs,
+      }
+    }
+    
+    // Fallback: calcular desde datos raw solo si no hay KPIs pre-calculados
     // --- Filtrar repositorios ---
     let filteredRepos = repositories
     if (selectedOrg) {
@@ -149,7 +168,7 @@ export default function KPISection({ data }) {
     if (selectedOrg) {
       filteredUsers = filteredUsers.filter(user => 
         user.company === selectedOrg ||
-        user.organizations?.includes(selectedOrg)
+        user.organizations?.some(org => (typeof org === 'string' ? org : org?.login) === selectedOrg)
       )
     }
     if (selectedRepo) {
@@ -192,10 +211,7 @@ export default function KPISection({ data }) {
       totalUsers: filteredUsers.length,
       totalOrgs: filteredOrgs.length,
     }
-  }, [repositories, users, organizations, selectedOrg, selectedLanguage, selectedRepo])
-
-  // Determinar si hay filtros activos (para mostrar badge "Filtered")
-  const hasFilters = selectedOrg || selectedLanguage || selectedRepo
+  }, [repositories, users, organizations, selectedOrg, selectedLanguage, selectedRepo, hasFilters, precomputedKpis])
 
   // Hover state para wavefunction collapse
   const [hoveredCard, setHoveredCard] = useState(null)
@@ -209,6 +225,9 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('repos')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.kpiBlochCorner}>
+          <BlochSphere size={36} collapsed={hoveredCard === 'repos'} />
+        </div>
         <div className={styles.statHeader}>
           <Database className={styles.statIcon} size={32} />
           {hasFilters && (
@@ -221,7 +240,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalRepos} visible={reposVisible} />
           </h3>
-          <p className={styles.statLabel}>Repositorios Analizados</p>
+          <p className={styles.statLabel}>Repositorios</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'repos'} width={90} height={24} />
       </article>
@@ -234,6 +253,9 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('users')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.kpiBlochCorner}>
+          <BlochSphere size={36} collapsed={hoveredCard === 'users'} />
+        </div>
         <div className={styles.statHeader}>
           <Users className={styles.statIcon} size={32} />
           {hasFilters && (
@@ -246,7 +268,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalUsers} visible={usersVisible} />
           </h3>
-          <p className={styles.statLabel}>Usuarios Registrados</p>
+          <p className={styles.statLabel}>Colaboradores</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'users'} width={90} height={24} />
       </article>
@@ -259,6 +281,9 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('orgs')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.kpiBlochCorner}>
+          <BlochSphere size={36} collapsed={hoveredCard === 'orgs'} />
+        </div>
         <div className={styles.statHeader}>
           <Building2 className={styles.statIcon} size={32} />
           {hasFilters && (
@@ -271,7 +296,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalOrgs} visible={orgsVisible} />
           </h3>
-          <p className={styles.statLabel}>Organizaciones Indexadas</p>
+          <p className={styles.statLabel}>Organizaciones</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'orgs'} width={90} height={24} />
       </article>

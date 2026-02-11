@@ -5,12 +5,15 @@
  * Arquitectura: Single Source of Truth para filtros y drill-down interactivo
  * Patrón: Observer Pattern - Los componentes se suscriben a cambios específicos
  * 
+ * IMPORTANTE: El backend pre-calcula todas las métricas y las cachea en MongoDB.
+ * El frontend NO carga todos los documentos raw, sino métricas pre-agregadas.
+ * Esto permite escalar a miles de documentos sin problemas de rendimiento.
+ * 
  * Flujo de Datos:
- * 1. Usuario hace click en elemento (gráfico, tabla, etc.)
- * 2. Se ejecuta setFilter con tipo de filtro y valor
- * 3. Store actualiza estado (con toggle si es el mismo valor)
- * 4. Selectores recalculan datos filtrados automáticamente
- * 5. Componentes suscritos se re-renderizan con nueva data
+ * 1. loadFullData() → GET /dashboard/stats (métricas pre-calculadas)
+ * 2. Backend sirve desde caché MongoDB (~0ms) o recalcula si expiró
+ * 3. Store actualiza: charts, graph, tables, filters, kpis
+ * 4. Componentes renderizan datos ya filtrados/agregados
  * 
  * @module dashboardStore
  */
@@ -22,17 +25,33 @@ import { organizations, users, repositories } from '../data/mockData'
 
 /**
  * Estado inicial del dashboard
- * Representa "sin filtros aplicados" - vista global
+ * Representa "sin filtros aplicados" - vista global con datos mock
  */
 const initialState = {
   selectedOrg: null,        // string | null - login de la organización
   selectedLanguage: null,   // string | null - lenguaje de programación
   selectedRepo: null,       // string | null - full_name del repositorio
+  dataSource: 'mock',       // 'mock' | 'backend' - origen de los datos actuales
+  
+  // Datos legacy (mockData para fallback offline)
   data: {
     organizations,
     users,
     repositories,
   },
+  
+  // Datos pre-calculados del backend (nueva arquitectura)
+  kpis: null,               // { totalRepos, totalUsers, totalOrgs, avgStars, avgExpertise, topLanguage }
+  charts: null,             // { organizations, repositories, users, languageDistribution }
+  graph: null,              // { organizations, repositories, users } - nodos pre-filtrados
+  tables: null,             // { repositories, users } - top 20 para tablas
+  filters: null,            // { organizations, languages } - listas para dropdowns
+  metadata: null,           // { cached, calculatedAt, expiresAt, ageHours }
+  
+  // Estado de carga
+  isLoading: false,
+  isFiltering: false,       // Estado de carga específico para filtros (no resetea animaciones)
+  error: null,
 }
 
 /**
@@ -48,60 +67,106 @@ export const useDashboardStore = create(
       // ============================================================================
       ...initialState,
 
-      // Estado para datos del backend (API real)
-      kpis: null,                     // { totalRepos, totalUsers, totalOrgs }
-      topLanguages: [],               // [{ name, count, percentage }, ...]
-      topOrganizations: [],           // [{ name, repoCount, totalStars }, ...]
-      isLoading: false,               // Estado de carga de fetchDashboardData
-      error: null,                    // Error de la última llamada a API
-      metadata: null,                 // { cached, calculatedAt, expiresAt }
-
       // ============================================================================
       // ACCIONES
       // ============================================================================
 
       /**
-       * Obtiene datos del dashboard desde el backend con caché inteligente
+       * Carga TODOS los datos del dashboard desde el backend (métricas pre-calculadas).
        * 
-       * Flujo:
-       * 1. Llama a api.getDashboardStats() → GET /dashboard/stats
-       * 2. Backend consulta caché MongoDB (24h TTL)
-       * 3. Si caché fresco → respuesta instantánea
-       * 4. Si expirado → recalcula con agregaciones
-       * 5. Actualiza estado del store con los datos
+       * El backend pre-calcula:
+       * - KPIs: totales, promedios
+       * - Charts: top 10 orgs, repos, users + distribución de lenguajes
+       * - Graph: nodos pre-filtrados (15 orgs, 25 repos, 40 users)
+       * - Tables: top 20 repos y users para detalle
+       * - Filters: listas para dropdowns
        * 
-       * @example
-       * const { fetchDashboardData, isLoading } = useDashboardStore()
-       * await fetchDashboardData()
+       * Si el backend está offline, mantiene los mockData como fallback.
+       * 
+       * @param {boolean} forceRefresh - Si true, fuerza recálculo ignorando caché
+       * @returns {Promise<boolean>} true si se cargaron datos reales, false si se mantienen mock
        */
-      fetchDashboardData: async () => {
-        set({ isLoading: true, error: null }, false, 'fetchDashboardData/start')
+      loadFullData: async (forceRefresh = false) => {
+        set({ isLoading: true, error: null }, false, 'loadFullData/start')
         
         try {
           const { getDashboardStats } = await import('../services/api')
-          const data = await getDashboardStats()
+          const stats = await getDashboardStats(forceRefresh)
           
-          // Actualizar estado con datos del backend
+          // Normalizar users en graph y tables: organizations puede venir como objetos
+          const normalizeUserOrgs = (users) => {
+            if (!Array.isArray(users)) return []
+            return users.map(user => ({
+              ...user,
+              organizations: Array.isArray(user.organizations)
+                ? user.organizations.map(org => typeof org === 'string' ? org : (org?.login || org?.name || ''))
+                : [],
+            }))
+          }
+          
+          // Preparar datos para el store
+          const graphData = stats.graph ? {
+            organizations: stats.graph.organizations || [],
+            repositories: stats.graph.repositories || [],
+            users: normalizeUserOrgs(stats.graph.users),
+          } : null
+          
+          const tablesData = stats.tables ? {
+            repositories: stats.tables.repositories || [],
+            users: normalizeUserOrgs(stats.tables.users),
+          } : null
+          
+          // También actualizar data legacy para compatibilidad con componentes existentes
+          // Usamos los datos de graph como "data" para que los componentes funcionen
+          const legacyData = {
+            organizations: stats.graph?.organizations || stats.charts?.organizations || [],
+            users: normalizeUserOrgs(stats.graph?.users || stats.charts?.users || []),
+            repositories: stats.graph?.repositories || stats.charts?.repositories || [],
+          }
+          
           set({
-            kpis: data.kpis,
-            topLanguages: data.topLanguages || [],
-            topOrganizations: data.topOrganizations || [],
-            metadata: data.metadata,
+            kpis: stats.kpis,
+            charts: stats.charts,
+            graph: graphData,
+            tables: tablesData,
+            filters: stats.filters,
+            metadata: stats.metadata,
+            data: legacyData,
+            dataSource: 'backend',
             isLoading: false,
-            error: null
-          }, false, 'fetchDashboardData/success')
+            error: null,
+          }, false, 'loadFullData/success')
           
-          return data
+          console.log(`✅ Métricas cargadas: ${stats.kpis?.totalRepos} repos, ${stats.kpis?.totalUsers} users, ${stats.kpis?.totalOrgs} orgs`)
+          console.log(`   📊 Charts: ${stats.charts?.organizations?.length} orgs, ${stats.charts?.repositories?.length} repos`)
+          console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
+          
+          return true
         } catch (error) {
-          console.error('[fetchDashboardData] Error:', error)
-          
+          console.warn('⚠️ Error al cargar métricas del backend, manteniendo mockData:', error.message)
           set({
             isLoading: false,
-            error: error.message || 'Error al cargar datos del dashboard'
-          }, false, 'fetchDashboardData/error')
-          
-          throw error
+            error: error.message,
+            dataSource: 'mock',
+          }, false, 'loadFullData/error')
+          return false
         }
+      },
+
+      /**
+       * Refresca las métricas forzando recálculo en el backend.
+       * Útil después de ingestas/enriquecimientos.
+       */
+      refreshMetrics: async () => {
+        return get().loadFullData(true)
+      },
+
+      /**
+       * Legacy: fetchDashboardData - Mantener por compatibilidad
+       * Ahora simplemente llama a loadFullData
+       */
+      fetchDashboardData: async () => {
+        return get().loadFullData(false)
       },
 
       /**
@@ -122,38 +187,116 @@ export const useDashboardStore = create(
        * // Hacer click de nuevo en IBM -> toggle off (limpiar filtro)
        * setFilter('org', 'IBM') // selectedOrg vuelve a null
        */
-      setFilter: (filterType, value) => {
-        set((state) => {
-          const currentValue = state[`selected${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`]
+      setFilter: async (filterType, value) => {
+        const state = get()
+        const currentValue = state[`selected${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`]
+        
+        // Toggle: Si se selecciona el mismo valor, limpiar
+        const shouldClear = currentValue === value
+        
+        let newOrg = state.selectedOrg
+        let newLanguage = state.selectedLanguage
+        let newRepo = state.selectedRepo
+        
+        switch (filterType) {
+          case 'org':
+            newOrg = shouldClear ? null : value
+            newRepo = shouldClear ? state.selectedRepo : null
+            break
           
-          // Toggle: Si se selecciona el mismo valor, limpiar
-          const shouldClear = currentValue === value
+          case 'language':
+            newLanguage = shouldClear ? null : value
+            break
           
-          switch (filterType) {
-            case 'org':
-              return {
-                selectedOrg: shouldClear ? null : value,
-                // Al cambiar de organización, limpiar repo específico
-                selectedRepo: shouldClear ? state.selectedRepo : null,
-              }
-            
-            case 'language':
-              return {
-                selectedLanguage: shouldClear ? null : value,
-              }
-            
-            case 'repo':
-              return {
-                selectedRepo: shouldClear ? null : value,
-                // Al seleccionar repo específico, inferir su lenguaje
-                // (esto se puede mejorar recibiendo el objeto completo)
-              }
-            
-            default:
-              console.warn(`Tipo de filtro desconocido: ${filterType}`)
-              return state
-          }
+          case 'repo':
+            newRepo = shouldClear ? null : value
+            break
+          
+          default:
+            console.warn(`Tipo de filtro desconocido: ${filterType}`)
+            return
+        }
+        
+        // Actualizar estado de filtros primero
+        set({
+          selectedOrg: newOrg,
+          selectedLanguage: newLanguage,
+          selectedRepo: newRepo,
         }, false, `setFilter/${filterType}/${value}`)
+        
+        // Recargar datos del backend con los nuevos filtros
+        const hasFilters = newOrg || newLanguage || newRepo
+        
+        if (hasFilters) {
+          // Con filtros: llamar al backend para datos filtrados
+          // Usamos isFiltering para mostrar overlay sin resetear animaciones
+          set({ isFiltering: true }, false, 'setFilter/loading')
+          try {
+            const { getDashboardStats } = await import('../services/api')
+            const stats = await getDashboardStats(false, {
+              org: newOrg,
+              language: newLanguage,
+              repo: newRepo
+            })
+            
+            // Normalizar users en charts
+            const normalizeUserOrgs = (users) => {
+              if (!Array.isArray(users)) return []
+              return users.map(user => ({
+                ...user,
+                organizations: Array.isArray(user.organizations)
+                  ? user.organizations.map(org => typeof org === 'string' ? org : (org?.login || org?.name || ''))
+                  : [],
+              }))
+            }
+            
+            // Actualizar solo charts (los datos filtrados)
+            set({
+              charts: {
+                ...stats.charts,
+                users: normalizeUserOrgs(stats.charts?.users || [])
+              },
+              kpis: stats.kpis,
+              isFiltering: false,
+            }, false, 'setFilter/filteredDataLoaded')
+            
+            console.log(`🔍 Datos filtrados cargados: org=${newOrg}, language=${newLanguage}, repo=${newRepo}`)
+          } catch (error) {
+            console.warn('Error cargando datos filtrados:', error)
+            set({ isFiltering: false }, false, 'setFilter/error')
+          }
+        } else {
+          // Sin filtros: recargar datos base desde caché
+          set({ isFiltering: true }, false, 'setFilter/restoringBase')
+          try {
+            const { getDashboardStats } = await import('../services/api')
+            const stats = await getDashboardStats(false)
+            
+            const normalizeUserOrgs = (users) => {
+              if (!Array.isArray(users)) return []
+              return users.map(user => ({
+                ...user,
+                organizations: Array.isArray(user.organizations)
+                  ? user.organizations.map(org => typeof org === 'string' ? org : (org?.login || org?.name || ''))
+                  : [],
+              }))
+            }
+            
+            set({
+              charts: {
+                ...stats.charts,
+                users: normalizeUserOrgs(stats.charts?.users || [])
+              },
+              kpis: stats.kpis,
+              isFiltering: false,
+            }, false, 'setFilter/baseDataRestored')
+            
+            console.log('🔍 Filtros limpiados, datos base restaurados')
+          } catch (error) {
+            console.warn('Error restaurando datos base:', error)
+            set({ isFiltering: false }, false, 'setFilter/restoreError')
+          }
+        }
       },
 
       /**
@@ -162,8 +305,41 @@ export const useDashboardStore = create(
        * @example
        * resetFilters() // Vuelve al estado inicial sin filtros
        */
-      resetFilters: () => {
-        set(initialState, false, 'resetFilters')
+      resetFilters: async () => {
+        set({
+          selectedOrg: null,
+          selectedLanguage: null,
+          selectedRepo: null,
+          isFiltering: true,
+        }, false, 'resetFilters')
+        
+        // Recargar datos base
+        try {
+          const { getDashboardStats } = await import('../services/api')
+          const stats = await getDashboardStats(false)
+          
+          const normalizeUserOrgs = (users) => {
+            if (!Array.isArray(users)) return []
+            return users.map(user => ({
+              ...user,
+              organizations: Array.isArray(user.organizations)
+                ? user.organizations.map(org => typeof org === 'string' ? org : (org?.login || org?.name || ''))
+                : [],
+            }))
+          }
+          
+          set({
+            charts: {
+              ...stats.charts,
+              users: normalizeUserOrgs(stats.charts?.users || [])
+            },
+            kpis: stats.kpis,
+            isFiltering: false,
+          }, false, 'resetFilters/dataRestored')
+        } catch (error) {
+          console.warn('Error restaurando datos:', error)
+          set({ isFiltering: false }, false, 'resetFilters/error')
+        }
       },
 
       // ============================================================================
@@ -282,7 +458,7 @@ export const useFilteredUsers = () => {
     if (state.selectedOrg) {
       filtered = filtered.filter(user => 
         user.company === state.selectedOrg ||
-        user.organizations?.includes(state.selectedOrg)
+        user.organizations?.some(org => (typeof org === 'string' ? org : org?.login) === state.selectedOrg)
       )
     }
 
@@ -390,7 +566,7 @@ export const useFilteredStats = (data) => {
     if (state.selectedOrg) {
       filteredUsers = filteredUsers.filter(user => 
         user.company === state.selectedOrg ||
-        user.organizations?.includes(state.selectedOrg)
+        user.organizations?.some(org => (typeof org === 'string' ? org : org?.login) === state.selectedOrg)
       )
     }
     if (state.selectedRepo && repositories.length > 0) {

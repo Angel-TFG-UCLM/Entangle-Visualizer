@@ -7,13 +7,19 @@
   transition: opacity 0.4s ease;
 }
 
-.blochSphere:hover {
-  opacity: 0.8;
+.blochSphere:hover,
+.blochSphere.collapsed {
+  opacity: 0.9;
 }
 
 .equator {
   animation: equatorSpin 20s linear infinite;
   transform-origin: center;
+}
+
+.collapsed .equator {
+  animation: none;
+  opacity: 0.3;
 }
 
 @keyframes equatorSpin {
@@ -24,10 +30,25 @@
 .stateVector {
   animation: vectorPrecess 10s ease-in-out infinite;
   transform-origin: center;
+  transition: all 0.3s ease-out;
+}
+
+.collapsed .stateVector {
+  animation: none;
 }
 
 .statePoint {
   animation: pointGlow 3s ease-in-out infinite;
+  transition: all 0.3s ease-out;
+}
+
+.collapsedPoint {
+  animation: none;
+  filter: drop-shadow(0 0 6px rgba(0, 212, 228, 0.8));
+}
+
+.stateLabel {
+  transition: all 0.3s ease-out;
 }
 
 @keyframes vectorPrecess {

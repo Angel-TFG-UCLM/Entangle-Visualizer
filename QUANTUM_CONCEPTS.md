@@ -40,7 +40,7 @@ Notación estándar en mecánica cuántica inventada por Paul Dirac:
 - **Bra** ⟨ψ| → representa el dual del estado (vector fila conjugado).
 - **Bracket** ⟨φ|ψ⟩ → producto interno entre dos estados (probabilidad de transición).
 
-**En ENTANGLE →** Esta notación aparece de forma recurrente en toda la interfaz: las posiciones en las tablas de ranking se muestran como |1⟩, |2⟩, |3⟩… en lugar de simples números; cuando hay filtros activos aparece un badge animado con el texto |FILTERED⟩; cada tarjeta KPI muestra un tenue |ψ⟩ en su esquina superior derecha; y los tooltips de los gráficos presentan los valores como ⟨nombre| = valor, usando la notación "bra" para expresar el resultado de una medición.
+**En ENTANGLE →** Esta notación aparece de forma recurrente en toda la interfaz: las posiciones en las tablas de ranking se muestran como |1⟩, |2⟩, |3⟩… en lugar de simples números; cuando hay filtros activos aparece un badge animado con el texto |FILTERED⟩; y los tooltips de los gráficos presentan los valores como ⟨nombre| = valor, usando la notación "bra" para expresar el resultado de una medición.
 
 ---
 
@@ -48,7 +48,7 @@ Notación estándar en mecánica cuántica inventada por Paul Dirac:
 
 Función matemática que describe completamente el estado de una partícula cuántica. Su módulo al cuadrado |ψ(x)|² da la densidad de probabilidad de encontrar la partícula en la posición x.
 
-**En ENTANGLE →** Entre cada sección del dashboard hay separadores animados que sustituyen a las líneas horizontales convencionales. Consisten en dos curvas sinusoidales superpuestas con gradiente cian→púrpura que fluyen horizontalmente, con pequeños puntos pulsantes a lo largo de la onda que representan los nodos (puntos donde la probabilidad es cero). Además, la onda del WavefunctionCollapse en las tarjetas KPI lleva la etiqueta |ψ|² indicando que representa la densidad de probabilidad.
+**En ENTANGLE →** Entre cada sección del dashboard hay separadores animados que sustituyen a las líneas horizontales convencionales. Consisten en dos curvas sinusoidales superpuestas con gradiente cian→púrpura que fluyen horizontalmente, con pequeños puntos pulsantes a lo largo de la onda que representan los nodos (puntos donde la probabilidad es cero). Además, la onda del WavefunctionCollapse en las tarjetas KPI muestra una animación de propagación horizontal continua: el trazo se desplaza de derecha a izquierda simulando cómo la función de onda "viaja" por el espacio, representando la evolución temporal del estado cuántico antes de ser medido.
 
 ---
 
@@ -64,7 +64,7 @@ Fenómeno donde dos partículas quedan correlacionadas de tal forma que el estad
 
 Representación geométrica del estado de un qubit como un punto en la superficie de una esfera unitaria. El polo norte es |0⟩, el polo sur es |1⟩, y cualquier punto intermedio es una superposición. Las coordenadas esféricas (θ, φ) determinan las amplitudes α y β.
 
-**En ENTANGLE →** A ambos lados de la ecuación de Schrödinger en la sección hero se muestran dos esferas semitransparentes con gradiente cian→púrpura. Cada una tiene un eje vertical marcado con |0⟩ arriba y |1⟩ abajo, una elipse ecuatorial que gira continuamente (representando las rotaciones en el plano XY), y una flecha desde el centro a la superficie con un punto brillante pulsante en la punta: el vector que indica el estado actual del qubit.
+**En ENTANGLE →** En la esquina superior derecha de cada tarjeta KPI se muestra una pequeña esfera de Bloch semitransparente con gradiente cian→púrpura. Cada esfera tiene un eje vertical marcado con |0⟩ arriba y |1⟩ abajo, una elipse ecuatorial que gira continuamente (representando las rotaciones en el plano XY), y una flecha desde el centro a la superficie: el vector que indica el estado actual del qubit. Cuando el usuario pasa el cursor sobre la tarjeta, el vector "colapsa" instantáneamente al polo norte |0⟩, simulando el proceso de medición cuántica. Al retirar el cursor, el vector vuelve a su posición de superposición diagonal.
 
 ---
 
@@ -76,7 +76,7 @@ $$i\hbar \frac{\partial|\psi\rangle}{\partial t} = \hat{H}|\psi\rangle$$
 
 donde ℏ es la constante de Planck reducida y Ĥ es el operador Hamiltoniano (energía total del sistema).
 
-**En ENTANGLE →** En la parte superior del dashboard, centrada entre las dos esferas de Bloch, se muestra la ecuación en tipografía monospace con color cian tenue. Actúa como elemento decorativo que establece el fundamento teórico del proyecto: toda la dinámica cuántica se rige por esta ecuación.
+**En ENTANGLE →** En el footer de la sección hero se muestra la ecuación en tipografía monospace con color cian tenue, centrada bajo el título y las tarjetas KPI. Actúa como elemento decorativo que establece el fundamento teórico del proyecto: toda la dinámica cuántica se rige por esta ecuación.
 
 ---
 

@@ -369,6 +369,18 @@
   gap: var(--spacing-md);
 }
 
+/* Esfera de Bloch en el header - sutil */
+.branding > svg {
+  opacity: 0.7;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.branding > svg:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
 .headerLogo {
   height: 50px;
   width: auto;
@@ -386,6 +398,8 @@
   font-weight: 700;
   margin: 0;
   letter-spacing: 0.05em;
+  cursor: default;
+  user-select: none;
 }
 
 .logoAccent {
@@ -454,6 +468,8 @@
   font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  cursor: default;
+  user-select: none;
 }
 
 /* Fila del subtítulo con puntos orbitales decorativos */
@@ -502,6 +518,8 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   transition: all var(--transition-normal);
+  cursor: default;
+  user-select: none;
 }
 
 .statusQubit {
@@ -613,24 +631,185 @@
   padding: 0 var(--spacing-xl);
 }
 
-/* === HERO SECTION === */
-.hero {
+/* === HERO SECTION COMPACTO === */
+.hero,
+.heroCompact {
   text-align: center;
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
 }
 
-.hero h2 {
-  font-size: var(--font-size-2xl);
-  margin-bottom: var(--spacing-md);
-  color: var(--color-text);
+.heroCompact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
 
+.heroHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+/* Contenedor del título con notación ket */
+.heroTitleContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  cursor: default;
+  user-select: none;
+}
+
+.heroKet {
+  font-family: var(--font-family-mono);
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 200;
+  color: var(--color-accent);
+  opacity: 0.6;
+  animation: ketPulse 4s ease-in-out infinite;
+}
+
+@keyframes ketPulse {
+  0%, 100% { opacity: 0.4; transform: scaleY(1); }
+  50% { opacity: 0.8; transform: scaleY(1.05); }
+}
+
+.heroTitle {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.heroWord {
+  position: relative;
+  opacity: 0;
+  animation: wordReveal 0.6s ease-out forwards;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    var(--color-secondary) 0%,
+    var(--color-accent) 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background-position 0.4s ease, text-shadow 0.4s ease;
+}
+
+.heroWord:nth-child(1) { animation-delay: 0.1s; }
+.heroWord:nth-child(2) { animation-delay: 0.25s; }
+.heroWord:nth-child(3) { animation-delay: 0.4s; }
+.heroWord:nth-child(4) { animation-delay: 0.55s; }
+
+/* Hover en todo el título (no palabra por palabra) */
+.heroTitleContainer:hover .heroWord {
+  background-position: 100% 50%;
+  text-shadow: 0 0 25px rgba(0, 212, 228, 0.6);
+}
+
+.heroTitleContainer:hover .heroKet {
+  opacity: 1;
+  text-shadow: 0 0 20px rgba(0, 212, 228, 0.8);
+}
+
+@keyframes wordReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Subtítulo ENTANGLE - más compacto */
+.heroSubtitle {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--color-accent);
+  opacity: 0;
+  animation: subtitleReveal 0.6s ease-out 0.6s forwards;
+  cursor: default;
+  user-select: none;
+}
+
+@keyframes subtitleReveal {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.6em;
+  }
+  100% {
+    opacity: 0.7;
+    letter-spacing: 0.3em;
+  }
+}
+
+/* KPIs integrados en el hero */
+.heroKPIs {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out 0.8s forwards;
+}
+
+/* Footer del hero con ecuación */
+.heroFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  margin-top: calc(-1 * var(--spacing-md) + var(--spacing-xs));
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out 1s forwards;
+}
+
+.heroEquation {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: rgba(0, 212, 228, 0.25);
+  letter-spacing: 0.05em;
+  font-weight: 300;
+  user-select: none;
+}
+
+.heroUCLM {
+  font-size: var(--font-size-xs);
+  color: rgba(157, 111, 219, 0.4);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mantener compatibilidad con heroDescription si se usa */
 .heroDescription {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
-  max-width: 800px;
+  max-width: 600px;
   margin: 0 auto;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 /* === ERROR BANNER === */
@@ -699,6 +878,23 @@
   cursor: default;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Esfera de Bloch decorativa en esquina de KPI */
+.kpiBlochCorner {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.statCard:hover .kpiBlochCorner {
+  opacity: 1;
 }
 
 .statCard::before {
@@ -776,6 +972,8 @@
 .statContent {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: var(--spacing-xs);
 }
 
@@ -815,54 +1013,18 @@
   font-weight: 500;
 }
 
-/* Notación Dirac cuántica |ψ⟩ en las cards — movida arriba-derecha para no solapar con onda */
-.statCard::after {
-  content: '|ψ⟩';
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  color: rgba(0, 212, 228, 0.08);
-  font-weight: 300;
-  letter-spacing: 0.05em;
-  pointer-events: none;
-  transition: color 0.3s ease;
-}
-
-.statCard:hover::after {
-  color: rgba(0, 212, 228, 0.2);
-}
-
-/* === HERO — Ecuación de Schrödinger decorativa === */
-.heroQuantumRow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-lg);
-  margin-top: var(--spacing-lg);
-}
-
-.heroEquation {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  color: rgba(0, 212, 228, 0.25);
-  letter-spacing: 0.1em;
-  font-weight: 300;
-  user-select: none;
-  margin: 0;
-}
-
 /* === ALERT BOX === */
 .alertBox {
-  background: rgba(239, 68, 68, 0.1);
-  border: 2px solid var(--color-error);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(157, 111, 219, 0.05) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-left: 4px solid var(--color-error);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   display: flex;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
   align-items: flex-start;
   animation: slideIn 0.4s ease-out;
+  backdrop-filter: blur(4px);
 }
 
 @keyframes slideIn {
@@ -876,6 +1038,23 @@
   }
 }
 
+.alertIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.alertIconSvg {
+  font-size: 1.5rem;
+  color: var(--color-error);
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.4));
+}
+
 .alertIcon {
   font-size: 2rem;
   line-height: 1;
@@ -887,8 +1066,20 @@
 
 .alertContent h3 {
   color: var(--color-error);
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0 0 var(--spacing-xs) 0;
   font-size: var(--font-size-lg);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.alertError {
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  opacity: 0.8;
 }
 
 .alertContent p {
@@ -899,6 +1090,8 @@
 .alertHint {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+  line-height: 1.5;
+  opacity: 0.9;
 }
 
 .alertHint code {
@@ -947,7 +1140,17 @@
 }
 
 .decoherenceText {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   animation: decoherence 4s ease-in-out infinite;
+}
+
+.decoherenceIcon {
+  font-size: 1.1em;
+  color: var(--color-warning, #f59e0b);
+  filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.5));
+  flex-shrink: 0;
 }
 
 @keyframes decoherence {
@@ -961,30 +1164,204 @@
   74% { opacity: 1; transform: none; }
 }
 
+/* === HEADER CONTROLS (refresh button + status badge) === */
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* Botón de refresh con estilo quantum */
+.refreshButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.15) 0%, rgba(157, 111, 219, 0.15) 100%);
+  border: 1px solid rgba(0, 212, 228, 0.4);
+  border-radius: 6px;
+  color: var(--color-accent);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+}
+
+.refreshButton:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.25) 0%, rgba(157, 111, 219, 0.25) 100%);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 20px rgba(0, 212, 228, 0.3);
+  transform: translateY(-1px);
+}
+
+.refreshButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refreshButton svg {
+  transition: transform 0.3s ease;
+}
+
+.refreshButton:hover:not(:disabled) svg {
+  transform: rotate(180deg);
+}
+
+/* Animación de spinning cuando está actualizando */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* === FOOTER CON CIRCUITO CUÁNTICO === */
 .footer {
   background: var(--color-card);
-  border-top: 1px solid var(--color-border);
-  padding: var(--spacing-md) 0 var(--spacing-lg) 0;
-  text-align: center;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.footerWave {
+  position: absolute;
+  top: -39px;
+  left: 0;
+  right: 0;
+  height: 40px;
+  pointer-events: none;
+}
+
+.footerWave svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.footerContent {
+  padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
 }
 
 .footerCircuit {
-  max-width: 500px;
-  margin: 0 auto var(--spacing-sm) auto;
-  opacity: 0.6;
-  transition: opacity 0.3s ease;
+  max-width: 600px;
+  width: 100%;
+  opacity: 0.5;
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
 .footer:hover .footerCircuit {
   opacity: 1;
+  transform: scale(1.02);
 }
 
 .circuitSvg {
   width: 100%;
   height: 60px;
+}
+
+.circuitLabel {
+  margin: var(--spacing-xs) 0 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+/* Animaciones de las puertas cuánticas */
+.gateH, .gateH2 {
+  animation: gatePulse 3s ease-in-out infinite;
+}
+
+.gateH2 {
+  animation-delay: 0.5s;
+}
+
+.gateCNOT {
+  animation: gatePulse 3s ease-in-out infinite 1s;
+}
+
+.gateZ {
+  animation: gatePulse 3s ease-in-out infinite 1.5s;
+}
+
+.gateMeasure {
+  animation: measurePulse 2s ease-in-out infinite 2s;
+}
+
+@keyframes gatePulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes measurePulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; filter: drop-shadow(0 0 3px var(--color-accent)); }
+}
+
+/* Info del proyecto */
+.footerInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  text-align: center;
+}
+
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.footerLogo {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  cursor: default;
+  user-select: none;
+}
+
+.footerTagline {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.footerMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footerYear,
+.footerProject,
+.footerUniversity {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.footerDivider {
+  color: var(--color-accent);
+  opacity: 0.3;
 }
 
 .footer p {

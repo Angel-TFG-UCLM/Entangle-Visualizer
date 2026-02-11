@@ -22,21 +22,36 @@
 /* Onda superpuesta — visible por defecto, se oculta en collapse */
 .wave {
   opacity: 1;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.5s ease-out;
+  stroke-dashoffset: 0;
+  animation: wavePropagation 2s linear infinite;
 }
 
 .active .wave {
   opacity: 0;
+  animation: none;
+  transition: opacity 0.3s ease-out;
+}
+
+/* Animación de propagación: la onda "fluye" horizontalmente */
+@keyframes wavePropagation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -12;
+  }
 }
 
 /* Delta colapsada — oculta por defecto, visible en collapse */
 .collapsed {
   opacity: 0;
-  transition: opacity 0.4s ease 0.1s;
+  transition: opacity 0.5s ease-out 0.2s;
 }
 
 .active .collapsed {
   opacity: 1;
+  transition: opacity 0.4s ease-in 0.1s;
 }
 
 /* Punto de medición */

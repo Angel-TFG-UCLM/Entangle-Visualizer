@@ -644,10 +644,10 @@ const PARTICLE_VERTEX = /* glsl */`
     float jz = sin(uTime * 1.62 + aSeed * 47.1) * 0.04;
     vec3 pos = position + vec3(jx, jy, jz);
 
-    // === Bridge: pulso dramático + sync flash (spooky action at distance) ===
-    float syncFlash = pow(max(cos(uTime * 1.4), 0.0), 30.0);
+    // === Bridge: pulso suave + brillo aleatorio por usuario ===
+    float personalFlash = pow(max(cos(uTime * 0.8 + aSeed * 6.28), 0.0), 20.0);
     float bridgePulse = p >= 0.99
-      ? (1.0 + sin(uTime * 2.5) * 0.25 + syncFlash * 0.6)
+      ? (1.0 + sin(uTime * 1.8 + aSeed) * 0.15 + personalFlash * 0.25)
       : p;
     float normalPulse = p * (1.0 + sin(uTime * 1.5 + aSeed) * 0.05);
 
@@ -656,7 +656,7 @@ const PARTICLE_VERTEX = /* glsl */`
       : uBaseSize * normalPulse;
 
     // === Glow intensity para fragment shader ===
-    vGlow = aIsBridge > 0.5 ? (1.0 + syncFlash * 2.0) : 1.0;
+    vGlow = aIsBridge > 0.5 ? (1.0 + personalFlash * 0.6) : 1.0;
 
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
     gl_PointSize = size * (350.0 / -mvPos.z);
@@ -802,7 +802,7 @@ const BOND_VERTEX = /* glsl */`
   void main() {
     float p = smoothstep(0.0, 1.0, uProgress);
     // Múltiples partículas por bond con offsets distintos
-    float phase = fract(uTime * 0.18 + aSeed + aParticleIdx * 0.33);
+    float phase = fract(uTime * 0.06 + aSeed + aParticleIdx * 0.33);
     vPhase = phase;
     vParticle = aParticleIdx;
 
@@ -822,7 +822,7 @@ const BOND_VERTEX = /* glsl */`
 
     vec3 pos = aStart + dir * phase + offset;
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = p * 3.5 * (250.0 / -mvPos.z);
+    gl_PointSize = p * 2.0 * (200.0 / -mvPos.z);
     gl_Position = projectionMatrix * mvPos;
   }
 `
@@ -840,19 +840,19 @@ const BOND_FRAGMENT = /* glsl */`
     vec3 colA = vec3(0.0, 1.0, 0.62);  // verde cuántico
     vec3 colB = vec3(0.0, 0.97, 1.0);  // cyan
     vec3 col = mix(colA, colB, sin(vPhase * 6.28 + vParticle * 3.14) * 0.5 + 0.5);
-    float alpha = glow * uOpacity * (0.7 + 0.3 * sin(vPhase * 3.14159));
-    gl_FragColor = vec4(col * 1.5, alpha);
+    float alpha = glow * uOpacity * (0.5 + 0.2 * sin(vPhase * 3.14159));
+    gl_FragColor = vec4(col * 1.2, alpha);
   }
 `
 
 function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
   const ref = useRef()
 
-  const PARTICLES_PER_BOND = 3 // doble hélice + central
+  const PARTICLES_PER_BOND = 1
 
   const bonds = useMemo(() => {
     const list = []
-    const MAX_BONDS = 8000
+    const MAX_BONDS = 5000
     const entries = Object.entries(repoUsers)
     for (let e = 0; e < entries.length && list.length < MAX_BONDS; e++) {
       const [repoId, users] = entries[e]
@@ -915,7 +915,7 @@ function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
     if (!mat) return
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
-    mat.uniforms.uOpacity.value = (dimmed ? 0.1 : 0.65) * easeOutCubic(progress)
+    mat.uniforms.uOpacity.value = (dimmed ? 0.06 : 0.35) * easeOutCubic(progress)
   })
 
   if (!geo || bonds.length === 0) return null
@@ -1391,12 +1391,11 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     return () => canvas.removeEventListener('pointerdown', cancelFly)
   }, [gl])
 
-  // ── Zoom hacia el cursor: scroll viaja en la dirección donde apunta el ratón ──
+  // ── Zoom hacia el cursor: cámara + target viajan juntos hacia el punto señalado ──
   useEffect(() => {
     const canvas = gl.domElement
     const mouse = new THREE.Vector2()
     const raycaster = new THREE.Raycaster()
-    const dir = new THREE.Vector3()
 
     const handleWheel = (e) => {
       if (!controlsRef.current) return
@@ -1410,23 +1409,23 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-      // Raycast desde el cursor → dirección de vuelo
+      // Punto "virtual" bajo el cursor a la distancia del target actual
       raycaster.setFromCamera(mouse, camera)
-      dir.copy(raycaster.ray.direction).normalize()
+      const currentTarget = controlsRef.current.target
+      const dist = camera.position.distanceTo(currentTarget)
+      const cursorPoint = raycaster.ray.at(dist, new THREE.Vector3())
 
-      // Velocidad adaptativa — suave y progresiva
-      const dist = camera.position.distanceTo(controlsRef.current.target)
-      const speed = Math.max(dist * 0.055, 0.5)
-      const dolly = e.deltaY < 0 ? speed : -speed
+      // Factor de zoom — suave y progresivo
+      const zoomIn = e.deltaY < 0
+      const factor = zoomIn ? 0.08 : -0.06
 
-      const delta = dir.clone().multiplyScalar(dolly)
-      camera.position.add(delta)
+      // Mover cámara Y target hacia el punto del cursor (preserva orientación orbital)
+      const toCursor = cursorPoint.clone().sub(camera.position)
+      camera.position.addScaledVector(toCursor, factor)
+      currentTarget.addScaledVector(
+        cursorPoint.clone().sub(currentTarget), factor
+      )
 
-      // Mantener el target a distancia constante frente a la cámara
-      const camDir = new THREE.Vector3()
-      camera.getWorldDirection(camDir)
-      const idealTarget = camera.position.clone().add(camDir.multiplyScalar(dist))
-      controlsRef.current.target.lerp(idealTarget, 0.15)
       controlsRef.current.update()
     }
 

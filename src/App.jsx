@@ -12,7 +12,7 @@
  * Si está offline, usa datos simulados (mockData) como fallback.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
 import { Server, RefreshCw } from 'lucide-react'
 import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle } from 'react-icons/fa'
@@ -22,6 +22,10 @@ import ChartsSection from './components/Dashboard/ChartsSection'
 import NetworkGraph from './components/Dashboard/NetworkGraph'
 import DetailTable from './components/Dashboard/DetailTable'
 import DashboardNav from './components/Dashboard/DashboardNav'
+import CollaborationBanner from './components/Dashboard/CollaborationBanner'
+
+// Lazy-load del universo 3D (Three.js ~600KB) — solo se carga al abrir
+const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
 import QuantumBackground from './components/QuantumBackground'
 import QuantumDivider from './components/QuantumDivider'
 
@@ -402,6 +406,9 @@ function App() {
 
           <QuantumDivider />
 
+          {/* Banner de colaboración auto-descubierta */}
+          <CollaborationBanner />
+
           {/* Gráficos interactivos con drill-down */}
           <div id="section-charts" className={styles.sectionAnchor}>
             <ChartsSection data={data} />
@@ -438,6 +445,33 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* Universo 3D de Colaboración — lazy loaded */}
+      {store.showCollaborationGraph && (
+        <Suspense fallback={
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: '#050510',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '20px',
+          }}>
+            <div style={{
+              width: 48, height: 48,
+              border: '2px solid rgba(0,247,255,0.15)',
+              borderTop: '2px solid #00f7ff',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, letterSpacing: 1 }}>
+              Inicializando campo cuántico…
+            </p>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        }>
+          <UniverseView />
+        </Suspense>
+      )}
 
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
       <footer className={styles.footer}>

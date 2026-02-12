@@ -1,0 +1,288 @@
+/**
+ * CollaborationBanner Styles
+ * Banner animado con tema cuántico para notificar colaboración disponible
+ */
+
+/* === BANNER CONTAINER === */
+.banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin: var(--spacing-md) auto;
+  max-width: 900px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 212, 228, 0.08) 0%,
+    rgba(157, 111, 219, 0.06) 50%,
+    rgba(0, 255, 159, 0.05) 100%
+  );
+  border: 1px solid rgba(0, 212, 228, 0.2);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+.bannerVisible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.banner:hover {
+  border-color: rgba(0, 212, 228, 0.4);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 212, 228, 0.12) 0%,
+    rgba(157, 111, 219, 0.08) 50%,
+    rgba(0, 255, 159, 0.06) 100%
+  );
+  transform: translateY(-1px) scale(1.005);
+  box-shadow: 
+    0 4px 20px rgba(0, 212, 228, 0.15),
+    0 0 40px rgba(0, 212, 228, 0.05);
+}
+
+/* === BACKGROUND EFFECTS === */
+.bgGlow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at 20% 50%,
+    rgba(0, 212, 228, 0.08) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.bgPulse {
+  position: absolute;
+  top: 50%;
+  left: 10%;
+  width: 200px;
+  height: 200px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(0, 212, 228, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: bgPulseAnim 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes bgPulseAnim {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+}
+
+/* === ICON === */
+.iconWrapper {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  position: relative;
+  z-index: 1;
+}
+
+.iconSvg {
+  width: 100%;
+  height: 100%;
+}
+
+.nodeA {
+  animation: nodePulseA 2s ease-in-out infinite;
+}
+
+.nodeB {
+  animation: nodePulseB 2.5s ease-in-out infinite 0.3s;
+}
+
+.nodeC {
+  animation: nodePulseC 2.2s ease-in-out infinite 0.6s;
+}
+
+.centerPulse {
+  animation: centerPulseAnim 1.5s ease-in-out infinite;
+}
+
+.link {
+  animation: linkPulse 2s ease-in-out infinite;
+}
+
+@keyframes nodePulseA {
+  0%, 100% { r: 4; opacity: 1; }
+  50% { r: 5; opacity: 0.8; }
+}
+
+@keyframes nodePulseB {
+  0%, 100% { r: 3.5; opacity: 1; }
+  50% { r: 4.5; opacity: 0.7; }
+}
+
+@keyframes nodePulseC {
+  0%, 100% { r: 3.5; opacity: 1; }
+  50% { r: 4.5; opacity: 0.7; }
+}
+
+@keyframes centerPulseAnim {
+  0%, 100% { r: 2; opacity: 0.8; }
+  50% { r: 3.5; opacity: 0.4; }
+}
+
+@keyframes linkPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* === CONTENT === */
+.content {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
+.titleIcon {
+  color: #ffbd00;
+  animation: titleIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes titleIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.summary {
+  margin: 2px 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === CTA BUTTON === */
+.cta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(0, 212, 228, 0.15);
+  border: 1px solid rgba(0, 212, 228, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.banner:hover .cta {
+  background: rgba(0, 212, 228, 0.25);
+  border-color: rgba(0, 212, 228, 0.4);
+}
+
+.ctaArrow {
+  transition: transform 0.3s ease;
+}
+
+.banner:hover .ctaArrow {
+  transform: translateX(3px);
+}
+
+/* === DISMISS BUTTON === */
+.dismissBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.banner:hover .dismissBtn {
+  opacity: 0.7;
+}
+
+.dismissBtn:hover {
+  opacity: 1 !important;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-error);
+}
+
+/* === PARTICLES === */
+.particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  bottom: -4px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(0, 212, 228, 0.5);
+  animation: particleFloat 4s ease-in-out infinite;
+}
+
+@keyframes particleFloat {
+  0% { transform: translateY(0) scale(0); opacity: 0; }
+  20% { transform: translateY(-10px) scale(1); opacity: 0.8; }
+  80% { transform: translateY(-40px) scale(0.5); opacity: 0.3; }
+  100% { transform: translateY(-50px) scale(0); opacity: 0; }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .banner {
+    margin: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    gap: var(--spacing-sm);
+  }
+  
+  .iconWrapper {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .title {
+    font-size: var(--font-size-sm);
+  }
+  
+  .cta span {
+    display: none;
+  }
+}

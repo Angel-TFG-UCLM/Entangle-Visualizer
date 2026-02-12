@@ -1,0 +1,714 @@
+/* ============================================================================
+   UniverseView — Overlay 3D fullscreen
+   ============================================================================ */
+
+.universe {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #050510;
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.universeVisible {
+  opacity: 1;
+}
+
+/* Canvas wrapper */
+.canvasWrapper {
+  position: absolute;
+  inset: 0;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(5, 5, 16, 0.85) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.headerLeft h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #e8eaed;
+  text-transform: uppercase;
+}
+
+.headerZap {
+  color: #ffbd00;
+  filter: drop-shadow(0 0 6px rgba(255, 189, 0, 0.6));
+  animation: zapPulse 2s ease-in-out infinite;
+}
+.headerAtom {
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px rgba(0, 247, 255, 0.7));
+  animation: zapPulse 2.5s ease-in-out infinite;
+}
+@keyframes zapPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.headerSub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: all;
+}
+
+.resetBtn,
+.closeBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+}
+.resetBtn:hover,
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Bot toggle */
+.botToggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(8px);
+}
+
+.botToggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.botToggleActive {
+  background: rgba(255, 189, 0, 0.08);
+  border-color: rgba(255, 189, 0, 0.2);
+  color: rgba(255, 189, 0, 0.7);
+}
+
+.botToggleActive:hover {
+  background: rgba(255, 189, 0, 0.14);
+  color: #ffbd00;
+}
+
+/* ============================================================================
+   Legend
+   ============================================================================ */
+
+.legend {
+  position: absolute;
+  bottom: 60px;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.5px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* ============================================================================
+   Floating Metrics
+   ============================================================================ */
+
+.metricsFloat {
+  position: absolute;
+  bottom: 60px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.metricPill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px);
+}
+
+/* ============================================================================
+   Interaction Hint
+   ============================================================================ */
+
+.interactionHint {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 1px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ============================================================================
+   Detail Panel (sidebar al seleccionar entidad)
+   ============================================================================ */
+
+.detailPanel {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  width: 280px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  background: rgba(10, 12, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px;
+  z-index: 20;
+  backdrop-filter: blur(20px);
+  animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.detailClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.detailClose:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detailIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.detailHeader h3 {
+  margin: 0 0 3px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8eaed;
+  word-break: break-word;
+}
+
+.detailType {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.detailBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detailMeta {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.5;
+}
+
+.detailBridge {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #ffbd00;
+  padding: 6px 10px;
+  background: rgba(255, 189, 0, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 189, 0, 0.15);
+}
+
+/* Stats grid */
+.detailStats {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+
+.detailStat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.detailStatValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e8eaed;
+}
+
+.detailStatLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+
+/* Detail section with chips */
+.detailSection {
+  margin-top: 6px;
+}
+
+.detailSectionTitle {
+  margin: 0 0 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+}
+
+.detailChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.detailChip {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detailChipMore {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 3px 6px;
+  font-style: italic;
+}
+
+/* ============================================================================
+   3D Label (estilo dei Html component)
+   ============================================================================ */
+
+.label3d {
+  background: rgba(8, 10, 28, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 12px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  transform: translateY(-30px);
+}
+
+.label3dType {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+
+.label3dName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8eaed;
+  white-space: nowrap;
+}
+
+.label3dMeta {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.label3dBridge {
+  font-size: 10px;
+  color: #ffbd00;
+  margin-top: 2px;
+}
+
+/* ============================================================================
+   Scrollbar del detail panel
+   ============================================================================ */
+
+.detailPanel::-webkit-scrollbar {
+  width: 4px;
+}
+.detailPanel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.detailPanel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   Help Button + Panel ("¿Qué estoy viendo?")
+   ============================================================================ */
+
+.helpBtn {
+  position: absolute;
+  bottom: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  z-index: 15;
+  backdrop-filter: blur(10px);
+  transition: all 0.25s ease;
+}
+
+.helpBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 247, 255, 0.25);
+}
+
+.helpPanel {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  background: rgba(8, 10, 25, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  z-index: 25;
+  backdrop-filter: blur(24px);
+  animation: helpSlideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes helpSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.helpHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.helpHeader h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.helpClose {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.helpClose:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.helpBody {
+  padding: 14px 18px 18px;
+}
+
+.helpIntro {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+.helpIntro strong {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.helpCard {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.helpCard:last-of-type {
+  border-bottom: none;
+}
+
+.helpCardIcon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.helpCard h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 3px;
+}
+
+.helpCard p {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.42);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.helpCard p strong {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.helpCard p em {
+  color: rgba(0, 247, 255, 0.6);
+  font-style: normal;
+}
+
+.helpDetails {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.helpDetails + .helpDetails {
+  margin-top: 6px;
+}
+
+.helpDetails summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  list-style: none;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.helpDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.helpDetails summary:hover {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.helpDetails[open] summary {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.helpDetails[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.helpDetailsList {
+  padding: 8px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.helpMiniCard {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.38);
+  line-height: 1.5;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+}
+
+.helpMiniCard strong {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.helpPanel::-webkit-scrollbar {
+  width: 4px;
+}
+.helpPanel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.helpPanel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .detailPanel {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 40vh;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .metricsFloat {
+    right: 12px;
+    bottom: 50px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 200px;
+  }
+
+  .legend {
+    left: 12px;
+    bottom: 50px;
+  }
+
+  .helpBtn {
+    bottom: 48px;
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+
+  .helpPanel {
+    width: calc(100vw - 24px);
+    bottom: 80px;
+    max-height: 60vh;
+  }
+
+  .headerSub {
+    display: none;
+  }
+}

@@ -222,5 +222,74 @@ export async function getOrganizations(params = {}) {
   }
 }
 
+// === COLLABORATION ANALYSIS ===
+
+/**
+ * Analizar colaboraciones entre repos, orgs o de un usuario específico
+ * 
+ * Modos:
+ * 1. user: Ver red de colaboración de un usuario (con quién trabaja y dónde)
+ * 2. repos: Encontrar usuarios compartidos entre 2+ repos
+ * 3. orgs: Encontrar usuarios compartidos entre 2+ organizaciones
+ * 
+ * @param {Object} params - { user?, repos?, orgs? }
+ * @returns {Promise<Object>} { mode, shared_users, collaboration_graph, metrics }
+ */
+export async function analyzeCollaboration(params = {}) {
+  try {
+    const queryParams = {};
+    
+    if (params.user) {
+      queryParams.user = params.user;
+    }
+    if (params.repos && params.repos.length >= 2) {
+      queryParams.repos = params.repos;
+    }
+    if (params.orgs && params.orgs.length >= 2) {
+      queryParams.orgs = params.orgs;
+    }
+    
+    const response = await apiClient.post('/collaboration/analyze', null, { params: queryParams });
+    console.log(`🔗 Collaboration analysis: ${response.data.mode} mode`);
+    return response.data;
+  } catch (error) {
+    console.error('[analyzeCollaboration] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener red de colaboración de un usuario específico (shortcut GET)
+ * @param {string} userLogin - Login del usuario
+ * @returns {Promise<Object>} Red de colaboración del usuario
+ */
+export async function getUserCollaborationNetwork(userLogin) {
+  try {
+    const response = await apiClient.get(`/collaboration/user/${userLogin}`);
+    console.log(`🔗 User collaboration network: ${userLogin}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getUserCollaborationNetwork] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Auto-descubre patrones de colaboración analizando toda la BBDD.
+ * Busca bridge users, repos conectados, colaboración cross-org.
+ * 
+ * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs }
+ */
+export async function discoverCollaboration() {
+  try {
+    const response = await apiClient.get('/collaboration/discover');
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}`);
+    return response.data;
+  } catch (error) {
+    console.error('[discoverCollaboration] Error:', error);
+    throw error;
+  }
+}
+
 // Exportar la instancia de axios por si se necesita usar directamente
 export default apiClient;

@@ -184,7 +184,21 @@ function FilterBadge({ value, onClear, label }) {
  * Componente principal de gráficos
  */
 export default function ChartsSection({ data }) {
-  const { selectedOrg, selectedLanguage, selectedRepo, setFilter, resetFilters } = useDashboardStore()
+  const { 
+    selectedOrg, 
+    selectedLanguage, 
+    selectedRepo, 
+    setFilter, 
+    resetFilters,
+    // Selección múltiple para análisis de colaboración
+    selectedRepos,
+    selectedOrgs,
+    selectedUser,
+    toggleRepoSelection,
+    toggleOrgSelection,
+    selectUserForAnalysis,
+    collaborationMode
+  } = useDashboardStore()
   
   // Estados para métricas y hover
   const [repoMetric, setRepoMetric] = useState('stargazer_count')
@@ -449,17 +463,20 @@ export default function ChartsSection({ data }) {
       const collaborationScore = Math.round(Math.sqrt(contributions * (repos * 100)))
       
       return {
-        name: user.login,
+        login: user.login, // Necesario para el click en análisis de colaboración
+        name: user.name || user.login, // Mostrar nombre o login como fallback
+        displayName: user.login, // Para el eje X
         score: collaborationScore,
         contributions,
         repos,
+        isSelected: selectedUser === user.login, // Marcar si está seleccionado para análisis
       }
     })
     
     return usersWithScore
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
-  }, [charts?.users, chartUsers])
+  }, [charts?.users, chartUsers, selectedUser])
 
   // GRÁFICO 4: Distribución de lenguajes (Top 6 + "Otros")
   // Guardamos también los lenguajes que componen "Otros" para el tooltip
@@ -608,12 +625,36 @@ export default function ChartsSection({ data }) {
   }, [languageData, hoveredPieIndex, hasSelectedLanguage, selectedLanguage])
 
   // Handlers
-  const handleOrgClick = (data) => {
-    if (data && data.name) setFilter('org', data.name)
+  // Click normal: filtro simple
+  // Ctrl/Cmd + Click: selección múltiple para análisis de colaboración
+  const handleOrgClick = (data, event) => {
+    if (!data?.name) return
+    
+    // Ctrl/Cmd + Click = selección múltiple para análisis
+    if (event?.ctrlKey || event?.metaKey) {
+      toggleOrgSelection(data.name)
+    } else {
+      setFilter('org', data.name)
+    }
   }
 
-  const handleRepoClick = (data) => {
-    if (data && data.fullName) setFilter('repo', data.fullName)
+  const handleRepoClick = (data, event) => {
+    if (!data?.fullName) return
+    
+    // Ctrl/Cmd + Click = selección múltiple para análisis
+    if (event?.ctrlKey || event?.metaKey) {
+      toggleRepoSelection(data.fullName)
+    } else {
+      setFilter('repo', data.fullName)
+    }
+  }
+
+  // Click en usuario para ver su red de colaboración
+  const handleUserClick = (data, event) => {
+    if (!data?.login) return
+    
+    // Siempre abre el análisis de colaboración del usuario
+    selectUserForAnalysis(data.login)
   }
 
   const handleLanguageClick = (entry, index) => {
@@ -748,18 +789,34 @@ export default function ChartsSection({ data }) {
                 <Bar 
                   dataKey="repositories" 
                   fill="#00D4E4"
-                  onClick={handleOrgClick}
+                  onClick={(data, index, event) => handleOrgClick(data, event)}
                   cursor="pointer"
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={true}
                   animationBegin={hasAnimatedOrgBars ? 0 : 200}
                   animationDuration={hasAnimatedOrgBars ? 300 : 800}
                   animationEasing="ease-out"
-                />
+                >
+                  {orgData.map((entry, index) => (
+                    <Cell 
+                      key={`org-cell-${index}`} 
+                      fill={selectedOrgs.includes(entry.name) ? '#9D6FDB' : (entry.isSelected ? '#22C55E' : '#00D4E4')}
+                      style={{ 
+                        transition: 'fill 0.3s ease',
+                        filter: selectedOrgs.includes(entry.name) ? 'brightness(1.1) drop-shadow(0 0 6px rgba(157, 111, 219, 0.5))' : 'none'
+                      }}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
             </div>
           ) : null}
+          
+          {/* Hint para análisis de colaboración */}
+          <p className={styles.chartHint}>
+            Ctrl+Click para seleccionar múltiples organizaciones y comparar
+          </p>
         </div>
       </div>
 
@@ -839,18 +896,34 @@ export default function ChartsSection({ data }) {
                 <Bar 
                   dataKey={Object.keys(repoData[0] || {}).find(k => !['name', 'fullName', 'isSelected'].includes(k))}
                   fill="#9D6FDB"
-                  onClick={handleRepoClick}
+                  onClick={(data, index, event) => handleRepoClick(repoData[index], event)}
                   cursor="pointer"
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={true}
                   animationBegin={0}
                   animationDuration={600}
                   animationEasing="ease-in-out"
-                />
+                >
+                  {repoData.map((entry, index) => (
+                    <Cell 
+                      key={`repo-cell-${index}`} 
+                      fill={selectedRepos.includes(entry.fullName) ? '#00D4E4' : (entry.isSelected ? '#22C55E' : '#9D6FDB')}
+                      style={{ 
+                        transition: 'fill 0.3s ease',
+                        filter: selectedRepos.includes(entry.fullName) ? 'brightness(1.1) drop-shadow(0 0 6px rgba(0, 212, 228, 0.5))' : 'none'
+                      }}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
             </div>
           ) : null}
+          
+          {/* Hint para análisis de colaboración */}
+          <p className={styles.chartHint}>
+            Ctrl+Click para seleccionar múltiples repos y ver usuarios compartidos
+          </p>
         </div>
       </div>
 
@@ -941,15 +1014,39 @@ export default function ChartsSection({ data }) {
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <XAxis dataKey="displayName" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <Tooltip content={<CollaboratorTooltip />} cursor={false} />
-                <Bar dataKey="score" fill="#00D4E4" radius={[4, 4, 0, 0]} name="Score Colaboración"
-                  isAnimationActive={true} animationBegin={0} animationDuration={600} animationEasing="ease-in-out"
-                />
+                <Bar 
+                  dataKey="score" 
+                  radius={[4, 4, 0, 0]} 
+                  name="Score Colaboración"
+                  isAnimationActive={true} 
+                  animationBegin={0} 
+                  animationDuration={600} 
+                  animationEasing="ease-in-out"
+                  onClick={(data, index, event) => handleUserClick(userData[index], event)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {userData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.isSelected ? '#22C55E' : '#00D4E4'}
+                      style={{ 
+                        transition: 'fill 0.3s ease',
+                        filter: entry.isSelected ? 'brightness(1.1) drop-shadow(0 0 6px rgba(34, 197, 94, 0.5))' : 'none'
+                      }}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : null}
+          
+          {/* Hint para análisis de colaboración */}
+          <p className={styles.chartHint}>
+            Click en un usuario para ver su red de colaboración
+          </p>
         </div>
       </div>
 

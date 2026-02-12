@@ -28,10 +28,24 @@ import { organizations, users, repositories } from '../data/mockData'
  * Representa "sin filtros aplicados" - vista global con datos mock
  */
 const initialState = {
-  selectedOrg: null,        // string | null - login de la organización
+  selectedOrg: null,        // string | null - login de la organización (filtro simple)
   selectedLanguage: null,   // string | null - lenguaje de programación
-  selectedRepo: null,       // string | null - full_name del repositorio
+  selectedRepo: null,       // string | null - full_name del repositorio (filtro simple)
   dataSource: 'mock',       // 'mock' | 'backend' - origen de los datos actuales
+  
+  // === SELECCIÓN MÚLTIPLE PARA ANÁLISIS DE COLABORACIÓN ===
+  selectedRepos: [],        // string[] - repos seleccionados para comparación
+  selectedOrgs: [],         // string[] - orgs seleccionadas para comparación
+  selectedUser: null,       // string | null - usuario seleccionado para ver su red
+  collaborationMode: null,  // 'user' | 'repos' | 'orgs' | null - modo de análisis activo
+  collaborationData: null,  // Resultado del análisis de colaboración
+  isAnalyzing: false,       // Estado de carga del análisis
+  
+  // === AUTO-DISCOVERY DE COLABORACIÓN ===
+  collaborationAvailable: false,   // bool - si se detectó colaboración real
+  collaborationDiscovery: null,    // Resultado completo del discover endpoint
+  showCollaborationGraph: false,   // bool - si mostrar la vista fullscreen del grafo
+  isDiscovering: false,            // Estado de carga del discovery
   
   // Datos legacy (mockData para fallback offline)
   data: {
@@ -140,6 +154,9 @@ export const useDashboardStore = create(
           console.log(`✅ Métricas cargadas: ${stats.kpis?.totalRepos} repos, ${stats.kpis?.totalUsers} users, ${stats.kpis?.totalOrgs} orgs`)
           console.log(`   📊 Charts: ${stats.charts?.organizations?.length} orgs, ${stats.charts?.repositories?.length} repos`)
           console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
+          
+          // Auto-detectar colaboración después de cargar datos
+          setTimeout(() => get().discoverCollaboration(), 500)
           
           return true
         } catch (error) {
@@ -340,6 +357,224 @@ export const useDashboardStore = create(
           console.warn('Error restaurando datos:', error)
           set({ isFiltering: false }, false, 'resetFilters/error')
         }
+      },
+
+      // ============================================================================
+      // ANÁLISIS DE COLABORACIÓN - SELECCIÓN MÚLTIPLE
+      // ============================================================================
+
+      /**
+       * Toggle selección de repo para análisis de colaboración
+       * Permite seleccionar múltiples repos para comparar usuarios compartidos
+       * 
+       * @param {string} repoFullName - full_name del repositorio (owner/name)
+       */
+      toggleRepoSelection: (repoFullName) => {
+        const state = get()
+        const currentSelection = state.selectedRepos
+        
+        const isSelected = currentSelection.includes(repoFullName)
+        const newSelection = isSelected
+          ? currentSelection.filter(r => r !== repoFullName)
+          : [...currentSelection, repoFullName]
+        
+        set({
+          selectedRepos: newSelection,
+          collaborationMode: newSelection.length >= 2 ? 'repos' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedOrgs: newSelection.length > 0 ? [] : state.selectedOrgs,
+          selectedUser: newSelection.length > 0 ? null : state.selectedUser,
+        }, false, `toggleRepoSelection/${repoFullName}`)
+        
+        // Auto-trigger análisis si hay 2+ repos
+        if (newSelection.length >= 2) {
+          get().analyzeCollaboration()
+        } else {
+          set({ collaborationData: null }, false, 'clearCollaborationData')
+        }
+      },
+
+      /**
+       * Toggle selección de org para análisis de colaboración  
+       * Permite seleccionar múltiples orgs para comparar usuarios compartidos
+       * 
+       * @param {string} orgLogin - login de la organización
+       */
+      toggleOrgSelection: (orgLogin) => {
+        const state = get()
+        const currentSelection = state.selectedOrgs
+        
+        const isSelected = currentSelection.includes(orgLogin)
+        const newSelection = isSelected
+          ? currentSelection.filter(o => o !== orgLogin)
+          : [...currentSelection, orgLogin]
+        
+        set({
+          selectedOrgs: newSelection,
+          collaborationMode: newSelection.length >= 2 ? 'orgs' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedRepos: newSelection.length > 0 ? [] : state.selectedRepos,
+          selectedUser: newSelection.length > 0 ? null : state.selectedUser,
+        }, false, `toggleOrgSelection/${orgLogin}`)
+        
+        // Auto-trigger análisis si hay 2+ orgs
+        if (newSelection.length >= 2) {
+          get().analyzeCollaboration()
+        } else {
+          set({ collaborationData: null }, false, 'clearCollaborationData')
+        }
+      },
+
+      /**
+       * Seleccionar un usuario para ver su red de colaboración
+       * 
+       * @param {string|null} userLogin - login del usuario o null para limpiar
+       */
+      selectUserForAnalysis: (userLogin) => {
+        const state = get()
+        
+        // Toggle: si ya está seleccionado, deseleccionar
+        const newUser = state.selectedUser === userLogin ? null : userLogin
+        
+        set({
+          selectedUser: newUser,
+          collaborationMode: newUser ? 'user' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedRepos: newUser ? [] : state.selectedRepos,
+          selectedOrgs: newUser ? [] : state.selectedOrgs,
+        }, false, `selectUserForAnalysis/${userLogin}`)
+        
+        // Auto-trigger análisis si hay usuario
+        if (newUser) {
+          get().analyzeCollaboration()
+        } else {
+          set({ collaborationData: null }, false, 'clearCollaborationData')
+        }
+      },
+
+      /**
+       * Ejecuta el análisis de colaboración basado en las selecciones actuales
+       */
+      analyzeCollaboration: async () => {
+        const state = get()
+        
+        // Determinar qué analizar
+        const hasRepos = state.selectedRepos.length >= 2
+        const hasOrgs = state.selectedOrgs.length >= 2
+        const hasUser = !!state.selectedUser
+        
+        if (!hasRepos && !hasOrgs && !hasUser) {
+          console.log('⚠️ Nada que analizar - no hay selecciones válidas')
+          return
+        }
+        
+        set({ isAnalyzing: true }, false, 'analyzeCollaboration/start')
+        
+        try {
+          const { analyzeCollaboration } = await import('../services/api')
+          
+          let result
+          if (hasUser) {
+            result = await analyzeCollaboration({ user: state.selectedUser })
+          } else if (hasRepos) {
+            result = await analyzeCollaboration({ repos: state.selectedRepos })
+          } else if (hasOrgs) {
+            result = await analyzeCollaboration({ orgs: state.selectedOrgs })
+          }
+          
+          set({
+            collaborationData: result,
+            collaborationMode: result?.mode || null,
+            isAnalyzing: false,
+          }, false, 'analyzeCollaboration/success')
+          
+          console.log(`✅ Análisis de colaboración: ${result?.mode} - ${result?.shared_users?.length || 0} usuarios compartidos`)
+        } catch (error) {
+          console.error('Error en análisis de colaboración:', error)
+          set({ isAnalyzing: false, collaborationData: null }, false, 'analyzeCollaboration/error')
+        }
+      },
+
+      /**
+       * Limpia todas las selecciones de colaboración
+       */
+      clearCollaborationSelections: () => {
+        set({
+          selectedRepos: [],
+          selectedOrgs: [],
+          selectedUser: null,
+          collaborationMode: null,
+          collaborationData: null,
+          isAnalyzing: false,
+        }, false, 'clearCollaborationSelections')
+      },
+
+      // ============================================================================
+      // AUTO-DISCOVERY DE COLABORACIÓN
+      // ============================================================================
+
+      /**
+       * Auto-detecta patrones de colaboración analizando toda la BBDD.
+       * Se llama automáticamente después de loadFullData() si el backend está online.
+       * 
+       * Si encuentra colaboración real, establece collaborationAvailable = true
+       * y el banner aparecerá en la UI invitando al usuario a explorar el grafo.
+       */
+      discoverCollaboration: async () => {
+        set({ isDiscovering: true }, false, 'discoverCollaboration/start')
+        
+        try {
+          const { discoverCollaboration } = await import('../services/api')
+          const result = await discoverCollaboration()
+          
+          set({
+            collaborationAvailable: result.available,
+            collaborationDiscovery: result,
+            isDiscovering: false,
+          }, false, 'discoverCollaboration/success')
+          
+          if (result.available) {
+            console.log(`🔍 ¡Colaboración detectada! ${result.summary}`)
+          } else {
+            console.log('🔍 No se detectó colaboración entre los datos actuales')
+          }
+          
+          return result.available
+        } catch (error) {
+          console.warn('⚠️ Error en auto-discovery de colaboración:', error.message)
+          set({
+            collaborationAvailable: false,
+            collaborationDiscovery: null,
+            isDiscovering: false,
+          }, false, 'discoverCollaboration/error')
+          return false
+        }
+      },
+
+      /**
+       * Abre la vista fullscreen del grafo de colaboración
+       */
+      openCollaborationGraph: () => {
+        set({ showCollaborationGraph: true }, false, 'openCollaborationGraph')
+      },
+
+      /**
+       * Cierra la vista fullscreen del grafo de colaboración
+       */
+      closeCollaborationGraph: () => {
+        set({ showCollaborationGraph: false }, false, 'closeCollaborationGraph')
+      },
+
+      /**
+       * Verifica si el modo de análisis de colaboración está activo
+       */
+      isCollaborationModeActive: () => {
+        const state = get()
+        return !!(
+          state.selectedRepos.length >= 2 ||
+          state.selectedOrgs.length >= 2 ||
+          state.selectedUser
+        )
       },
 
       // ============================================================================

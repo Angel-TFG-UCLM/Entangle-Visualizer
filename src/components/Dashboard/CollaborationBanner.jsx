@@ -1,17 +1,17 @@
 /**
- * CollaborationBanner - Banner de Colaboración Descubierta
- * =========================================================
+ * CollaborationBanner - Portal de Acceso al Universo Cuántico
+ * ============================================================
  * 
  * Aparece automáticamente cuando el backend detecta patrones de
  * colaboración real en la BBDD (bridge users, repos conectados, etc.)
  * 
- * Al hacer click, abre la vista fullscreen del grafo de colaboración
- * donde el usuario puede explorar todas las relaciones.
+ * Diseñado como un "portal cuántico" inmersivo que invita a explorar
+ * el grafo 3D de colaboración.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiActivity, FiArrowRight, FiX } from 'react-icons/fi'
+import { FiX } from 'react-icons/fi'
 import styles from './CollaborationBanner.module.css'
 
 export default function CollaborationBanner() {
@@ -24,28 +24,36 @@ export default function CollaborationBanner() {
   
   const [visible, setVisible] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [inView, setInView] = useState(false)
+  const wrapperRef = useRef(null)
   
-  // Animación de entrada con delay
+  /* IntersectionObserver — revela el banner al hacer scroll */
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); io.disconnect() } },
+      { threshold: 0.15 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  
   useEffect(() => {
     if (collaborationAvailable && !dismissed) {
-      const timer = setTimeout(() => setVisible(true), 300)
+      const timer = setTimeout(() => setVisible(true), 400)
       return () => clearTimeout(timer)
     } else {
       setVisible(false)
     }
   }, [collaborationAvailable, dismissed])
   
-  // No mostrar si no hay colaboración o fue descartado
-  if (!collaborationAvailable || dismissed || isDiscovering) {
-    return null
-  }
+  const shouldShow = collaborationAvailable && !dismissed && !isDiscovering
+  const revealed = shouldShow && visible && inView
   
   const metrics = collaborationDiscovery?.metrics
-  const summary = collaborationDiscovery?.summary
   
-  const handleClick = () => {
-    openCollaborationGraph()
-  }
+  const handleClick = () => openCollaborationGraph()
   
   const handleDismiss = (e) => {
     e.stopPropagation()
@@ -53,74 +61,84 @@ export default function CollaborationBanner() {
   }
   
   return (
+    <div ref={wrapperRef} className={`${styles.wrapper} ${revealed ? styles.wrapperVisible : ''}`}>
     <div 
-      className={`${styles.banner} ${visible ? styles.bannerVisible : ''}`}
+      className={`${styles.banner} ${revealed ? styles.bannerVisible : ''}`}
       onClick={handleClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && handleClick()}
     >
-      {/* Fondo animado */}
-      <div className={styles.bgGlow} />
-      <div className={styles.bgPulse} />
-      
-      {/* Icono con animación */}
-      <div className={styles.iconWrapper}>
-        <svg viewBox="0 0 48 48" className={styles.iconSvg}>
+      {/* Fondo de campo estelar */}
+      <div className={styles.starfield}>
+        {Array.from({ length: 24 }, (_, i) => (
+          <span key={i} className={styles.star} style={{
+            left: `${(i * 17 + 7) % 100}%`,
+            top: `${(i * 23 + 11) % 100}%`,
+            animationDelay: `${(i * 0.4) % 3}s`,
+            animationDuration: `${2 + (i % 3)}s`,
+          }} />
+        ))}
+      </div>
+
+      {/* Línea brillante superior */}
+      <div className={styles.topEdge} />
+
+      {/* Átomo orbital — icono del portal */}
+      <div className={styles.portalIcon}>
+        <svg viewBox="0 0 120 120" width="56" height="56" className={styles.portalAtom}>
+          <ellipse cx="60" cy="60" rx="48" ry="16" fill="none" stroke="rgba(0,212,228,0.25)" strokeWidth="1" className={styles.pOrbit1} />
+          <ellipse cx="60" cy="60" rx="48" ry="16" fill="none" stroke="rgba(157,111,219,0.2)" strokeWidth="1" className={styles.pOrbit2} />
+          <ellipse cx="60" cy="60" rx="48" ry="16" fill="none" stroke="rgba(0,255,159,0.18)" strokeWidth="1" className={styles.pOrbit3} />
+          <circle r="3" fill="#00D4E4" filter="url(#pGlow)">
+            <animateMotion dur="2.4s" repeatCount="indefinite" path="M 108,60 A 48,16 0 1,1 12,60 A 48,16 0 1,1 108,60" />
+          </circle>
+          <circle r="2.5" fill="#9D6FDB" filter="url(#pGlow)">
+            <animateMotion dur="3s" repeatCount="indefinite" path="M 93,77 A 48,16 60 1,1 27,43 A 48,16 60 1,1 93,77" />
+          </circle>
+          <circle r="2" fill="#00ff9f" filter="url(#pGlow)">
+            <animateMotion dur="3.6s" repeatCount="indefinite" path="M 27,77 A 48,16 120 1,1 93,43 A 48,16 120 1,1 27,77" />
+          </circle>
+          <circle cx="60" cy="60" r="5" fill="rgba(0,212,228,0.4)" />
+          <circle cx="60" cy="60" r="2.5" fill="rgba(255,255,255,0.6)" />
           <defs>
-            <filter id="bannerGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="g" />
-              <feMerge>
-                <feMergeNode in="g" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            <filter id="pGlow" x="-200%" y="-200%" width="500%" height="500%">
+              <feGaussianBlur stdDeviation="3" result="g" />
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
           </defs>
-          {/* Nodos conectados animados */}
-          <circle cx="14" cy="24" r="4" fill="#00f7ff" filter="url(#bannerGlow)" className={styles.nodeA} />
-          <circle cx="34" cy="16" r="3.5" fill="#bd00ff" filter="url(#bannerGlow)" className={styles.nodeB} />
-          <circle cx="34" cy="32" r="3.5" fill="#00ff9f" filter="url(#bannerGlow)" className={styles.nodeC} />
-          <line x1="14" y1="24" x2="34" y2="16" stroke="rgba(255,189,0,0.6)" strokeWidth="1.5" className={styles.link} />
-          <line x1="14" y1="24" x2="34" y2="32" stroke="rgba(255,189,0,0.6)" strokeWidth="1.5" className={styles.link} />
-          <line x1="34" y1="16" x2="34" y2="32" stroke="rgba(255,189,0,0.4)" strokeWidth="1" className={styles.link} />
-          {/* Pulso central */}
-          <circle cx="24" cy="24" r="2" fill="#ffbd00" filter="url(#bannerGlow)" className={styles.centerPulse} />
         </svg>
+        {/* Anillo de pulso detrás del átomo */}
+        <div className={styles.portalRing} />
+        <div className={styles.portalRing2} />
       </div>
       
-      {/* Contenido */}
+      {/* Contenido central */}
       <div className={styles.content}>
-        <div className={styles.title}>
-          <FiActivity className={styles.titleIcon} />
-          <span>¡Grafo de Colaboración disponible!</span>
-        </div>
-        <p className={styles.summary}>
-          {summary || `${metrics?.bridge_users_count || 0} usuarios puente detectados`}
+        <div className={styles.label}>QUANTUM UNIVERSE</div>
+        <h3 className={styles.title}>Explorar el Universo de Colaboración</h3>
+        <p className={styles.subtitle}>
+          {metrics
+            ? `${metrics.graph_nodes || 0} nodos · ${metrics.graph_links || 0} enlaces · ${metrics.bridge_users_count || 0} usuarios puente`
+            : 'Red de entrelazamiento cuántico descubierta'
+          }
         </p>
       </div>
       
-      {/* CTA */}
+      {/* Botón CTA */}
       <div className={styles.cta}>
-        <span>Explorar</span>
-        <FiArrowRight className={styles.ctaArrow} />
+        <span className={styles.ctaText}>Entrar</span>
+        <svg className={styles.ctaIcon} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+        <div className={styles.ctaGlow} />
       </div>
       
       {/* Cerrar */}
-      <button 
-        className={styles.dismissBtn}
-        onClick={handleDismiss}
-        aria-label="Descartar"
-      >
+      <button className={styles.dismissBtn} onClick={handleDismiss} aria-label="Descartar">
         <FiX size={14} />
       </button>
-      
-      {/* Partículas decorativas */}
-      <div className={styles.particles}>
-        <span className={styles.particle} style={{ left: '10%', animationDelay: '0s' }} />
-        <span className={styles.particle} style={{ left: '30%', animationDelay: '0.5s' }} />
-        <span className={styles.particle} style={{ left: '60%', animationDelay: '1s' }} />
-        <span className={styles.particle} style={{ left: '85%', animationDelay: '1.5s' }} />
-      </div>
+    </div>
     </div>
   )
 }

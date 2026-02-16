@@ -565,6 +565,89 @@ export const useDashboardStore = create(
         set({ showCollaborationGraph: false }, false, 'closeCollaborationGraph')
       },
 
+      // ============================================================================
+      // ANÁLISIS DE RED & LENTES ANALÍTICAS
+      // ============================================================================
+      
+      // Estado de lentes y métricas de red
+      activeLens: null,              // null | 'centrality' | 'communities' | 'busFactor' | 'intensity'
+      networkMetrics: null,          // Resultado completo de /collaboration/network-metrics
+      isLoadingMetrics: false,
+      metricsError: null,
+      metricsLoadAttempted: false,   // Evita reintentos infinitos
+      
+      // Quantum Tunneling state
+      tunnelingPath: null,           // Resultado del path finding
+      isLoadingTunneling: false,
+      
+      /**
+       * Carga métricas de red completas (centralidad, comunidades, bus factor, etc.)
+       * @param {boolean} forceRefresh - Forzar recálculo del backend
+       */
+      loadNetworkMetrics: async (forceRefresh = false) => {
+        if (get().isLoadingMetrics) return
+        set({ isLoadingMetrics: true, metricsError: null, metricsLoadAttempted: true }, false, 'loadNetworkMetrics/start')
+        
+        try {
+          const { getNetworkMetrics } = await import('../services/api')
+          const metrics = await getNetworkMetrics(forceRefresh)
+          set({ 
+            networkMetrics: metrics, 
+            isLoadingMetrics: false 
+          }, false, 'loadNetworkMetrics/success')
+          return true
+        } catch (error) {
+          console.error('[loadNetworkMetrics] Error:', error)
+          set({ 
+            isLoadingMetrics: false, 
+            metricsError: error.message || 'Error al cargar métricas de red'
+          }, false, 'loadNetworkMetrics/error')
+          return false
+        }
+      },
+      
+      /**
+       * Activa/desactiva una lente analítica en el universo
+       * Si se pulsa la lente activa, se desactiva (toggle)
+       * @param {'centrality'|'communities'|'busFactor'|'intensity'|null} lens
+       */
+      setActiveLens: (lens) => {
+        const current = get().activeLens
+        const newLens = current === lens ? null : lens
+        set({ activeLens: newLens }, false, `setActiveLens/${newLens || 'none'}`)
+      },
+      
+      /**
+       * Encuentra el camino más corto entre dos entidades (Quantum Tunneling)
+       * @param {string} source - ID del nodo origen
+       * @param {string} target - ID del nodo destino
+       */
+      findQuantumPath: async (source, target) => {
+        if (!source || !target) return
+        set({ isLoadingTunneling: true }, false, 'findQuantumPath/start')
+        
+        try {
+          const { findQuantumPath } = await import('../services/api')
+          const result = await findQuantumPath(source, target)
+          set({ 
+            tunnelingPath: result, 
+            isLoadingTunneling: false 
+          }, false, 'findQuantumPath/success')
+          return result
+        } catch (error) {
+          console.error('[findQuantumPath] Error:', error)
+          set({ isLoadingTunneling: false }, false, 'findQuantumPath/error')
+          return null
+        }
+      },
+      
+      /**
+       * Limpia el camino de tunneling activo
+       */
+      clearTunneling: () => {
+        set({ tunnelingPath: null }, false, 'clearTunneling')
+      },
+
       /**
        * Verifica si el modo de análisis de colaboración está activo
        */

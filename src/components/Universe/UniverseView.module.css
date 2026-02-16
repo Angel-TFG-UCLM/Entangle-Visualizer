@@ -7,8 +7,7 @@
   inset: 0;
   z-index: 9999;
   background: #050510;
-  opacity: 0;
-  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -17,10 +16,411 @@
   opacity: 1;
 }
 
+/* Contenedor de toda la UI (header, search, lenses, etc.) — se revela tras el big bang */
+.universeUI {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.universeUIVisible {
+  opacity: 1;
+  /* pointer-events se mantiene none aquí para no bloquear el Canvas;
+     cada hijo interactivo activa pointer-events individualmente */
+}
+
 /* Canvas wrapper */
 .canvasWrapper {
   position: absolute;
   inset: 0;
+  opacity: 1;
+  filter: blur(0px);
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.canvasTransitioning {
+  opacity: 0.03;
+  filter: blur(12px);
+}
+
+/* ============================================================================
+   QUANTUM LOADING OVERLAY — pantalla de carga al abrir el universo
+   ============================================================================ */
+
+/* === QUANTUM LOADER — estilo unificado con el loader principal === */
+.quantumLoader {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 50%, #0a0e14 100%);
+  opacity: 1;
+  transition: opacity 1s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  will-change: opacity, filter;
+  contain: layout style paint;
+  isolation: isolate;
+}
+.quantumLoaderHide {
+  opacity: 0;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+/* Scanlines CRT — efecto del loader original */
+.loaderScanline {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  animation: loaderScanlineScroll 8s linear infinite;
+}
+.loaderScanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 212, 228, 0.02) 50%,
+    transparent 100%
+  );
+  animation: loaderScanSweep 4s ease-in-out infinite;
+}
+@keyframes loaderScanlineScroll {
+  from { background-position: 0 0; }
+  to { background-position: 0 100px; }
+}
+@keyframes loaderScanSweep {
+  0%, 100% { transform: translateY(-100%); opacity: 0; }
+  50% { transform: translateY(100%); opacity: 1; }
+}
+
+/* Anillos de pulso */
+.loaderPulseRing,
+.loaderPulseRing2 {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 228, 0.12);
+  animation: loaderPulseExpand 3s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.loaderPulseRing2 {
+  animation-delay: 1.5s;
+  border-color: rgba(157, 111, 219, 0.08);
+}
+@keyframes loaderPulseExpand {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(8); opacity: 0; }
+}
+
+/* Contenedor centrado */
+.loaderContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  z-index: 2;
+  animation: loaderContentFadeIn 0.8s ease forwards;
+  will-change: transform, opacity;
+}
+@keyframes loaderContentFadeIn {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Logo — estilo del loader original con sombras animadas */
+.loaderLogo {
+  width: 180px;
+  height: auto;
+  margin-bottom: 12px;
+  filter:
+    drop-shadow(0 0 15px rgba(157, 111, 219, 0.5))
+    drop-shadow(0 0 30px rgba(0, 212, 228, 0.3));
+  animation: loaderLogoGlow 4s ease-in-out infinite;
+}
+@keyframes loaderLogoGlow {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 15px rgba(157, 111, 219, 0.5))
+      drop-shadow(0 0 30px rgba(0, 212, 228, 0.3));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 20px rgba(0, 212, 228, 0.6))
+      drop-shadow(0 0 40px rgba(157, 111, 219, 0.4));
+  }
+}
+
+/* Subtítulo */
+.loaderSub {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: rgba(0, 212, 228, 0.45);
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+
+/* Contenedor del spinner */
+.loaderSpinnerWrap {
+  margin-bottom: 18px;
+}
+
+/* === ÁTOMO CSS 3D — perspective + rotateX crea elipses reales, electrones orbitan en plano inclinado === */
+.loaderAtomCSS {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+
+/* Plano inclinado — ESTÁTICO, da la forma elíptica vista desde el frente */
+.loaderOrbitPlane {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.loaderPlane1 { transform: rotateX(72deg) rotateY(0deg); }
+.loaderPlane2 { transform: rotateX(72deg) rotateY(60deg); }
+.loaderPlane3 { transform: rotateX(72deg) rotateY(120deg); }
+
+/* Anillo visible — círculo dentro del plano inclinado (se ve elíptico por la perspectiva) */
+.loaderOrbitRing1,
+.loaderOrbitRing2,
+.loaderOrbitRing3 {
+  position: absolute;
+  inset: 5%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.loaderOrbitRing1 { border: 1.5px solid rgba(0, 212, 228, 0.3); }
+.loaderOrbitRing2 { border: 1.5px solid rgba(157, 111, 219, 0.3); }
+.loaderOrbitRing3 { border: 1.5px solid rgba(0, 255, 159, 0.25); }
+
+/* Brazo giratorio — gira en el plano inclinado, arrastra el electrón */
+.loaderElSpin {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.loaderElSpin1 { animation: loaderRotate 2s linear infinite; }
+.loaderElSpin2 { animation: loaderRotate 2.6s linear infinite; }
+.loaderElSpin3 { animation: loaderRotate 3.2s linear infinite; }
+
+@keyframes loaderRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Electrón — posicionado en el borde del brazo giratorio (50% = radio del círculo) */
+.loaderElDot {
+  position: absolute;
+  top: 50%;
+  right: 5%;
+  border-radius: 50%;
+  pointer-events: none;
+  /* Contra-rotar en X para que el dot siempre se vea redondo */
+  transform: rotateX(-72deg);
+}
+.loaderElDot1 {
+  width: 8px; height: 8px;
+  margin-top: -4px; margin-right: -4px;
+  background: #00D4E4;
+  box-shadow: 0 0 12px 4px rgba(0, 212, 228, 0.7), 0 0 24px 8px rgba(0, 212, 228, 0.3);
+}
+.loaderElDot2 {
+  width: 7px; height: 7px;
+  margin-top: -3.5px; margin-right: -3.5px;
+  background: #9D6FDB;
+  box-shadow: 0 0 12px 4px rgba(157, 111, 219, 0.7), 0 0 24px 8px rgba(157, 111, 219, 0.3);
+}
+.loaderElDot3 {
+  width: 6px; height: 6px;
+  margin-top: -3px; margin-right: -3px;
+  background: #00ff9f;
+  box-shadow: 0 0 10px 3px rgba(0, 255, 159, 0.6), 0 0 20px 6px rgba(0, 255, 159, 0.25);
+}
+
+/* Núcleo central — fuera de la perspectiva 3D */
+.loaderAtomCoreCSS {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 30%, rgba(0,212,228,0.5) 60%, transparent 100%);
+  box-shadow: 0 0 12px 4px rgba(0, 212, 228, 0.4), 0 0 24px 8px rgba(0, 212, 228, 0.15);
+  animation: loaderCorePulse 2s ease-in-out infinite;
+  will-change: transform, opacity;
+  z-index: 1;
+}
+@keyframes loaderCorePulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.7; }
+  50%      { transform: scale(1.2); opacity: 1; }
+}
+
+/* Mensajes cíclicos — puro CSS, sin JS setInterval */
+.loaderMessages {
+  position: relative;
+  min-height: 1.4em;
+  width: 100%;
+  text-align: center;
+}
+.loaderMsgItem {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: loaderMsgCycle 6.4s linear infinite;
+}
+@keyframes loaderMsgCycle {
+  0%      { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  3%      { opacity: 1; transform: translateX(-50%) translateY(0); }
+  22%     { opacity: 1; transform: translateX(-50%) translateY(0); }
+  25%     { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  25.01%  { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  100%    { opacity: 0; transform: translateX(-50%) translateY(4px); }
+}
+
+/* Grid de fondo sutil - con colores cyan/morado del original */
+.quantumLoader::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 212, 228, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 228, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: loaderGridDrift 20s linear infinite;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+}
+@keyframes loaderGridDrift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(40px, 40px); }
+}
+
+/* Partículas de fondo flotantes */
+.quantumLoader::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(0,212,228,0.2), transparent),
+    radial-gradient(1px 1px at 40% 70%, rgba(157,111,219,0.2), transparent),
+    radial-gradient(1.5px 1.5px at 60% 20%, rgba(0,255,159,0.15), transparent),
+    radial-gradient(1px 1px at 80% 60%, rgba(0,212,228,0.15), transparent),
+    radial-gradient(1.5px 1.5px at 10% 80%, rgba(157,111,219,0.12), transparent),
+    radial-gradient(1px 1px at 70% 45%, rgba(0,255,159,0.12), transparent),
+    radial-gradient(1.5px 1.5px at 35% 55%, rgba(0,212,228,0.1), transparent),
+    radial-gradient(1px 1px at 90% 15%, rgba(157,111,219,0.15), transparent);
+  animation: loaderStarsDrift 30s linear infinite;
+}
+@keyframes loaderStarsDrift {
+  from { transform: translate(0, 0) rotate(0deg); }
+  to { transform: translate(-20px, -30px) rotate(5deg); }
+}
+
+/* ============================================================================
+   LENS TRANSITION OVERLAY — animación de cambio de lente (atom spinner)
+   ============================================================================ */
+
+.lensTransitionOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  pointer-events: none;
+  animation: lensOverlayFadeIn 0.4s ease forwards;
+}
+
+/* Atom SVG spinner */
+.lensAtomSpinner {
+  animation: atomFadeIn 0.6s ease-out;
+}
+
+.lensAtomOrbit1 {
+  animation: spin 2s linear infinite;
+  transform-origin: 60px 60px;
+}
+
+.lensAtomOrbit2 {
+  animation: spin 2.6s linear infinite;
+  transform-origin: 60px 60px;
+  transform: rotate(60deg);
+}
+
+.lensAtomOrbit3 {
+  animation: spin 3.2s linear infinite;
+  transform-origin: 60px 60px;
+  transform: rotate(120deg);
+}
+
+.lensAtomCore {
+  animation: lensCoreBreathe 2s ease-in-out infinite;
+}
+
+@keyframes lensCoreBreathe {
+  0%, 100% { r: 6; opacity: 0.5; }
+  50% { r: 8; opacity: 0.9; }
+}
+
+@keyframes atomFadeIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lensTransitionLabel {
+  margin-top: 18px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 400;
+  animation: lensLabelBreathe 2s ease-in-out infinite;
+}
+
+@keyframes lensOverlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lensLabelBreathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
 }
 
 /* ============================================================================
@@ -233,6 +633,7 @@
   padding: 20px;
   z-index: 20;
   backdrop-filter: blur(20px);
+  pointer-events: auto;
   animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -467,6 +868,7 @@
   border-radius: 20px;
   color: rgba(255, 255, 255, 0.45);
   font-size: 11px;
+  pointer-events: auto;
   letter-spacing: 0.3px;
   cursor: pointer;
   z-index: 15;
@@ -493,6 +895,7 @@
   border-radius: 16px;
   z-index: 25;
   backdrop-filter: blur(24px);
+  pointer-events: auto;
   animation: helpSlideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -710,5 +1113,709 @@
 
   .headerSub {
     display: none;
+  }
+}
+
+/* ============================================================================
+   LENTES ANALÍTICAS — Toolbar
+   ============================================================================ */
+
+.lensToolbar {
+  position: absolute;
+  top: 54px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: rgba(2, 2, 8, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.lensLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.lensBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.lensBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.lensBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.lensBtnActive {
+  background: rgba(var(--lens-color-rgb, 108, 92, 231), 0.15) !important;
+  border-color: var(--lens-color, #6c5ce7) !important;
+  color: var(--lens-color, #6c5ce7) !important;
+  box-shadow: 0 0 12px rgba(var(--lens-color-rgb, 108, 92, 231), 0.25);
+}
+
+.lensDivider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 4px;
+}
+
+.lensSpinner {
+  animation: spin 1s linear infinite;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   QUANTUM TUNNELING — Search & Path
+   ============================================================================ */
+
+.tunnelingBar {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  min-width: 480px;
+  pointer-events: auto;
+}
+
+.tunnelingInputGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(2, 2, 8, 0.85);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 255, 170, 0.15);
+  border-radius: 10px;
+}
+
+.tunnelingInputWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.tunnelingInput {
+  width: 100%;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.tunnelingInput:focus {
+  border-color: rgba(0, 255, 170, 0.4);
+}
+
+.tunnelingInput::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.tunnelingArrow {
+  color: rgba(0, 255, 170, 0.5);
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.tunnelingDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: rgba(10, 10, 20, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.tunnelingOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tunnelingOption:hover {
+  background: rgba(0, 255, 170, 0.08);
+  color: #fff;
+}
+
+.tunnelingOptionType {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.tunnelingOptionLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tunnelingBridgeTag {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 189, 0, 0.15);
+  color: #ffbd00;
+  border: 1px solid rgba(255, 189, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.tunnelingOptionType[data-type="org"] { color: #00f7ff; }
+.tunnelingOptionType[data-type="repo"] { color: #bd00ff; }
+.tunnelingOptionType[data-type="user"] { color: #00ff9f; }
+
+.tunnelingSearchBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 255, 170, 0.1);
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  border-radius: 8px;
+  color: #00ffaa;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tunnelingSearchBtn:hover:not(:disabled) {
+  background: rgba(0, 255, 170, 0.2);
+  box-shadow: 0 0 12px rgba(0, 255, 170, 0.3);
+}
+
+.tunnelingSearchBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tunnelingResult {
+  background: rgba(2, 2, 8, 0.85);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 255, 170, 0.15);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.tunnelingPathHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(0, 255, 170, 0.8);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.tunnelingCloseBtn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.tunnelingPathChain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.tunnelingPathNode {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+  white-space: nowrap;
+}
+
+.tunnelingPathNode[data-type="org"] { border-color: rgba(0, 247, 255, 0.3); color: #00f7ff; }
+.tunnelingPathNode[data-type="repo"] { border-color: rgba(189, 0, 255, 0.3); color: #bd00ff; }
+.tunnelingPathNode[data-type="user"] { border-color: rgba(0, 255, 159, 0.3); color: #00ff9f; }
+
+.tunnelingPathEdge {
+  color: rgba(0, 255, 170, 0.4);
+  font-size: 13px;
+  margin: 0 2px;
+}
+
+.tunnelingNoPath {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(255, 100, 100, 0.8);
+}
+
+/* ============================================================================
+   PANEL DE DETALLE — Métricas de Red Enriquecidas
+   ============================================================================ */
+
+.detailNetworkMetrics {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metricRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.metricLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 90px;
+  white-space: nowrap;
+}
+
+.metricBarWrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.metricBar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 2px;
+}
+
+.metricValue {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 30px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.metricDetail {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: -2px 0 6px 0;
+  padding-left: 2px;
+  font-style: italic;
+}
+
+.communityBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  margin: 8px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(var(--community-color), 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.communityDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.communitySize {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-left: auto;
+}
+
+/* Bus Factor */
+.busFactor {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.busFactorHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.busFactorRisk {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.busFactorCritical {
+  border-color: rgba(255, 51, 51, 0.25);
+  background: rgba(255, 51, 51, 0.05);
+}
+.busFactorCritical .busFactorHeader { color: #ff3333; }
+.busFactorCritical .busFactorRisk { background: rgba(255, 51, 51, 0.2); color: #ff3333; }
+
+.busFactorHigh {
+  border-color: rgba(255, 136, 0, 0.25);
+  background: rgba(255, 136, 0, 0.05);
+}
+.busFactorHigh .busFactorHeader { color: #ff8800; }
+.busFactorHigh .busFactorRisk { background: rgba(255, 136, 0, 0.2); color: #ff8800; }
+
+.busFactorMedium {
+  border-color: rgba(255, 221, 0, 0.25);
+  background: rgba(255, 221, 0, 0.05);
+}
+.busFactorMedium .busFactorHeader { color: #ffdd00; }
+.busFactorMedium .busFactorRisk { background: rgba(255, 221, 0, 0.2); color: #ffdd00; }
+
+.busFactorLow {
+  border-color: rgba(0, 255, 136, 0.25);
+  background: rgba(0, 255, 136, 0.05);
+}
+.busFactorLow .busFactorHeader { color: #00ff88; }
+.busFactorLow .busFactorRisk { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+
+.busFactorContribs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.busFactorContrib {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.busFactorContrib span:first-child {
+  min-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.busFactorContribBar {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.busFactorContribBar div {
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.busFactorContrib span:last-child {
+  min-width: 28px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
+
+/* ============================================================================
+   RESPONSIVE OVERRIDES — Lentes & Tunneling
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .lensToolbar {
+    top: 48px;
+    left: 8px;
+    right: 8px;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .lensBtn span {
+    display: none;
+  }
+
+  .tunnelingBar {
+    min-width: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    top: 90px;
+  }
+
+  .tunnelingInputGroup {
+    flex-wrap: wrap;
+  }
+
+  .tunnelingArrow {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   SEARCH BAR — Búsqueda con autocomplete
+   ============================================================================ */
+
+.searchBar {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  pointer-events: auto;
+}
+
+.searchInputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(6, 8, 20, 0.85);
+  border: 1px solid rgba(0, 247, 255, 0.15);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
+  padding: 0 14px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.searchInputWrapper:focus-within {
+  border-color: rgba(0, 247, 255, 0.4);
+  box-shadow: 0 0 20px rgba(0, 247, 255, 0.1), inset 0 0 12px rgba(0, 247, 255, 0.03);
+}
+
+.searchIcon {
+  color: rgba(0, 247, 255, 0.4);
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.searchInput {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-family: 'Inter', 'SF Pro', system-ui, sans-serif;
+  padding: 10px 0;
+  letter-spacing: 0.02em;
+}
+
+.searchInput::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.searchClearBtn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.searchClearBtn:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.searchDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(6, 8, 20, 0.92);
+  border: 1px solid rgba(0, 247, 255, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 247, 255, 0.06);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.searchResultCount {
+  padding: 6px 14px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.searchGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: 0;
+  background: rgba(6, 8, 20, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1;
+}
+
+.searchGroupHeader:first-child {
+  border-top: none;
+}
+
+.searchGroupIcon {
+  font-size: 14px;
+}
+
+.searchGroupIcon[data-type="org"] { color: #00f7ff; }
+.searchGroupIcon[data-type="repo"] { color: #bd00ff; }
+.searchGroupIcon[data-type="user"] { color: #00ff9f; }
+
+.searchGroupCount {
+  margin-left: auto;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 400;
+}
+
+.searchOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.searchOption:hover {
+  background: rgba(0, 247, 255, 0.08);
+}
+
+.searchOptionActive {
+  background: rgba(0, 247, 255, 0.12);
+  border-left: 2px solid rgba(0, 247, 255, 0.5);
+}
+
+.searchOptionIcon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.searchOptionIcon[data-type="org"] {
+  color: #00f7ff;
+}
+
+.searchOptionIcon[data-type="repo"] {
+  color: #bd00ff;
+}
+
+.searchOptionIcon[data-type="user"] {
+  color: #00ff9f;
+}
+
+.searchOptionLabel {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchOptionType {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.searchBridgeTag {
+  font-size: 9px;
+  color: #ffbd00;
+  background: rgba(255, 189, 0, 0.1);
+  border: 1px solid rgba(255, 189, 0, 0.2);
+  border-radius: 8px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .searchBar {
+    width: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    top: 48px;
   }
 }

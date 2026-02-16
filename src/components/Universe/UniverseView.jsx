@@ -21,19 +21,17 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiHelpCircle, FiChevronDown, FiEye, FiEyeOff } from 'react-icons/fi'
+import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiHelpCircle, FiChevronDown, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader } from 'react-icons/fi'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
 // CONSTANTES
 // ============================================================================
 
-const ORG_MIN_DIST = 140  // distancia mínima entre procesadores
-const ORG_MAX_DIST = 320  // radio máximo de colocación
 const REPO_MIN_ORBIT = 18 // órbita mínima qubit→procesador
 const REPO_MAX_ORBIT = 55 // órbita máxima qubit→procesador
-const USER_MIN_ORBIT = 2  // órbita mínima partícula→qubit
-const USER_MAX_ORBIT = 5  // órbita máxima partícula→qubit
+const USER_MIN_ORBIT = 4  // órbita mínima partícula→qubit
+const USER_MAX_ORBIT = 10 // órbita máxima partícula→qubit
 
 // Generador pseudo-aleatorio con semilla (para reproducibilidad visual)
 function seededRandom(seed) {
@@ -42,10 +40,15 @@ function seededRandom(seed) {
 }
 
 // ============================================================================
-// LAYOUT: distribución orgánica con anti-clustering
+// LAYOUT: distribución basada en colaboración real
+// ============================================================================
+// Las organizaciones más colaborativas (con más contributors compartidos
+// entre ellas) se colocan en el centro del universo. Las aisladas van a la
+// periferia. Orgs que comparten muchos users se colocan cerca entre sí.
+// El radio de repos se escala por cantidad → evita "soles" de densidad.
 // ============================================================================
 
-function computeLayout(graph) {
+function computeLayout(graph, nodeMetrics) {
   if (!graph?.nodes?.length) return null
 
   const orgNodes = graph.nodes.filter(n => n.type === 'org')
@@ -55,15 +58,20 @@ function computeLayout(graph) {
   const orgRepos = {}
   const repoUsers = {}
 
-  // Mapas O(1) para lookups rápidos
   const repoMap = new Map(repoNodes.map(n => [n.id, n]))
   const userMap = new Map(userNodes.map(n => [n.id, n]))
+
+  // Mapa repo → org (para saber a qué org pertenece cada repo)
+  const repoOwner = {}
 
   graph.links.forEach(link => {
     if (link.type === 'owns') {
       if (!orgRepos[link.source]) orgRepos[link.source] = []
       const repo = repoMap.get(link.target)
-      if (repo) orgRepos[link.source].push(repo)
+      if (repo) {
+        orgRepos[link.source].push(repo)
+        repoOwner[link.target] = link.source
+      }
     }
     if (link.type === 'contributed_to') {
       if (!repoUsers[link.target]) repoUsers[link.target] = []
@@ -74,104 +82,255 @@ function computeLayout(graph) {
     }
   })
 
-  // Escalar distancias según la cantidad de repos
+  // ================================================================
+  // FASE 1: Construir grafo de colaboración inter-org
+  // ================================================================
+  // Para cada user, encontrar las orgs a las que contribuye
+  const userOrgs = {} // user_id → Set<org_id>
+  graph.links.forEach(link => {
+    if (link.type === 'contributed_to') {
+      const org = repoOwner[link.target]
+      if (org) {
+        if (!userOrgs[link.source]) userOrgs[link.source] = new Set()
+        userOrgs[link.source].add(org)
+      }
+    }
+  })
+
+  // Contar pares de orgs que comparten contributors
+  const orgCollabMap = new Map() // "orgA|orgB" → count
+  const orgNeighbors = {} // org_id → Map<other_org_id, sharedCount>
+  Object.values(userOrgs).forEach(orgSet => {
+    if (orgSet.size < 2) return
+    const orgs = Array.from(orgSet)
+    for (let i = 0; i < orgs.length; i++) {
+      for (let j = i + 1; j < orgs.length; j++) {
+        const key = orgs[i] < orgs[j] ? `${orgs[i]}|${orgs[j]}` : `${orgs[j]}|${orgs[i]}`
+        orgCollabMap.set(key, (orgCollabMap.get(key) || 0) + 1)
+        if (!orgNeighbors[orgs[i]]) orgNeighbors[orgs[i]] = new Map()
+        if (!orgNeighbors[orgs[j]]) orgNeighbors[orgs[j]] = new Map()
+        orgNeighbors[orgs[i]].set(orgs[j], (orgNeighbors[orgs[i]].get(orgs[j]) || 0) + 1)
+        orgNeighbors[orgs[j]].set(orgs[i], (orgNeighbors[orgs[j]].get(orgs[i]) || 0) + 1)
+      }
+    }
+  })
+
+  // ================================================================
+  // FASE 2: Score de centralidad por org
+  // ================================================================
+  // Usar collab_centrality del backend (percentil 0-100) si está disponible,
+  // sino calcular localmente desde el grafo
+  const orgScore = {}
+  let useBackendMetrics = false
+
+  if (nodeMetrics) {
+    const anyOrgHasMetrics = orgNodes.some(org =>
+      nodeMetrics[org.id]?.collab_centrality !== undefined
+    )
+    if (anyOrgHasMetrics) {
+      useBackendMetrics = true
+      orgNodes.forEach(org => {
+        orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality ?? 0
+      })
+    }
+  }
+
+  if (!useBackendMetrics) {
+    // Fallback: calcular localmente desde el grafo
+    orgNodes.forEach(org => {
+      const neighbors = orgNeighbors[org.id]
+      if (!neighbors || neighbors.size === 0) {
+        orgScore[org.id] = 0
+      } else {
+        let total = 0
+        neighbors.forEach(count => { total += count })
+        orgScore[org.id] = total
+      }
+    })
+  }
+
+  const sortedByScore = [...orgNodes].sort((a, b) => orgScore[b.id] - orgScore[a.id])
+
+  // Debug: verificar distribución de zonas
+  if (sortedByScore.length > 0) {
+    console.log(`[Layout] Modo: ${useBackendMetrics ? 'BACKEND collab_centrality' : 'LOCAL orgScore'}`)
+    console.log(`[Layout] Top 5 orgs:`, sortedByScore.slice(0, 5).map(o => `${o.id}=${orgScore[o.id]}`))
+  }
+
+  // ================================================================
+  // FASE 3: Posicionar orgs — colaborativas al centro, aisladas fuera
+  // ================================================================
   const repoCount = repoNodes.length
   const scaleFactor = repoCount > 200 ? Math.sqrt(repoCount / 200) : 1
-  const orgMinDist = ORG_MIN_DIST * scaleFactor
-  const orgMaxDist = ORG_MAX_DIST * scaleFactor
-  const repoMinOrbit = REPO_MIN_ORBIT * Math.max(1, scaleFactor * 0.7)
-  const repoMaxOrbit = REPO_MAX_ORBIT * Math.max(1, scaleFactor * 0.7)
-
   const positions = {}
   const rng = seededRandom(42)
 
-  // ── ORGS: distribución 3D dispersa con separación mínima garantizada ──
+  // Rangos de distancia al centro (ampliados para acomodar órbitas de repos)
+  const CORE_RADIUS = 150 * scaleFactor     // orgs top → dentro de este radio
+  const PERIPHERY_MIN = 500 * scaleFactor   // orgs aisladas → desde aquí
+  const PERIPHERY_MAX = 900 * scaleFactor   // hasta aquí
+
+  // Separar orgs en 3 zonas según el score
+  const coreOrgs = []      // alta colaboración → centro
+  const midOrgs = []       // colaboración moderada → zona media
+  const isolatedOrgs = []  // sin colaboración → periferia
+
+  if (useBackendMetrics) {
+    // Backend: percentil 0-100 → umbrales fijos
+    sortedByScore.forEach(org => {
+      const s = orgScore[org.id]
+      if (s >= 40) coreOrgs.push(org)
+      else if (s > 0) midOrgs.push(org)
+      else isolatedOrgs.push(org)
+    })
+  } else {
+    // Local: umbrales relativos al máximo
+    const maxScore = Math.max(...Object.values(orgScore), 1)
+    sortedByScore.forEach(org => {
+      const s = orgScore[org.id]
+      if (s >= maxScore * 0.15) coreOrgs.push(org)
+      else if (s > 0) midOrgs.push(org)
+      else isolatedOrgs.push(org)
+    })
+  }
+
+  console.log(`[Layout] Zonas: core=${coreOrgs.length}, mid=${midOrgs.length}, isolated=${isolatedOrgs.length}`)
+
+  // Colocar la org más importante en el centro
   const orgPositions = []
-  orgNodes.forEach((org, i) => {
-    if (orgNodes.length <= 1) {
-      positions[org.id] = new THREE.Vector3(0, 0, 0)
-      orgPositions.push(positions[org.id])
+  const MIN_SEP = 80 * scaleFactor // separación mínima entre orgs
+
+  function placeOrg(org, rMin, rMax) {
+    // La primera org en coreOrgs (mayor centralidad) → centro exacto
+    if (coreOrgs.length > 0 && coreOrgs[0] === org && !positions[org.id]) {
+      const pos = new THREE.Vector3(0, 0, 0)
+      positions[org.id] = pos
+      orgPositions.push(pos)
       return
     }
 
-    let best = null
-    let bestMinDist = -1
+    // Intentar colocar cerca de orgs con las que colabora (atracción)
+    const neighbors = orgNeighbors[org.id]
+    let attractCenter = null
+    if (neighbors && neighbors.size > 0) {
+      let wx = 0, wy = 0, wz = 0, wTotal = 0
+      neighbors.forEach((count, neighborId) => {
+        const np = positions[neighborId]
+        if (np) {
+          wx += np.x * count
+          wy += np.y * count
+          wz += np.z * count
+          wTotal += count
+        }
+      })
+      if (wTotal > 0) {
+        attractCenter = new THREE.Vector3(wx / wTotal, wy / wTotal, wz / wTotal)
+      }
+    }
 
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const r = orgMinDist + rng() * (orgMaxDist - orgMinDist)
-      // Ángulos con mucha variación
+    let best = null
+    let bestScore = -Infinity
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const r = rMin + rng() * (rMax - rMin)
       const θ = rng() * Math.PI * 2
-      const ψ = 0.3 + rng() * 2.2 // evitar polos extremos, rango ~17°–143°
-      // Altura variable asimétrica — no un plano
-      const yBias = (rng() - 0.45) * r * 0.6
+      const ψ = 0.3 + rng() * 2.2
+      const yBias = (rng() - 0.45) * r * 0.5
 
       const candidate = new THREE.Vector3(
         r * Math.sin(ψ) * Math.cos(θ),
         yBias,
-        r * Math.sin(ψ) * Math.sin(θ),
+        r * Math.sin(ψ) * Math.sin(θ)
       )
 
-      // Calcular distancia mínima a las orgs ya colocadas
+      // Separación mínima de orgs ya colocadas
       let minDist = Infinity
       for (const prev of orgPositions) {
         const d = candidate.distanceTo(prev)
         if (d < minDist) minDist = d
       }
+      if (minDist < MIN_SEP * 0.5) continue // demasiado cerca
 
-      // Quedarse con la posición cuya distancia mínima sea mayor (más separada)
-      if (minDist > bestMinDist) {
-        bestMinDist = minDist
+      // Puntuación: balance entre separación y atracción a vecinos
+      let score = Math.min(minDist, MIN_SEP * 2) // bonificar separación hasta cierto punto
+
+      if (attractCenter) {
+        // Penalizar distancia al centroide de vecinos colaborativos
+        const distToNeighbors = candidate.distanceTo(attractCenter)
+        score -= distToNeighbors * 0.3
+      }
+
+      if (score > bestScore) {
+        bestScore = score
         best = candidate
       }
     }
 
+    if (!best) {
+      // Fallback: posición aleatoria en el rango
+      const r = rMin + rng() * (rMax - rMin)
+      const θ = rng() * Math.PI * 2
+      best = new THREE.Vector3(r * Math.cos(θ), (rng() - 0.5) * r * 0.4, r * Math.sin(θ))
+    }
+
     positions[org.id] = best
     orgPositions.push(best)
-  })
+  }
 
-  // ── REPOS: distribución irregular alrededor de su org ──
+  // Colocar: core → mid → isolated
+  coreOrgs.forEach(org => placeOrg(org, 0, CORE_RADIUS))
+  midOrgs.forEach(org => placeOrg(org, CORE_RADIUS * 0.5, PERIPHERY_MIN))
+  isolatedOrgs.forEach(org => placeOrg(org, PERIPHERY_MIN, PERIPHERY_MAX))
+
+  // ================================================================
+  // FASE 4: Repos — órbita escalada por cantidad de repos
+  // ================================================================
   const assignedRepos = new Set()
+  const baseRepoMin = REPO_MIN_ORBIT * Math.max(1, scaleFactor * 0.7)
+  const baseRepoMax = REPO_MAX_ORBIT * Math.max(1, scaleFactor * 0.7)
+
   Object.entries(orgRepos).forEach(([orgId, repos]) => {
     const c = positions[orgId]; if (!c) return
     const numRepos = repos.length
 
+    // Escalar órbita solo por número de repos
+    const repoSpread = Math.max(1, Math.pow(numRepos / 4, 0.75))
+    const rMin = baseRepoMin * repoSpread
+    const rMax = baseRepoMax * repoSpread
+
     repos.forEach((repo, i) => {
-      // Ángulo base con jitter aleatorio significativo (no equidistante)
       const baseAngle = (i / numRepos) * Math.PI * 2
       const angleJitter = (rng() - 0.5) * (Math.PI * 2 / Math.max(numRepos, 3)) * 0.8
       const a = baseAngle + angleJitter
-
-      const orbitR = repoMinOrbit + rng() * (repoMaxOrbit - repoMinOrbit)
-
-      // Inclinación 3D — repos en distintos planos, no un anillo plano
-      const tilt = (rng() - 0.5) * Math.PI * 0.4 // ±36° de inclinación
+      const orbitR = rMin + rng() * (rMax - rMin)
+      const tilt = (rng() - 0.5) * Math.PI * 0.4
 
       positions[repo.id] = new THREE.Vector3(
         c.x + orbitR * Math.cos(a) * Math.cos(tilt),
         c.y + orbitR * Math.sin(tilt) + (rng() - 0.5) * 12,
-        c.z + orbitR * Math.sin(a) * Math.cos(tilt),
+        c.z + orbitR * Math.sin(a) * Math.cos(tilt)
       )
       assignedRepos.add(repo.id)
     })
   })
 
-  // Repos sin org — dispersados por el espacio exterior (escalados)
+  // Repos huérfanos (sin org) — dispersados en zona media-exterior
   const orphanRepos = repoNodes.filter(r => !assignedRepos.has(r.id))
   orphanRepos.forEach((repo, i) => {
     const a = (i / Math.max(orphanRepos.length, 1)) * Math.PI * 2 + rng() * 0.5
-    const r2 = (orgMaxDist * 0.6 + rng() * orgMaxDist * 0.5)
-    const yOff = (rng() - 0.5) * orgMaxDist * 0.3
+    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.4
+    const yOff = (rng() - 0.5) * PERIPHERY_MIN * 0.25
     positions[repo.id] = new THREE.Vector3(
       r2 * Math.cos(a) + (rng() - 0.5) * 30,
       yOff,
-      r2 * Math.sin(a) + (rng() - 0.5) * 30,
+      r2 * Math.sin(a) + (rng() - 0.5) * 30
     )
   })
 
-  // ── USERS: bridge users en centroide de sus repos, non-bridge en órbita ──
+  // ================================================================
+  // FASE 5: Users — bridge al centroide, non-bridge en órbita
+  // ================================================================
   const assignedUsers = new Set()
-
-  // Primero: crear mapa user→repos desde los links contributed_to
   const userRepoLinks = {}
   graph.links.forEach(link => {
     if (link.type === 'contributed_to') {
@@ -180,57 +339,40 @@ function computeLayout(graph) {
     }
   })
 
-  // Bridge users: posicionar en el centroide de todos sus repos
-  userNodes.forEach((user) => {
+  userNodes.forEach(user => {
     if (assignedUsers.has(user.id)) return
     const linkedRepos = userRepoLinks[user.id] || []
     const repoPositions = linkedRepos.map(rid => positions[rid]).filter(Boolean)
-    
-    if (repoPositions.length === 0) return // se asignará abajo como "sin repo"
-    
-    if (user.isBridge && repoPositions.length >= 2) {
-      // Centroide de todos los repos
-      const cx = repoPositions.reduce((s, p) => s + p.x, 0) / repoPositions.length
-      const cy = repoPositions.reduce((s, p) => s + p.y, 0) / repoPositions.length
-      const cz = repoPositions.reduce((s, p) => s + p.z, 0) / repoPositions.length
+    if (repoPositions.length === 0) return
 
-      // Jitter proporcional al spread de repos (no todos en el mismo punto)
-      const spread = Math.max(
-        ...repoPositions.map(p => Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2 + (p.z - cz) ** 2)),
-        5
-      )
-      const jitterR = spread * 0.15 + rng() * 3
-      const θ = rng() * Math.PI * 2
-      const φ = Math.acos(2 * rng() - 1)
-
-      positions[user.id] = new THREE.Vector3(
-        cx + jitterR * Math.sin(φ) * Math.cos(θ),
-        cy + jitterR * Math.cos(φ),
-        cz + jitterR * Math.sin(φ) * Math.sin(θ),
-      )
-    } else {
-      // Non-bridge o bridge con 1 repo visible: órbita alrededor del repo
-      const rp = repoPositions[0]
-      const uR = USER_MIN_ORBIT + rng() * (USER_MAX_ORBIT - USER_MIN_ORBIT)
-      const θ = rng() * Math.PI * 2
-      const φ = Math.acos(2 * rng() - 1)
-      positions[user.id] = new THREE.Vector3(
-        rp.x + uR * Math.sin(φ) * Math.cos(θ),
-        rp.y + uR * Math.cos(φ),
-        rp.z + uR * Math.sin(φ) * Math.sin(θ),
-      )
-    }
+    // Para TODOS los users: colocar cerca de su primer repo
+    const rp = repoPositions[0]
+    // Escalar órbita agresivamente para repos muy densos (evitar soles)
+    const repoId = linkedRepos[0]
+    const repoUserCount = repoId && repoUsers[repoId] ? repoUsers[repoId].length : 1
+    // log2 base + sqrt para repos muy densos: 841 users → ~15x, 10 → ~2.7x, 1 → 1x
+    const densityScale = repoUserCount > 50
+      ? 1 + Math.sqrt(repoUserCount) * 0.5
+      : 1 + Math.log2(Math.max(repoUserCount, 1)) * 0.5
+    const uR = (USER_MIN_ORBIT + rng() * (USER_MAX_ORBIT - USER_MIN_ORBIT)) * densityScale
+    const θ = rng() * Math.PI * 2
+    const φ = Math.acos(2 * rng() - 1)
+    positions[user.id] = new THREE.Vector3(
+      rp.x + uR * Math.sin(φ) * Math.cos(θ),
+      rp.y + uR * Math.cos(φ),
+      rp.z + uR * Math.sin(φ) * Math.sin(θ)
+    )
     assignedUsers.add(user.id)
   })
 
-  // Users sin repo — flotando en el espacio profundo (escalado)
+  // Users sin repos — zona exterior
   userNodes.filter(u => !assignedUsers.has(u.id)).forEach((user, i) => {
     const a = rng() * Math.PI * 2
-    const r2 = orgMaxDist * 0.5 + rng() * orgMaxDist * 0.4
+    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.3
     positions[user.id] = new THREE.Vector3(
       r2 * Math.cos(a) + (rng() - 0.5) * 50,
-      (rng() - 0.5) * orgMaxDist * 0.3,
-      r2 * Math.sin(a) + (rng() - 0.5) * 50,
+      (rng() - 0.5) * PERIPHERY_MIN * 0.25,
+      r2 * Math.sin(a) + (rng() - 0.5) * 50
     )
   })
 
@@ -238,7 +380,23 @@ function computeLayout(graph) {
     .filter(l => positions[l.source] && positions[l.target])
     .map(l => ({ ...l, start: positions[l.source], end: positions[l.target] }))
 
-  return { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions, connections }
+  // Precomputar max para normalización de orgs
+  const maxOrgScore = Math.max(...Object.values(orgScore), 1)
+  const maxOrgNeighbors = Object.values(orgNeighbors).reduce((mx, m) => Math.max(mx, m.size), 1)
+
+  // Pre-calcular densidad por user (inverso de cuántos users tiene su repo principal)
+  // Valor 0-1 donde 1 = repo con pocos users, ~0.15 = repo con 841+ users
+  const userDensity = {}
+  userNodes.forEach(user => {
+    const repos = userRepoLinks[user.id] || []
+    if (repos.length === 0) { userDensity[user.id] = 1; return }
+    const rid = repos[0]
+    const count = rid && repoUsers[rid] ? repoUsers[rid].length : 1
+    // 1 user → 1.0, 10 → 0.56, 50 → 0.38, 100 → 0.32, 841 → 0.19
+    userDensity[user.id] = Math.max(0.15, 1.0 / Math.pow(count, 0.3))
+  })
+
+  return { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions, connections, orgScore, orgNeighbors, maxOrgScore, maxOrgNeighbors, userDensity }
 }
 
 // ============================================================================
@@ -356,7 +514,7 @@ function QuantumVacuum({ progress }) {
 // PROCESADORES CUÁNTICOS (Orgs) — Toros de energía rotando
 // ============================================================================
 
-function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, highlightSet }) {
+function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100 }) {
   const groupRef = useRef()
 
   const torusGeo = useMemo(() => new THREE.TorusGeometry(2.8, 0.25, 12, 48), [])
@@ -372,11 +530,33 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, hi
     core: new THREE.MeshBasicMaterial({ color: new THREE.Color('#00f7ff').multiplyScalar(3), toneMapped: false, transparent: true, opacity: 0.6 }),
   })), [orgNodes])
 
+  const orgBaseColor = useMemo(() => new THREE.Color('#00f7ff'), [])
+  const orgLensBlend = useRef(0)
+  const lastOrgLens = useRef(null)
+  const orgTmpColor = useMemo(() => new THREE.Color(), [])
+  const orgTargetColor = useMemo(() => new THREE.Color(), [])
+  const orgRevealTime = useRef(0)
+  const ORG_BLEND_SPEED = 0.04
+
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.getElapsedTime()
     const n = orgNodes.length
     const hasSel = highlightSet !== null
+
+    // Smooth lens blend for processors — delayed until canvas visible
+    if (lensData !== lastOrgLens.current) {
+      lastOrgLens.current = lensData
+      orgLensBlend.current = lensData ? 0.0 : 1.0
+      orgRevealTime.current = performance.now() + (lensRevealDelay || 100)
+    }
+    const oTarget = lensData ? 1.0 : 0.0
+    if (performance.now() >= orgRevealTime.current) {
+      orgLensBlend.current += (oTarget - orgLensBlend.current) * ORG_BLEND_SPEED
+      if (Math.abs(oTarget - orgLensBlend.current) < 0.005) orgLensBlend.current = oTarget
+    }
+    const blend = orgLensBlend.current
+
     groupRef.current.children.forEach((group, i) => {
       const stagger = n > 1 ? i / (n - 1) : 0
       const localP = easeOutElastic(Math.min(Math.max((progress - stagger * 0.6) / 0.5, 0), 1))
@@ -390,10 +570,30 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, hi
 
       const m = orgMats[i]
       if (m) {
-        const dim = hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.08 : 1
+        const isHighlighted = hasSel && highlightSet.has(orgNodes[i]?.id)
+        const dim = hasSel && !isHighlighted ? 0.02 : 1
+        const boost = hasSel && isHighlighted ? 1.6 : 1
+        // Lens-aware coloring with smooth blend for processors
+        const ld = lensData?.[orgNodes[i]?.id]
+        if (ld && blend > 0.01) {
+          orgTargetColor.setRGB(ld.r, ld.g, ld.b)
+          orgTmpColor.copy(orgBaseColor).lerp(orgTargetColor, blend)
+          m.t1.color.copy(orgTmpColor).multiplyScalar(2 * boost)
+          m.t2.color.copy(orgTmpColor).multiplyScalar(1.2 * boost)
+          m.core.color.copy(orgTmpColor).multiplyScalar(3 * boost)
+        } else {
+          m.t1.color.copy(orgBaseColor).multiplyScalar(2 * boost)
+          m.t2.color.copy(orgBaseColor).multiplyScalar(1.2 * boost)
+          m.core.color.copy(orgBaseColor).multiplyScalar(3 * boost)
+        }
         m.t1.opacity = 0.7 * dim
         m.t2.opacity = 0.25 * dim
         m.core.opacity = 0.6 * dim
+
+        // Escalar procesadores seleccionados ligeramente
+        if (hasSel && isHighlighted) {
+          group.scale.setScalar(localP * 1.25)
+        }
       }
     })
   })
@@ -482,7 +682,7 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
         color={new THREE.Color('#bd00ff').multiplyScalar(2)}
         toneMapped={false}
         transparent
-        opacity={dimmed ? 0.06 : 0.5}
+        opacity={dimmed ? 0.02 : 0.5}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -495,7 +695,7 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
 // QUBITS (Repos) — Esferas con ejes de Bloch
 // ============================================================================
 
-function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet }) {
+function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100 }) {
   const ref = useRef()
   const hitRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
@@ -507,24 +707,48 @@ function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet
     toneMapped: false, transparent: true, opacity: 0.85,
   }), [])
   const brightCol = useMemo(() => new THREE.Color(1, 1, 1), [])
-  const dimCol = useMemo(() => new THREE.Color(0.06, 0.06, 0.06), [])
+  const boostCol = useMemo(() => new THREE.Color(1.8, 1.8, 2.2), []) // boost para seleccionados
+  const dimCol = useMemo(() => new THREE.Color(0.02, 0.02, 0.03), [])
+  const lensCol = useMemo(() => new THREE.Color(), [])
+  const baseQubitCol = useMemo(() => new THREE.Color('#bd00ff').multiplyScalar(1.8), [])
+  const qubitLensBlend = useRef(0)
+  const lastQubitLens = useRef(null)
+  const qubitRevealTime = useRef(0)
+  const QUBIT_BLEND_SPEED = 0.04
 
   useFrame(({ clock }) => {
     if (!ref.current || repoNodes.length === 0) return
     const t = clock.getElapsedTime()
     const n = repoNodes.length
     const hasSel = highlightSet !== null
+
+    // Smooth lens blend for qubits — delayed until canvas visible
+    if (lensData !== lastQubitLens.current) {
+      lastQubitLens.current = lensData
+      qubitLensBlend.current = lensData ? 0.0 : 1.0
+      qubitRevealTime.current = performance.now() + (lensRevealDelay || 100)
+    }
+    const qTarget = lensData ? 1.0 : 0.0
+    if (performance.now() >= qubitRevealTime.current) {
+      qubitLensBlend.current += (qTarget - qubitLensBlend.current) * QUBIT_BLEND_SPEED
+      if (Math.abs(qTarget - qubitLensBlend.current) < 0.005) qubitLensBlend.current = qTarget
+    }
+    const blend = qubitLensBlend.current
+
     repoNodes.forEach((repo, i) => {
       const pos = positions[repo.id]; if (!pos) return
       const baseScale = Math.min(Math.max((repo.stars || 0) / 800, 0.7), 1.5)
       const stagger = n > 1 ? i / (n - 1) : 0
       const localP = easeOutElastic(Math.min(Math.max((progress - stagger * 0.5) / 0.6, 0), 1))
+      const isHighlighted = hasSel && highlightSet.has(repo.id)
+      // Boost de escala para qubits seleccionados
+      const selScale = hasSel && isHighlighted ? 1.4 : 1.0
       dummy.position.copy(pos)
       // Heisenberg uncertainty — micro-vibración cuántica
       dummy.position.x += Math.sin(t * 1.7 + i * 3.14) * 0.04
       dummy.position.y += Math.cos(t * 2.3 + i * 2.71) * 0.04
       dummy.position.z += Math.sin(t * 1.9 + i * 1.62) * 0.04
-      dummy.scale.setScalar(baseScale * localP)
+      dummy.scale.setScalar(baseScale * localP * selScale)
       dummy.updateMatrix()
       ref.current.setMatrixAt(i, dummy.matrix)
       if (hitRef.current) {
@@ -532,7 +756,17 @@ function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet
         dummy.updateMatrix()
         hitRef.current.setMatrixAt(i, dummy.matrix)
       }
-      ref.current.setColorAt(i, hasSel ? (highlightSet.has(repo.id) ? brightCol : dimCol) : brightCol)
+      // Lens-aware coloring with smooth blend
+      const ld = lensData?.[repo.id]
+      if (ld && blend > 0.01) {
+        lensCol.setRGB(ld.r, ld.g, ld.b)
+        // Lerp from base/selection color towards lens color
+        const fromCol = hasSel ? (isHighlighted ? boostCol : dimCol) : brightCol
+        lensCol.lerp(fromCol, 1.0 - blend)
+        ref.current.setColorAt(i, lensCol)
+      } else {
+        ref.current.setColorAt(i, hasSel ? (isHighlighted ? boostCol : dimCol) : brightCol)
+      }
     })
     ref.current.instanceMatrix.needsUpdate = true
     if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true
@@ -625,17 +859,26 @@ const PARTICLE_VERTEX = /* glsl */`
   attribute float aIsBridge;
   attribute float aBrightness;
   attribute float aSeed;
+  attribute vec3 aLensColor;
+  attribute float aDensity;
   uniform float uTime;
   uniform float uProgress;
   uniform float uBaseSize;
   uniform float uBridgeSize;
+  uniform float uLensActive;
   varying float vBrightness;
   varying float vIsBridge;
   varying float vGlow;
+  varying vec3 vLensColor;
+  varying float vLensActive;
+  varying float vDensity;
 
   void main() {
     vBrightness = aBrightness;
     vIsBridge = aIsBridge;
+    vLensColor = aLensColor;
+    vLensActive = uLensActive;
+    vDensity = aDensity;
     float p = smoothstep(0.0, 1.0, uProgress);
 
     // === Heisenberg jitter — incertidumbre cuántica ===
@@ -644,6 +887,8 @@ const PARTICLE_VERTEX = /* glsl */`
     float jz = sin(uTime * 1.62 + aSeed * 47.1) * 0.04;
     vec3 pos = position + vec3(jx, jy, jz);
 
+    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+
     // === Bridge: pulso suave + brillo aleatorio por usuario ===
     float personalFlash = pow(max(cos(uTime * 0.8 + aSeed * 6.28), 0.0), 20.0);
     float bridgePulse = p >= 0.99
@@ -651,14 +896,20 @@ const PARTICLE_VERTEX = /* glsl */`
       : p;
     float normalPulse = p * (1.0 + sin(uTime * 1.5 + aSeed) * 0.05);
 
+    // === Lens mode: centrality enlarges important nodes ===
+    float lensScale = mix(1.0, 0.6 + aBrightness * 1.4, uLensActive);
+
     float size = aIsBridge > 0.5
-      ? uBridgeSize * bridgePulse
-      : uBaseSize * normalPulse;
+      ? uBridgeSize * bridgePulse * lensScale
+      : uBaseSize * normalPulse * lensScale;
+
+    // Reducir tamaño en repos densos (bridges preservan tamaño mínimo)
+    float densitySize = aIsBridge > 0.5 ? max(aDensity, 0.5) : aDensity;
+    size *= (0.4 + densitySize * 0.6);
 
     // === Glow intensity para fragment shader ===
     vGlow = aIsBridge > 0.5 ? (1.0 + personalFlash * 0.6) : 1.0;
 
-    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
     gl_PointSize = size * (350.0 / -mvPos.z);
     gl_Position = projectionMatrix * mvPos;
   }
@@ -671,15 +922,22 @@ const PARTICLE_FRAGMENT = /* glsl */`
   varying float vBrightness;
   varying float vIsBridge;
   varying float vGlow;
+  varying vec3 vLensColor;
+  varying float vLensActive;
+  varying float vDensity;
 
   void main() {
     vec4 texel = texture2D(uMap, gl_PointCoord);
-    vec3 col = vIsBridge > 0.5 ? uColorBridge : uColorNormal;
+    vec3 baseCol = vIsBridge > 0.5 ? uColorBridge : uColorNormal;
+    // Lens mode: blend towards per-particle analytical color
+    vec3 col = mix(baseCol, vLensColor, vLensActive);
     // Halo radiante: centro más brillante, borde con color
     float d = length(gl_PointCoord - vec2(0.5));
     float core = smoothstep(0.4, 0.0, d);
     vec3 finalCol = col * vBrightness * vGlow + vec3(1.0) * core * 0.3 * vGlow;
-    float alpha = texel.a * vBrightness * 0.95;
+    // Reducir opacidad en repos densos (bridges mantienen visibilidad)
+    float densityAlpha = mix(vDensity, 1.0, vIsBridge * 0.7);
+    float alpha = texel.a * vBrightness * 0.95 * densityAlpha;
     gl_FragColor = vec4(finalCol, alpha);
   }
 `
@@ -688,7 +946,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 // PARTÍCULAS CUÁNTICAS (Users) — 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
-function QuantumParticles({ userNodes, positions, onHover, onClick, progress, highlightSet }) {
+function QuantumParticles({ userNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100, userDensity }) {
   const ref = useRef()
   const glowMap = useMemo(() => createGlowTexture(), [])
 
@@ -709,6 +967,8 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
     const isBridge = new Float32Array(count)
     const brightness = new Float32Array(count)
     const seeds = new Float32Array(count)
+    const lensColors = new Float32Array(count * 3)
+    const density = new Float32Array(count)
 
     for (let i = 0; i < count; i++) {
       const p = positions[allUsers[i].id]
@@ -716,13 +976,18 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
       isBridge[i] = allUsers[i].isBridge ? 1.0 : 0.0
       brightness[i] = 1.0
       seeds[i] = i * 0.1 + 0.5
+      density[i] = userDensity?.[allUsers[i].id] ?? 1.0
+      // Default lens color: white (no tinting)
+      lensColors[i * 3] = 1; lensColors[i * 3 + 1] = 1; lensColors[i * 3 + 2] = 1
     }
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     g.setAttribute('aIsBridge', new THREE.BufferAttribute(isBridge, 1))
     g.setAttribute('aBrightness', new THREE.BufferAttribute(brightness, 1))
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
+    g.setAttribute('aLensColor', new THREE.BufferAttribute(lensColors, 3))
+    g.setAttribute('aDensity', new THREE.BufferAttribute(density, 1))
     return g
-  }, [allUsers, positions])
+  }, [allUsers, positions, userDensity])
 
   // ShaderMaterial — toda animación en GPU
   const mat = useMemo(() => new THREE.ShaderMaterial({
@@ -736,6 +1001,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
       uMap: { value: glowMap },
       uColorNormal: { value: new THREE.Color('#00ff9f').multiplyScalar(2.0) },
       uColorBridge: { value: new THREE.Color('#ffbd00').multiplyScalar(2.5) },
+      uLensActive: { value: 0.0 },
     },
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -745,9 +1011,46 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
 
   // Solo actualizar 2 uniforms por frame — 0% CPU para partículas
   const lastHighlight = useRef(undefined)
+  const lastLens = useRef(null)
+  const lensBlendCurrent = useRef(0)
+  const lensRevealTime = useRef(0) // time when color animation should start
+  const LENS_BLEND_SPEED = 0.04
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
+
+    // Lens colors: update when lens data changes
+    if (lensData !== lastLens.current) {
+      const wasActive = lastLens.current !== null
+      lastLens.current = lensData
+      // Activating: start from 0 (original colors), animate to 1
+      // Deactivating: start from 1 (lens colors), animate to 0
+      lensBlendCurrent.current = lensData ? 0.0 : 1.0
+      lensRevealTime.current = performance.now() + (lensRevealDelay || 100)
+      // Only update color buffer when activating a new lens (keep old colors during deactivation for smooth fadeout)
+      if (lensData) {
+        const colors = geo.attributes.aLensColor
+        for (let i = 0; i < allUsers.length; i++) {
+          const ld = lensData[allUsers[i].id]
+          if (ld) {
+            colors.array[i * 3] = ld.r
+            colors.array[i * 3 + 1] = ld.g
+            colors.array[i * 3 + 2] = ld.b
+          } else {
+            colors.array[i * 3] = 0.5; colors.array[i * 3 + 1] = 0.5; colors.array[i * 3 + 2] = 0.5
+          }
+        }
+        colors.needsUpdate = true
+      }
+    }
+
+    // Smooth lens blend: wait for canvas to be visible, then lerp 0→1
+    const target = lensData ? 1.0 : 0.0
+    if (performance.now() >= lensRevealTime.current) {
+      lensBlendCurrent.current += (target - lensBlendCurrent.current) * LENS_BLEND_SPEED
+      if (Math.abs(target - lensBlendCurrent.current) < 0.005) lensBlendCurrent.current = target
+    }
+    mat.uniforms.uLensActive.value = lensBlendCurrent.current
 
     // Highlight: solo cuando cambia la selección
     const hlChanged = lastHighlight.current !== highlightSet
@@ -756,7 +1059,8 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
       const hasSel = highlightSet !== null
       const bright = geo.attributes.aBrightness
       for (let i = 0; i < allUsers.length; i++) {
-        bright.array[i] = !hasSel || highlightSet.has(allUsers[i].id) ? 1.0 : 0.06
+        // Seleccionados brillan más (1.5), no seleccionados casi invisibles (0.02)
+        bright.array[i] = !hasSel ? 1.0 : highlightSet.has(allUsers[i].id) ? 1.5 : 0.02
       }
       bright.needsUpdate = true
     }
@@ -822,6 +1126,7 @@ const BOND_VERTEX = /* glsl */`
 
     vec3 pos = aStart + dir * phase + offset;
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+
     gl_PointSize = p * 2.0 * (200.0 / -mvPos.z);
     gl_Position = projectionMatrix * mvPos;
   }
@@ -915,7 +1220,7 @@ function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
     if (!mat) return
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
-    mat.uniforms.uOpacity.value = (dimmed ? 0.06 : 0.35) * easeOutCubic(progress)
+    mat.uniforms.uOpacity.value = (dimmed ? 0.02 : 0.35) * easeOutCubic(progress)
   })
 
   if (!geo || bonds.length === 0) return null
@@ -1019,7 +1324,7 @@ function EntanglementChannels({ connections, progress, dimmed }) {
         color={new THREE.Color('#ffbd00').multiplyScalar(1.5)}
         toneMapped={false}
         transparent
-        opacity={dimmed ? 0.06 : 0.55}
+        opacity={dimmed ? 0.02 : 0.55}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -1052,7 +1357,7 @@ function EnergyRings({ orgNodes, positions, progress, highlightSet }) {
       if (!ring) return
       const phase = (t * 0.5 + i * 0.8) % 3
       const scale = (1 + phase * 6) * p
-      const dim = hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.08 : 1
+      const dim = hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.02 : 1
       const opacity = 0.3 * Math.max(0, 1 - phase / 3) * p * dim
       ring.scale.setScalar(scale)
       ring.material.opacity = opacity
@@ -1144,18 +1449,29 @@ function InterferenceField({ progress }) {
 function QuantumGenesis({ progress }) {
   const flashRef = useRef()
   const waveRef = useRef()
+  const done = progress >= 1
 
   useFrame(() => {
     const p = progress
     if (flashRef.current) {
-      const s = easeOutCubic(Math.min(p * 3, 1)) * 18
-      flashRef.current.scale.setScalar(Math.max(s, 0.001))
-      flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.85
+      if (done) {
+        flashRef.current.visible = false
+      } else {
+        flashRef.current.visible = true
+        const s = easeOutCubic(Math.min(p * 3, 1)) * 18
+        flashRef.current.scale.setScalar(Math.max(s, 0.001))
+        flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.85
+      }
     }
     if (waveRef.current) {
-      const s = easeOutCubic(p) * 450
-      waveRef.current.scale.setScalar(Math.max(s, 0.001))
-      waveRef.current.material.opacity = Math.max(0, 0.2 * (1 - p))
+      if (done) {
+        waveRef.current.visible = false
+      } else {
+        waveRef.current.visible = true
+        const s = easeOutCubic(p) * 450
+        waveRef.current.scale.setScalar(Math.max(s, 0.001))
+        waveRef.current.material.opacity = Math.max(0, 0.2 * (1 - p))
+      }
     }
   })
 
@@ -1391,7 +1707,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     return () => canvas.removeEventListener('pointerdown', cancelFly)
   }, [gl])
 
-  // ── Zoom hacia el cursor: cámara + target viajan juntos hacia el punto señalado ──
+  // ── Zoom libre: cámara + target viajan JUNTOS por el universo ──
   useEffect(() => {
     const canvas = gl.domElement
     const mouse = new THREE.Vector2()
@@ -1404,27 +1720,29 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
       // Cancelar cualquier fly-to activo
       flying.current = false
 
-      // Coordenadas normalizadas del ratón (-1 a 1)
+      // Coordenadas normalizadas del ratón
       const rect = canvas.getBoundingClientRect()
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-      // Punto "virtual" bajo el cursor a la distancia del target actual
       raycaster.setFromCamera(mouse, camera)
       const currentTarget = controlsRef.current.target
       const dist = camera.position.distanceTo(currentTarget)
-      const cursorPoint = raycaster.ray.at(dist, new THREE.Vector3())
 
-      // Factor de zoom — suave y progresivo
       const zoomIn = e.deltaY < 0
-      const factor = zoomIn ? 0.08 : -0.06
 
-      // Mover cámara Y target hacia el punto del cursor (preserva orientación orbital)
-      const toCursor = cursorPoint.clone().sub(camera.position)
-      camera.position.addScaledVector(toCursor, factor)
-      currentTarget.addScaledVector(
-        cursorPoint.clone().sub(currentTarget), factor
-      )
+      // Velocidad lineal proporcional a distancia cámara→target
+      const speed = Math.max(dist * 0.12, 3)
+      const delta = zoomIn ? speed : -speed
+
+      // Dirección del rayo bajo el cursor
+      const direction = raycaster.ray.direction.clone()
+
+      // ★ AMBOS, cámara Y target, se mueven en la misma dirección
+      //   → la "esfera orbital" de OrbitControls viaja con la cámara
+      //   → no hay límite artificial de movimiento
+      camera.position.addScaledVector(direction, delta)
+      currentTarget.addScaledVector(direction, delta)
 
       controlsRef.current.update()
     }
@@ -1450,8 +1768,8 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
       enablePan
       panSpeed={1.2}
       rotateSpeed={0.6}
-      minDistance={0}
-      maxDistance={2000}
+      minDistance={0.5}
+      maxDistance={6000}
     />
   )
 }
@@ -1551,10 +1869,19 @@ const PHASE_TIMINGS = {
   entanglement: [5.5,  1.8],  // conexiones se dibujan
 }
 
-function BuildDirector({ onProgress }) {
+function BuildDirector({ onProgress, onReady, startAnimation }) {
   const startTime = useRef(null)
+  const readyFired = useRef(false)
 
   useFrame(({ clock }) => {
+    // No arrancar animaciones hasta que se indique
+    if (!startAnimation) {
+      startTime.current = null
+      readyFired.current = false
+      onProgress({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
+      return
+    }
+
     if (startTime.current === null) startTime.current = clock.getElapsedTime()
     const elapsed = clock.getElapsedTime() - startTime.current
 
@@ -1563,6 +1890,12 @@ function BuildDirector({ onProgress }) {
       progress[key] = Math.min(Math.max((elapsed - start) / dur, 0), 1)
     }
     onProgress(progress)
+
+    // Señalizar que la escena tiene contenido visible (para futuros usos)
+    if (!readyFired.current && progress.processors > 0.3) {
+      readyFired.current = true
+      onReady?.()
+    }
   })
 
   return null
@@ -1596,32 +1929,34 @@ function useLOD() {
 // ESCENA COMPLETA
 // ============================================================================
 
-function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity }) {
+function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation }) {
   const [bp, setBp] = useState({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
   const lod = useLOD()
 
   // Set de IDs relacionados para dimming selectivo
-  const highlightSet = useMemo(
-    () => computeRelatedIds(selectedEntity, universeData),
-    [selectedEntity, universeData]
-  )
-  const dimmed = selectedEntity !== null
+  // Prioridad: selectedEntity > searchHighlightSet
+  const highlightSet = useMemo(() => {
+    const entitySet = computeRelatedIds(selectedEntity, universeData)
+    if (entitySet) return entitySet
+    return searchHighlightSet || null
+  }, [selectedEntity, universeData, searchHighlightSet])
+  const dimmed = selectedEntity !== null || searchHighlightSet !== null
 
   const handleHover = useCallback((entity, pos) => {
     setHovered(entity ? { entity, pos } : null)
     document.body.style.cursor = entity ? 'pointer' : 'auto'
   }, [setHovered])
 
-  if (!universeData) return null
-
-  const { orgNodes, repoNodes, userNodes, repoUsers, positions, connections } = universeData
-
   // Conexiones largas (owns + contributed_to cross-org) para canales y pulsos
   // Las contributed_to cortas (user→repo orbital) se muestran con OrbitalLinks
   const longConnections = useMemo(
-    () => connections.filter(c => c.type !== 'contributed_to'),
-    [connections]
+    () => (universeData?.connections || []).filter(c => c.type !== 'contributed_to'),
+    [universeData?.connections]
   )
+
+  if (!universeData) return null
+
+  const { orgNodes, repoNodes, userNodes, repoUsers, positions, connections, userDensity } = universeData
 
   const showUsers = true
   const showEffects = true
@@ -1635,7 +1970,7 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} />
 
       {/* Director de animación con progreso continuo */}
-      <BuildDirector onProgress={setBp} />
+      <BuildDirector onProgress={setBp} onReady={onSceneReady} startAnimation={startAnimation} />
 
       {/* Génesis cuántica — Big Bang inicial */}
       <QuantumGenesis progress={bp.genesis} />
@@ -1646,19 +1981,19 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
 
       {/* Procesadores cuánticos — scale-in elástico escalonado */}
       {bp.processors > 0 && (
-        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.processors} highlightSet={highlightSet} />
+        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.processors} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
       )}
       {bp.processors > 0 && <EnergyRings orgNodes={orgNodes} positions={positions} progress={bp.processors} highlightSet={highlightSet} />}
 
       {bp.qubits > 0 && (
-        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.qubits} highlightSet={highlightSet} />
+        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.qubits} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
       )}
       {bp.qubits > 0 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progress={bp.qubits} dimmed={dimmed} />}
       {bp.qubits > 0 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} />}
 
       {/* Users: solo en LOD mid/near */}
       {bp.particles > 0 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.particles} highlightSet={highlightSet} />
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.particles} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
       )}
 
       {/* Quantum Bonds user→repo: solo en LOD mid/near */}
@@ -1703,14 +2038,57 @@ export default function UniverseView() {
   const showCollaborationGraph = useDashboardStore(s => s.showCollaborationGraph)
   const collaborationDiscovery = useDashboardStore(s => s.collaborationDiscovery)
   const closeCollaborationGraph = useDashboardStore(s => s.closeCollaborationGraph)
+  const activeLens = useDashboardStore(s => s.activeLens)
+  const networkMetrics = useDashboardStore(s => s.networkMetrics)
+  const isLoadingMetrics = useDashboardStore(s => s.isLoadingMetrics)
+  const metricsLoadAttempted = useDashboardStore(s => s.metricsLoadAttempted)
+  const setActiveLens = useDashboardStore(s => s.setActiveLens)
+  const loadNetworkMetrics = useDashboardStore(s => s.loadNetworkMetrics)
+  const findQuantumPathAction = useDashboardStore(s => s.findQuantumPath)
+  const tunnelingPath = useDashboardStore(s => s.tunnelingPath)
+  const isLoadingTunneling = useDashboardStore(s => s.isLoadingTunneling)
+  const clearTunneling = useDashboardStore(s => s.clearTunneling)
 
   const [entering, setEntering] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [hovered, setHovered] = useState(null)
   const [focusTarget, setFocusTarget] = useState(null)
   const [resetTrigger, setResetTrigger] = useState(0)
+  const [sceneReady, setSceneReady] = useState(false)
+  const [loaderVisible, setLoaderVisible] = useState(true)
+  const [loaderFading, setLoaderFading] = useState(false)
+  const [animationStarted, setAnimationStarted] = useState(false)
+  const [uiVisible, setUiVisible] = useState(false)
+  const [canvasMounted, setCanvasMounted] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showBots, setShowBots] = useState(false)
+  const [showTunneling, setShowTunneling] = useState(false)
+  const [tunnelingSource, setTunnelingSource] = useState('')
+  const [tunnelingTarget, setTunnelingTarget] = useState('')
+  const [sourceResults, setSourceResults] = useState([])
+  const [targetResults, setTargetResults] = useState([])
+  const [sourceInputFocused, setSourceInputFocused] = useState(false)
+  const [targetInputFocused, setTargetInputFocused] = useState(false)
+
+  // === Search bar state ===
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [searchEntity, setSearchEntity] = useState(null) // entidad seleccionada desde búsqueda
+
+  // handleSearchClear se define temprano para usarse en el handler de ESC
+  const handleSearchClear = useCallback(() => {
+    setSearchQuery('')
+    setSearchResults([])
+    setSearchEntity(null)
+  }, [])
+
+  // === Lens transition state ===
+  const [lensTransitioning, setLensTransitioning] = useState(false)
+  const [lensLoadingLabel, setLensLoadingLabel] = useState('')
+  const [lensTransitionColor, setLensTransitionColor] = useState('#ffffff')
+  const lensTransitionRef = useRef(false) // ref to avoid stale closure in async
+  const lensWithOverlay = useRef(false) // whether current activation used overlay (needs delay)
 
   // Filtrar bots del grafo si están desactivados
   const filteredGraph = useMemo(() => {
@@ -1732,24 +2110,81 @@ export default function UniverseView() {
     return nodes.filter(n => n.isBot).length
   }, [collaborationDiscovery])
 
-  const universeData = useMemo(() => computeLayout(filteredGraph), [filteredGraph])
+  // === Layout computation via Web Worker (no bloquea el hilo principal) ===
+  const layoutWorkerRef = useRef(null)
+  const layoutRequestIdRef = useRef(0)
+  const [universeData, setUniverseData] = useState(null)
+
+  // Crear/destruir Web Worker
+  useEffect(() => {
+    const worker = new Worker(
+      new URL('./computeLayout.worker.js', import.meta.url),
+      { type: 'module' }
+    )
+    worker.onmessage = (e) => {
+      const { result, requestId } = e.data
+      if (requestId !== layoutRequestIdRef.current) return // ignorar resultados obsoletos
+      if (!result) { setUniverseData(null); return }
+      // Convertir posiciones {x,y,z} planas → THREE.Vector3
+      const positions = {}
+      for (const key of Object.keys(result.positions)) {
+        const v = result.positions[key]
+        positions[key] = new THREE.Vector3(v.x, v.y, v.z)
+      }
+      // Reconstruir start/end de conexiones con Vector3
+      const connections = result.connections.map(c => ({
+        ...c,
+        start: positions[c.source] || new THREE.Vector3(c.start.x, c.start.y, c.start.z),
+        end: positions[c.target] || new THREE.Vector3(c.end.x, c.end.y, c.end.z),
+      }))
+      setUniverseData({ ...result, positions, connections })
+    }
+    layoutWorkerRef.current = worker
+    return () => { worker.terminate(); layoutWorkerRef.current = null }
+  }, [])
+
+  // Enviar datos al worker cuando cambian las dependencias del grafo
+  useEffect(() => {
+    if (!filteredGraph?.nodes?.length) { setUniverseData(null); return }
+    const id = ++layoutRequestIdRef.current
+    layoutWorkerRef.current?.postMessage({
+      graph: filteredGraph,
+      nodeMetrics: networkMetrics?.node_metrics ?? null,
+      requestId: id,
+    })
+  }, [filteredGraph, networkMetrics])
 
   useEffect(() => {
-    if (showCollaborationGraph) requestAnimationFrame(() => setEntering(true))
-    else { setEntering(false); setSelectedEntity(null); setHovered(null); setFocusTarget(null) }
+    if (showCollaborationGraph) {
+      requestAnimationFrame(() => setEntering(true))
+      setSceneReady(false)
+      setLoaderVisible(true)
+      setLoaderFading(false)
+      setAnimationStarted(false)
+      setCanvasMounted(false)
+      // Retrasar montaje del Canvas 1 frame para que el loader se pinte primero
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setCanvasMounted(true))
+      })
+    } else {
+      setEntering(false); setSelectedEntity(null); setHovered(null); setFocusTarget(null)
+      setSceneReady(false); setLoaderVisible(true); setLoaderFading(false); setAnimationStarted(false); setUiVisible(false)
+      setCanvasMounted(false)
+    }
   }, [showCollaborationGraph])
 
   useEffect(() => {
     if (!showCollaborationGraph) return
     const handler = (e) => {
       if (e.key === 'Escape') {
-        if (selectedEntity) { setSelectedEntity(null); setResetTrigger(t => t + 1) }
+        if (searchEntity) { handleSearchClear() }
+        else if (selectedEntity) { setSelectedEntity(null); setResetTrigger(t => t + 1) }
         else closeCollaborationGraph()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showCollaborationGraph, selectedEntity, closeCollaborationGraph])
+  }, [showCollaborationGraph, selectedEntity, searchEntity, closeCollaborationGraph, handleSearchClear])
 
   const handleSelect = useCallback((entity, pos) => {
     setSelectedEntity(entity)
@@ -1761,15 +2196,272 @@ export default function UniverseView() {
     setResetTrigger(t => t + 1)
   }, [])
 
+  const handleSceneReady = useCallback(() => setSceneReady(true), [])
+
+  // Cuando universeData está listo, iniciar fade del loader
+  useEffect(() => {
+    if (universeData && entering && loaderVisible && !loaderFading) {
+      // Breve pausa para que el loader se muestre un mínimo
+      const t = setTimeout(() => setLoaderFading(true), 800)
+      return () => clearTimeout(t)
+    }
+  }, [universeData, entering, loaderVisible, loaderFading])
+
+  // Cuando el loader termina de desvanecerse, arrancar animaciones
+  useEffect(() => {
+    if (loaderFading) {
+      // Esperar a que termine la transición CSS de salida (1s) y luego desmontar + arrancar animación
+      const t = setTimeout(() => {
+        setLoaderVisible(false)
+        setAnimationStarted(true)
+      }, 1100)
+      return () => clearTimeout(t)
+    }
+  }, [loaderFading])
+
+  // Mostrar UI tras un delay después de que arranquen las animaciones (genesis visible)
+  useEffect(() => {
+    if (animationStarted) {
+      const t = setTimeout(() => setUiVisible(true), 2200)
+      return () => clearTimeout(t)
+    } else {
+      setUiVisible(false)
+    }
+  }, [animationStarted])
+
+  // Auto-load network metrics when universe opens (solo 1 intento)
+  useEffect(() => {
+    if (showCollaborationGraph && !networkMetrics && !isLoadingMetrics && !metricsLoadAttempted) {
+      loadNetworkMetrics()
+    }
+  }, [showCollaborationGraph, networkMetrics, isLoadingMetrics, metricsLoadAttempted, loadNetworkMetrics])
+
+  // === LENS TRANSITION HANDLER ===
+  const LENS_NAMES = { communities: 'Comunidades', centrality: 'Centralidad', busFactor: 'Bus Factor', intensity: 'Intensidad' }
+  const LENS_COLORS = { communities: '#6c5ce7', centrality: '#00b4d8', busFactor: '#ff6b6b', intensity: '#ffd166' }
+
+  const handleLensClick = useCallback(async (lensId) => {
+    if (lensTransitionRef.current) return // prevent double-click
+    lensTransitionRef.current = true
+
+    const isDeactivating = activeLens === lensId
+    const isSwitching = activeLens && !isDeactivating // switching from one lens to another
+
+    // Deactivating or switching: no overlay needed, just animate colors back/to new lens
+    if (isDeactivating) {
+      lensWithOverlay.current = false
+      setActiveLens(lensId) // toggles to null
+      lensTransitionRef.current = false
+      return
+    }
+
+    if (isSwitching) {
+      // Switching between lenses: quick transition without overlay
+      lensWithOverlay.current = false
+      setActiveLens(lensId)
+      lensTransitionRef.current = false
+      return
+    }
+
+    // Activating a lens for the first time: show overlay
+    lensWithOverlay.current = true
+    setLensTransitioning(true)
+    setLensTransitionColor(LENS_COLORS[lensId] || '#ffffff')
+    setLensLoadingLabel(
+      !networkMetrics
+        ? 'Analizando red cuántica...'
+        : `Renderizando ${LENS_NAMES[lensId] || lensId}...`
+    )
+
+    // Wait for CSS fade-out transition (500ms)
+    await new Promise(r => setTimeout(r, 550))
+
+    // Ensure metrics are loaded
+    if (!networkMetrics) {
+      setLensLoadingLabel('Procesando estructura de red...')
+      const success = await loadNetworkMetrics()
+      if (!success) {
+        setLensTransitioning(false)
+        setLensLoadingLabel('')
+        lensTransitionRef.current = false
+        return
+      }
+      setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
+      await new Promise(r => setTimeout(r, 300))
+    }
+
+    // Apply lens AND reveal simultaneously — color animation starts after canvas de-blurs
+    setActiveLens(lensId)
+    setLensTransitioning(false)
+    setLensLoadingLabel('')
+    lensTransitionRef.current = false
+  }, [activeLens, networkMetrics, loadNetworkMetrics, setActiveLens])
+
+  // Compute per-node lens color data based on active lens
+  const lensData = useMemo(() => {
+    if (!activeLens || !networkMetrics?.node_metrics) return null
+    const nm = networkMetrics.node_metrics
+    const map = {}
+    const hexToRgb = (hex) => {
+      const c = new THREE.Color(hex)
+      return { r: c.r, g: c.g, b: c.b }
+    }
+    if (activeLens === 'communities') {
+      Object.entries(nm).forEach(([id, m]) => {
+        if (m.community_color) map[id] = hexToRgb(m.community_color)
+      })
+    } else if (activeLens === 'centrality') {
+      // Gradient from dim blue (low) to bright cyan (high)
+      Object.entries(nm).forEach(([id, m]) => {
+        const t = m.betweenness || 0
+        map[id] = { r: t * 0.5, g: 0.4 + t * 0.6, b: 0.8 + t * 0.2 }
+      })
+    } else if (activeLens === 'busFactor') {
+      // Color repos by bus factor risk
+      const riskColors = { critical: '#ff3333', high: '#ff8800', medium: '#ffdd00', low: '#00ff88' }
+      Object.entries(nm).forEach(([id, m]) => {
+        if (m.bus_factor_risk) {
+          map[id] = hexToRgb(riskColors[m.bus_factor_risk] || '#ffffff')
+        } else if (m.community_color) {
+          // Non-repo nodes: dim
+          map[id] = { r: 0.3, g: 0.3, b: 0.3 }
+        }
+      })
+    } else if (activeLens === 'intensity') {
+      // All nodes inherit a warm glow proportional to their degree centrality
+      Object.entries(nm).forEach(([id, m]) => {
+        const d = m.degree || 0
+        map[id] = { r: 1.0, g: 0.3 + d * 0.7, b: 0.1 + d * 0.3 }
+      })
+    }
+    return Object.keys(map).length > 0 ? map : null
+  }, [activeLens, networkMetrics])
+
+  // ====================================================================
+  // AUTOCOMPLETE: construido desde universeData (siempre disponible)
+  // Ordenado por relevancia: bridges > más conexiones > alfabético
+  // ====================================================================
+  const searchableNodes = useMemo(() => {
+    if (!universeData) return []
+    const nodes = []
+
+    // Orgs
+    ;(universeData.orgNodes || []).forEach(org => {
+      const repoCount = (universeData.orgRepos?.[org.id] || []).length
+      nodes.push({
+        id: org.id,
+        label: org.login || org.name || org.id,
+        type: 'org',
+        relevance: 100 + repoCount * 10, // orgs siempre arriba, más repos = más relevante
+      })
+    })
+
+    // Repos
+    ;(universeData.repoNodes || []).forEach(repo => {
+      const userCount = (universeData.repoUsers?.[repo.id] || []).length
+      const stars = repo.stars || 0
+      nodes.push({
+        id: repo.id,
+        label: repo.full_name || repo.name || repo.id,
+        type: 'repo',
+        relevance: 50 + userCount * 5 + Math.min(stars / 100, 20),
+      })
+    })
+
+    // Users
+    ;(universeData.userNodes || []).forEach(user => {
+      // Contar repos donde participa
+      const repoCount = Object.values(universeData.repoUsers || {})
+        .filter(users => users.some(u => u.id === user.id)).length
+      nodes.push({
+        id: user.id,
+        label: user.login || user.id,
+        type: 'user',
+        isBridge: user.isBridge,
+        relevance: (user.isBridge ? 80 : 0) + repoCount * 8,
+      })
+    })
+
+    // Ordenar por relevancia descendente
+    nodes.sort((a, b) => b.relevance - a.relevance)
+    return nodes
+  }, [universeData])
+
+  const filterNodes = useCallback((query) => {
+    if (!query || query.length < 1) return []
+    const q = query.toLowerCase()
+    const matches = searchableNodes.filter(n => n.label.toLowerCase().includes(q))
+    // Agrupar por tipo: orgs primero, luego repos, luego users
+    const typeOrder = { org: 0, repo: 1, user: 2 }
+    matches.sort((a, b) => {
+      const td = typeOrder[a.type] - typeOrder[b.type]
+      if (td !== 0) return td
+      return b.relevance - a.relevance
+    })
+    return matches
+  }, [searchableNodes])
+
+  // === SEARCH HIGHLIGHT: calcular set de IDs relacionados con la búsqueda ===
+  const searchHighlightSet = useMemo(() => {
+    if (!searchEntity || !universeData) return null
+    // Encontrar la entidad real en universeData
+    const allNodes = [
+      ...(universeData.orgNodes || []),
+      ...(universeData.repoNodes || []),
+      ...(universeData.userNodes || []),
+    ]
+    const entity = allNodes.find(n => n.id === searchEntity.id) || searchEntity
+    return computeRelatedIds(entity, universeData)
+  }, [searchEntity, universeData])
+
+  const handleSearchSelect = useCallback((node) => {
+    setSearchQuery(node.label)
+    setSearchResults([])
+    setSearchFocused(false)
+    // Buscar entidad real en universeData y seleccionarla como searchEntity
+    const entity =
+      universeData?.orgNodes?.find(n => n.id === node.id) ||
+      universeData?.repoNodes?.find(n => n.id === node.id) ||
+      universeData?.userNodes?.find(n => n.id === node.id)
+    if (entity) {
+      setSearchEntity({ ...entity, type: node.type })
+      // Enfocar cámara en la entidad
+      const pos = universeData?.positions?.[node.id]
+      if (pos) setFocusTarget(pos)
+    }
+  }, [universeData])
+
+  const handleSearchChange = useCallback((e) => {
+    const val = e.target.value
+    setSearchQuery(val)
+    setSearchResults(filterNodes(val))
+    if (!val) setSearchEntity(null)
+  }, [filterNodes])
+
+  const handleTunnelingSearch = useCallback(async () => {
+    if (!tunnelingSource || !tunnelingTarget) return
+    // Buscar ID del nodo por label o ID directo
+    const findNode = (text) =>
+      searchableNodes.find(n => n.label === text) ||
+      searchableNodes.find(n => n.id === text) ||
+      searchableNodes.find(n => n.label.toLowerCase() === text.toLowerCase())
+    const src = findNode(tunnelingSource)
+    const tgt = findNode(tunnelingTarget)
+    if (src && tgt) {
+      await findQuantumPathAction(src.id, tgt.id)
+    }
+  }, [tunnelingSource, tunnelingTarget, searchableNodes, findQuantumPathAction])
+
   if (!showCollaborationGraph) return null
 
   const metrics = collaborationDiscovery?.metrics
 
   return (
     <div className={`${styles.universe} ${entering ? styles.universeVisible : ''}`}>
-      <div className={styles.canvasWrapper}>
+      <div className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''}`}>
+        {canvasMounted && (
         <Canvas
-          camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 1200 }}
+          camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 8000 }}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance', stencil: false }}
           dpr={[1, 2]}
           raycaster={{ params: { Points: { threshold: 3 } } }}
@@ -1783,11 +2475,95 @@ export default function UniverseView() {
             focusTarget={focusTarget}
             resetTrigger={resetTrigger}
             selectedEntity={selectedEntity}
+            lensData={lensData}
+            lensRevealDelay={lensWithOverlay.current ? 600 : 100}
+            searchHighlightSet={searchHighlightSet}
+            onSceneReady={handleSceneReady}
+            startAnimation={animationStarted}
           />
         </Canvas>
+        )}
       </div>
 
+      {/* === QUANTUM LOADING OVERLAY — pantalla de carga inicial === */}
+      {loaderVisible && (
+        <div className={`${styles.quantumLoader} ${loaderFading ? styles.quantumLoaderHide : ''}`}>
+          <div className={styles.loaderPulseRing} />
+          <div className={styles.loaderPulseRing2} />
+          <div className={styles.loaderScanline} />
+          <div className={styles.loaderContent}>
+            <img src="/logo.png" alt="ENTANGLE" className={styles.loaderLogo} />
+            <p className={styles.loaderSub}>Quantum Software Ecosystem Analysis</p>
+            <div className={styles.loaderSpinnerWrap}>
+              {/* Átomo CSS puro 3D — perspective + rotateX crea elipses, electrones orbitan en plano inclinado */}
+              <div className={styles.loaderAtomCSS}>
+                {/* Órbita 1: cyan, 0° */}
+                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane1}`}>
+                  <div className={styles.loaderOrbitRing1} />
+                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin1}`}>
+                    <div className={`${styles.loaderElDot} ${styles.loaderElDot1}`} />
+                  </div>
+                </div>
+                {/* Órbita 2: purple, 60° */}
+                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane2}`}>
+                  <div className={styles.loaderOrbitRing2} />
+                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin2}`}>
+                    <div className={`${styles.loaderElDot} ${styles.loaderElDot2}`} />
+                  </div>
+                </div>
+                {/* Órbita 3: green, 120° */}
+                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane3}`}>
+                  <div className={styles.loaderOrbitRing3} />
+                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin3}`}>
+                    <div className={`${styles.loaderElDot} ${styles.loaderElDot3}`} />
+                  </div>
+                </div>
+                {/* Núcleo */}
+                <div className={styles.loaderAtomCoreCSS} />
+              </div>
+            </div>
+            {/* Mensajes cíclicos — puro CSS, sin JS setInterval */}
+            <div className={styles.loaderMessages}>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>Colapsando funciones de onda...</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>Calculando posiciones orbitales...</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '3.2s' }}>Entrelazando nodos cuánticos...</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '4.8s' }}>Materializando el universo...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === LENS TRANSITION OVERLAY — Atom spinner === */}
+      {lensTransitioning && (
+        <div className={styles.lensTransitionOverlay}>
+          <svg className={styles.lensAtomSpinner} viewBox="0 0 120 120" width="90" height="90">
+            <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke={`${lensTransitionColor}50`} strokeWidth="1.5" className={styles.lensAtomOrbit1} />
+            <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke={`${lensTransitionColor}40`} strokeWidth="1.5" className={styles.lensAtomOrbit2} />
+            <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke={`${lensTransitionColor}30`} strokeWidth="1.5" className={styles.lensAtomOrbit3} />
+            <circle r="4" fill={lensTransitionColor} filter="url(#lensGlow)">
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 110,60 A 50,18 0 1,1 10,60 A 50,18 0 1,1 110,60" />
+            </circle>
+            <circle r="3.5" fill={lensTransitionColor} opacity="0.7" filter="url(#lensGlow)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" path="M 95,82.7 A 50,18 60 1,1 25,37.3 A 50,18 60 1,1 95,82.7" />
+            </circle>
+            <circle r="3" fill={lensTransitionColor} opacity="0.5" filter="url(#lensGlow)">
+              <animateMotion dur="3.2s" repeatCount="indefinite" path="M 25,82.7 A 50,18 120 1,1 95,37.3 A 50,18 120 1,1 25,82.7" />
+            </circle>
+            <circle cx="60" cy="60" r="6" fill={`${lensTransitionColor}80`} className={styles.lensAtomCore} />
+            <circle cx="60" cy="60" r="3" fill="rgba(255,255,255,0.7)" />
+            <defs>
+              <filter id="lensGlow" x="-200%" y="-200%" width="500%" height="500%">
+                <feGaussianBlur stdDeviation="4" result="g" />
+                <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+          </svg>
+          <span className={styles.lensTransitionLabel}>{lensLoadingLabel}</span>
+        </div>
+      )}
+
       {/* Header */}
+      <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''}`}>
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <span className={styles.headerAtom}>⚛</span>
@@ -1809,6 +2585,220 @@ export default function UniverseView() {
           <button className={styles.closeBtn} onClick={closeCollaborationGraph}><FiX size={18} /><span>ESC</span></button>
         </div>
       </header>
+
+      {/* === BARRA DE BÚSQUEDA CON AUTOCOMPLETE === */}
+      <div className={styles.searchBar}>
+        <div className={styles.searchInputWrapper}>
+          <FiSearch size={14} className={styles.searchIcon} />
+          <input
+            className={styles.searchInput}
+            placeholder="Buscar organización, repositorio o usuario..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onFocus={() => {
+              setSearchFocused(true)
+              if (searchQuery) setSearchResults(filterNodes(searchQuery))
+            }}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { handleSearchClear(); e.target.blur() }
+              if (e.key === 'Enter' && searchResults.length > 0) handleSearchSelect(searchResults[0])
+            }}
+          />
+          {searchQuery && (
+            <button className={styles.searchClearBtn} onClick={handleSearchClear}>
+              <FiX size={12} />
+            </button>
+          )}
+        </div>
+        {searchFocused && searchResults.length > 0 && (() => {
+          const typeLabels = { org: 'Procesadores (Orgs)', repo: 'Qubits (Repos)', user: 'Partículas (Users)' }
+          const typeIcons = { org: '⊛', repo: '◉', user: '•' }
+          let lastType = null
+          return (
+            <div className={styles.searchDropdown}>
+              <div className={styles.searchResultCount}>{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</div>
+              {searchResults.map(n => {
+                const showHeader = n.type !== lastType
+                lastType = n.type
+                return (
+                  <div key={n.id}>
+                    {showHeader && (
+                      <div className={styles.searchGroupHeader}>
+                        <span className={styles.searchGroupIcon} data-type={n.type}>{typeIcons[n.type]}</span>
+                        <span>{typeLabels[n.type]}</span>
+                        <span className={styles.searchGroupCount}>
+                          {searchResults.filter(r => r.type === n.type).length}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      className={`${styles.searchOption} ${searchEntity?.id === n.id ? styles.searchOptionActive : ''}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleSearchSelect(n)
+                      }}
+                    >
+                      <span className={styles.searchOptionIcon} data-type={n.type}>
+                        {typeIcons[n.type]}
+                      </span>
+                      <span className={styles.searchOptionLabel}>{n.label}</span>
+                      {n.isBridge && <span className={styles.searchBridgeTag}>⚛ bridge</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* === BARRA DE LENTES ANALÍTICAS === */}
+      <div className={styles.lensToolbar}>
+        <span className={styles.lensLabel}>Lentes</span>
+        {[
+          { id: 'communities', icon: <FiLayers size={13} />, name: 'Comunidades', color: '#6c5ce7' },
+          { id: 'centrality', icon: <FiActivity size={13} />, name: 'Centralidad', color: '#00b4d8' },
+          { id: 'busFactor', icon: <FiShield size={13} />, name: 'Bus Factor', color: '#ff6b6b' },
+          { id: 'intensity', icon: <FiZap size={13} />, name: 'Intensidad', color: '#ffd166' },
+        ].map(lens => (
+          <button
+            key={lens.id}
+            className={`${styles.lensBtn} ${activeLens === lens.id ? styles.lensBtnActive : ''}`}
+            style={activeLens === lens.id ? { '--lens-color': lens.color, borderColor: lens.color, color: lens.color } : { '--lens-color': lens.color }}
+            onClick={() => handleLensClick(lens.id)}
+            disabled={lensTransitioning}
+            title={lensTransitioning ? 'Procesando...' : lens.name}
+          >
+            {lensTransitioning && activeLens === lens.id ? <FiLoader size={13} className={styles.lensSpinner} /> : lens.icon}
+            <span>{lens.name}</span>
+          </button>
+        ))}
+        <div className={styles.lensDivider} />
+        <button
+          className={`${styles.lensBtn} ${showTunneling ? styles.lensBtnActive : ''}`}
+          style={showTunneling ? { '--lens-color': '#00ffaa', borderColor: '#00ffaa', color: '#00ffaa' } : { '--lens-color': '#00ffaa' }}
+          onClick={() => setShowTunneling(t => !t)}
+          title="Quantum Tunneling — encontrar camino entre entidades"
+        >
+          <FiCrosshair size={13} />
+          <span>Túnel</span>
+        </button>
+      </div>
+
+      {/* === QUANTUM TUNNELING SEARCH === */}
+      {showTunneling && (
+        <div className={styles.tunnelingBar}>
+          <div className={styles.tunnelingInputGroup}>
+            <FiTarget size={13} style={{ color: '#00ffaa' }} />
+            <div className={styles.tunnelingInputWrapper}>
+              <input
+                className={styles.tunnelingInput}
+                placeholder="Origen — escribe para buscar..."
+                value={tunnelingSource}
+                onChange={(e) => {
+                  setTunnelingSource(e.target.value)
+                  setSourceResults(filterNodes(e.target.value))
+                }}
+                onFocus={() => {
+                  setSourceInputFocused(true)
+                  if (tunnelingSource) setSourceResults(filterNodes(tunnelingSource))
+                }}
+                onBlur={() => setTimeout(() => setSourceInputFocused(false), 200)}
+                onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
+              />
+              {sourceInputFocused && sourceResults.length > 0 && (
+                <div className={styles.tunnelingDropdown}>
+                  {sourceResults.map(n => (
+                    <div key={n.id} className={styles.tunnelingOption}
+                      onMouseDown={(e) => {
+                        e.preventDefault() // previene blur antes del click
+                        setTunnelingSource(n.label)
+                        setSourceResults([])
+                        setSourceInputFocused(false)
+                      }}>
+                      <span className={styles.tunnelingOptionType} data-type={n.type}>
+                        {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
+                      </span>
+                      <span className={styles.tunnelingOptionLabel}>{n.label}</span>
+                      {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className={styles.tunnelingArrow}>→</span>
+            <div className={styles.tunnelingInputWrapper}>
+              <input
+                className={styles.tunnelingInput}
+                placeholder="Destino — escribe para buscar..."
+                value={tunnelingTarget}
+                onChange={(e) => {
+                  setTunnelingTarget(e.target.value)
+                  setTargetResults(filterNodes(e.target.value))
+                }}
+                onFocus={() => {
+                  setTargetInputFocused(true)
+                  if (tunnelingTarget) setTargetResults(filterNodes(tunnelingTarget))
+                }}
+                onBlur={() => setTimeout(() => setTargetInputFocused(false), 200)}
+                onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
+              />
+              {targetInputFocused && targetResults.length > 0 && (
+                <div className={styles.tunnelingDropdown}>
+                  {targetResults.map(n => (
+                    <div key={n.id} className={styles.tunnelingOption}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setTunnelingTarget(n.label)
+                        setTargetResults([])
+                        setTargetInputFocused(false)
+                      }}>
+                      <span className={styles.tunnelingOptionType} data-type={n.type}>
+                        {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
+                      </span>
+                      <span className={styles.tunnelingOptionLabel}>{n.label}</span>
+                      {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className={styles.tunnelingSearchBtn} onClick={handleTunnelingSearch} disabled={isLoadingTunneling}>
+              {isLoadingTunneling ? <FiLoader size={14} className={styles.lensSpinner} /> : <FiSearch size={14} />}
+            </button>
+          </div>
+
+          {/* Resultado del tunneling */}
+          {tunnelingPath && (
+            <div className={styles.tunnelingResult}>
+              {tunnelingPath.found ? (
+                <>
+                  <div className={styles.tunnelingPathHeader}>
+                    <span>Quantum Channel encontrado — {tunnelingPath.length} saltos</span>
+                    <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
+                  </div>
+                  <div className={styles.tunnelingPathChain}>
+                    {tunnelingPath.path.map((node, idx) => (
+                      <span key={node.id}>
+                        <span className={styles.tunnelingPathNode} data-type={node.type}>
+                          {node.type === 'org' ? '⊛' : node.type === 'repo' ? '◉' : '•'} {node.name}
+                        </span>
+                        {idx < tunnelingPath.path.length - 1 && <span className={styles.tunnelingPathEdge}>⟶</span>}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className={styles.tunnelingNoPath}>
+                  <span>No existe canal cuántico entre estas entidades</span>
+                  <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Leyenda cuántica */}
       <div className={styles.legend}>
@@ -1996,6 +2986,85 @@ export default function UniverseView() {
               )
             })()}
           </div>
+
+          {/* === MÉTRICAS DE RED ENRIQUECIDAS === */}
+          {networkMetrics?.node_metrics?.[selectedEntity.id] && (() => {
+            const nm = networkMetrics.node_metrics[selectedEntity.id]
+            const community = networkMetrics.communities?.find(c => c.id === nm.community_id)
+
+            // collab_centrality y collab_connectivity vienen del backend como 0-100 (percentil por tipo)
+            const centrality = nm.collab_centrality ?? 0
+            const connectivity = nm.collab_connectivity ?? 0
+
+            // Detalle raw visible bajo la barra
+            const centralityDetail = {
+              org: `${nm.collab_centrality_raw ?? 0} contributors compartidos con otras orgs`,
+              repo: `${nm.collab_centrality_raw ?? 0} organizaciones representadas`,
+              user: `${nm.collab_centrality_raw ?? 0} organizaciones distintas`,
+            }
+            const connectivityDetail = {
+              org: `${nm.collab_connectivity_raw ?? 0} organizaciones vecinas`,
+              repo: `${nm.collab_connectivity_raw ?? 0} contributors`,
+              user: `${nm.collab_connectivity_raw ?? 0} repositorios`,
+            }
+
+            return (
+              <div className={styles.detailNetworkMetrics}>
+                <p className={styles.detailSectionTitle}>Análisis de Red</p>
+                
+                {/* Centralidad */}
+                <div className={styles.metricRow}>
+                  <span className={styles.metricLabel}><FiActivity size={11} /> Centralidad</span>
+                  <div className={styles.metricBarWrap}>
+                    <div className={styles.metricBar} style={{ width: `${centrality}%`, background: 'linear-gradient(90deg, #0077b6, #00b4d8)' }} />
+                  </div>
+                  <span className={styles.metricValue}>{centrality}%</span>
+                </div>
+                <p className={styles.metricDetail}>{centralityDetail[selectedEntity.type] || ''}</p>
+                <div className={styles.metricRow}>
+                  <span className={styles.metricLabel}><FiUsers size={11} /> Conectividad</span>
+                  <div className={styles.metricBarWrap}>
+                    <div className={styles.metricBar} style={{ width: `${connectivity}%`, background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)' }} />
+                  </div>
+                  <span className={styles.metricValue}>{connectivity}%</span>
+                </div>
+                <p className={styles.metricDetail}>{connectivityDetail[selectedEntity.type] || ''}</p>
+
+                {/* Comunidad */}
+                {community && (
+                  <div className={styles.communityBadge} style={{ '--community-color': nm.community_color }}>
+                    <span className={styles.communityDot} style={{ background: nm.community_color }} />
+                    <span>{community.label}</span>
+                    <span className={styles.communitySize}>{community.size} nodos</span>
+                  </div>
+                )}
+
+                {/* Bus Factor (solo repos) */}
+                {nm.bus_factor_risk && (
+                  <div className={`${styles.busFactor} ${styles[`busFactor${nm.bus_factor_risk.charAt(0).toUpperCase() + nm.bus_factor_risk.slice(1)}`]}`}>
+                    <div className={styles.busFactorHeader}>
+                      <FiShield size={12} />
+                      <span>Bus Factor: {nm.bus_factor}</span>
+                      <span className={styles.busFactorRisk}>{nm.bus_factor_risk.toUpperCase()}</span>
+                    </div>
+                    {nm.top_contributors && nm.top_contributors.length > 0 && (
+                      <div className={styles.busFactorContribs}>
+                        {nm.top_contributors.slice(0, 3).map((c, i) => (
+                          <div key={i} className={styles.busFactorContrib}>
+                            <span>@{c.login}</span>
+                            <div className={styles.busFactorContribBar}>
+                              <div style={{ width: `${c.percentage}%` }} />
+                            </div>
+                            <span>{c.percentage}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </aside>
       )}
 
@@ -2097,6 +3166,7 @@ export default function UniverseView() {
       <div className={styles.interactionHint}>
         Click · Colapso de función de onda &nbsp;|&nbsp; Scroll · Control de zoom &nbsp;|&nbsp; Arrastrar · Rotación orbital  
       </div>
+      </div>{/* cierre universeUI */}
     </div>
   )
 }

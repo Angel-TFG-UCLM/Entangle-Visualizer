@@ -15,7 +15,7 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
 import { Server, RefreshCw } from 'lucide-react'
-import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle } from 'react-icons/fa'
+import { FaExclamationTriangle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
@@ -117,7 +117,7 @@ function App() {
           // Éxito: mostrar check verde
           setLoadingResult('success')
           
-          // Esperar 800ms para que se aprecie el check, luego salir
+          // Esperar a que la animación SVG se dibuje (~0.85s) + tiempo de lectura
           setTimeout(() => {
             if (isMounted) {
               setIsExiting(true)
@@ -127,7 +127,7 @@ function App() {
                 }
               }, 500)
             }
-          }, 800)
+          }, 2000)
         } else {
           // Backend offline — reintentar con backoff incremental
           if (attempt < MAX_RETRIES) {
@@ -150,7 +150,7 @@ function App() {
                   }
                 }, 500)
               }
-            }, 800)
+            }, 2500)
           }
         }
       } catch (err) {
@@ -181,7 +181,7 @@ function App() {
                 }
               }, 500)
             }
-          }, 800)
+          }, 2500)
         }
       }
     }
@@ -211,8 +211,13 @@ function App() {
           <p className={styles.loadingSubtitle}>Quantum Software Ecosystem Analysis</p>
           
           <div className={styles.loadingSpinner}>
-            {loadingResult === null && (
-              <svg className={styles.atomSpinner} viewBox="0 0 120 120" width="80" height="80">
+            {/* Átomo SVG que se transforma en resultado */}
+            <div className={`${styles.atomContainer} ${loadingResult ? styles.atomDone : ''}`}>
+              {/* Átomo orbital — se desvanece al completar */}
+              <svg
+                className={`${styles.atomSpinner} ${loadingResult ? styles.atomFadeOut : ''}`}
+                viewBox="0 0 120 120" width="80" height="80"
+              >
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 212, 228, 0.3)" strokeWidth="1.5" className={styles.atomOrbit1} />
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(157, 111, 219, 0.3)" strokeWidth="1.5" className={styles.atomOrbit2} />
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 255, 159, 0.25)" strokeWidth="1.5" className={styles.atomOrbit3} />
@@ -234,18 +239,41 @@ function App() {
                   </filter>
                 </defs>
               </svg>
-            )}
-            {loadingResult === 'success' && (
-              <FaCheckCircle className={styles.successIcon} size={60} />
-            )}
-            {loadingResult === 'error' && (
-              <FaTimesCircle className={styles.errorIcon} size={60} />
-            )}
+              {/* Indicador de resultado — aparece encima del átomo */}
+              {loadingResult === 'success' && (
+                <div className={styles.resultIndicator}>
+                  <svg viewBox="0 0 52 52" width="52" height="52" className={styles.resultSvg}>
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(16, 185, 129, 0.2)" strokeWidth="2" />
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="#10b981" strokeWidth="2"
+                      strokeDasharray="151" strokeDashoffset="151" className={styles.resultCircle} />
+                    <path fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      d="M15 27l7 7 15-15" strokeDasharray="40" strokeDashoffset="40" className={styles.resultCheck} />
+                  </svg>
+                </div>
+              )}
+              {loadingResult === 'error' && (
+                <div className={styles.resultIndicator}>
+                  <svg viewBox="0 0 52 52" width="52" height="52" className={styles.resultSvg}>
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(239, 68, 68, 0.2)" strokeWidth="2" />
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="#ef4444" strokeWidth="2"
+                      strokeDasharray="151" strokeDashoffset="151" className={styles.resultCircle} />
+                    <path fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+                      d="M18 18l16 16" strokeDasharray="23" strokeDashoffset="23" className={styles.resultCrossA} />
+                    <path fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+                      d="M34 18l-16 16" strokeDasharray="23" strokeDashoffset="23" className={styles.resultCrossB} />
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
           
-          <p className={styles.loadingText}>
-            {loadingResult === 'success' && '¡Conexión exitosa!'}
-            {loadingResult === 'error' && 'Error de conexión — Decoherencia detectada'}
+          <p className={`${styles.loadingText} ${loadingResult ? styles.loadingTextResult : ''}`}>
+            {loadingResult === 'success' && (
+              <span className={styles.resultText}>Coherencia cuántica establecida</span>
+            )}
+            {loadingResult === 'error' && (
+              <span className={`${styles.resultText} ${styles.resultTextError}`}>Decoherencia detectada — modo simulación</span>
+            )}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
                 {isRefreshing ? 'Recalculando métricas...' : QUANTUM_PHRASES[quantumPhrase]}
@@ -278,7 +306,7 @@ function App() {
       
       setLoadingResult('success')
       
-      // Esperar un momento para mostrar el éxito
+      // Esperar a que se aprecie el resultado
       setTimeout(() => {
         setIsExiting(true)
         setTimeout(() => {
@@ -286,7 +314,7 @@ function App() {
           setIsExiting(false)
           setIsRefreshing(false)
         }, 500)
-      }, 800)
+      }, 2000)
     } catch (error) {
       console.error('Error al refrescar métricas:', error)
       setLoadingResult('error')
@@ -297,7 +325,7 @@ function App() {
           setIsExiting(false)
           setIsRefreshing(false)
         }, 500)
-      }, 1500)
+      }, 2500)
     }
   }
   
@@ -406,15 +434,15 @@ function App() {
 
           <QuantumDivider />
 
-          {/* Banner de colaboración auto-descubierta */}
-          <CollaborationBanner />
-
           {/* Gráficos interactivos con drill-down */}
           <div id="section-charts" className={styles.sectionAnchor}>
             <ChartsSection data={data} />
           </div>
 
           <QuantumDivider variant="large" />
+
+          {/* Banner portal al universo — justo antes de la sección de red */}
+          <CollaborationBanner />
 
           {/* Grafo de redes de colaboración */}
           <div id="section-network" className={`${styles.sectionAnchor} ${styles.fadeInStagger4}`}>
@@ -451,23 +479,8 @@ function App() {
         <Suspense fallback={
           <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
-            background: '#050510',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: '20px',
-          }}>
-            <div style={{
-              width: 48, height: 48,
-              border: '2px solid rgba(0,247,255,0.15)',
-              borderTop: '2px solid #00f7ff',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-            }} />
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, letterSpacing: 1 }}>
-              Inicializando campo cuántico…
-            </p>
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-          </div>
+            background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 50%, #0a0e14 100%)',
+          }} />
         }>
           <UniverseView />
         </Suspense>

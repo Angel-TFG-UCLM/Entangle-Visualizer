@@ -291,5 +291,48 @@ export async function discoverCollaboration() {
   }
 }
 
+/**
+ * Obtiene métricas de red de colaboración (centralidad, comunidades, bus factor).
+ * Timeout extendido: la computación de grafos con ~30K nodos puede tardar ~90s.
+ * 
+ * @param {boolean} forceRefresh - Si forzar recálculo
+ * @returns {Promise<Object>} { node_metrics, communities, global_metrics }
+ */
+export async function getNetworkMetrics(forceRefresh = false) {
+  try {
+    const response = await apiClient.get('/collaboration/network-metrics', {
+      params: { force_refresh: forceRefresh },
+      timeout: 180000, // 3 minutos — la computación de NetworkX es pesada
+    });
+    console.log(`📊 Network metrics: ${Object.keys(response.data.node_metrics || {}).length} nodes analyzed`);
+    return response.data;
+  } catch (error) {
+    console.error('[getNetworkMetrics] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Encuentra el camino más corto entre dos entidades de la red (Quantum Tunneling).
+ * Timeout extendido: construye grafo completo para cada búsqueda.
+ * 
+ * @param {string} source - ID del nodo origen (ej: user_octocat)
+ * @param {string} target - ID del nodo destino (ej: repo_qiskit/qiskit)
+ * @returns {Promise<Object>} { found, path, edges, length, description }
+ */
+export async function findQuantumPath(source, target) {
+  try {
+    const response = await apiClient.get('/collaboration/quantum-tunneling', {
+      params: { source, target },
+      timeout: 120000, // 2 minutos — reconstruye el grafo
+    });
+    console.log(`🔮 Quantum tunneling: ${source} → ${target}, found=${response.data.found}`);
+    return response.data;
+  } catch (error) {
+    console.error('[findQuantumPath] Error:', error);
+    throw error;
+  }
+}
+
 // Exportar la instancia de axios por si se necesita usar directamente
 export default apiClient;

@@ -278,12 +278,17 @@ export async function getUserCollaborationNetwork(userLogin) {
  * Auto-descubre patrones de colaboración analizando toda la BBDD.
  * Busca bridge users, repos conectados, colaboración cross-org.
  * 
+ * @param {boolean} forceRefresh - Si true, ignora caché y recalcula el grafo
  * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs }
  */
-export async function discoverCollaboration() {
+export async function discoverCollaboration(forceRefresh = false) {
   try {
-    const response = await apiClient.get('/collaboration/discover');
-    console.log(`🔍 Collaboration discovery: available=${response.data.available}`);
+    const params = forceRefresh ? { force: true } : {};
+    const response = await apiClient.get('/collaboration/discover', {
+      params,
+      timeout: 120000, // 2 min — la construcción del grafo completo puede tardar
+    });
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}`);
     return response.data;
   } catch (error) {
     console.error('[discoverCollaboration] Error:', error);

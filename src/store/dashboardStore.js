@@ -156,7 +156,8 @@ export const useDashboardStore = create(
           console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
           
           // Auto-detectar colaboración después de cargar datos
-          setTimeout(() => get().discoverCollaboration(), 500)
+          // Si es forceRefresh, forzar también recalculación del grafo
+          setTimeout(() => get().discoverCollaboration(forceRefresh), 500)
           
           return true
         } catch (error) {
@@ -171,10 +172,21 @@ export const useDashboardStore = create(
       },
 
       /**
-       * Refresca las métricas forzando recálculo en el backend.
-       * Útil después de ingestas/enriquecimientos.
+       * Refresca las métricas forzando invalidación de TODAS las cachés
+       * del backend y recálculo completo.
+       * 
+       * Flujo: POST /dashboard/refresh-metrics (invalida) → loadFullData(true) (recalcula)
        */
       refreshMetrics: async () => {
+        // 1. Invalidar todas las cachés del backend (discover, network-metrics, stats, counts)
+        try {
+          const { refreshDashboardMetrics } = await import('../services/api')
+          await refreshDashboardMetrics()
+          console.log('🧹 Todas las cachés del backend invalidadas')
+        } catch (e) {
+          console.warn('⚠️ Error al invalidar cachés (continuando con recálculo):', e.message)
+        }
+        // 2. Recargar datos frescos (fuerza recálculo en backend)
         return get().loadFullData(true)
       },
 
@@ -520,12 +532,12 @@ export const useDashboardStore = create(
        * Si encuentra colaboración real, establece collaborationAvailable = true
        * y el banner aparecerá en la UI invitando al usuario a explorar el grafo.
        */
-      discoverCollaboration: async () => {
+      discoverCollaboration: async (forceRefresh = false) => {
         set({ isDiscovering: true }, false, 'discoverCollaboration/start')
         
         try {
           const { discoverCollaboration } = await import('../services/api')
-          const result = await discoverCollaboration()
+          const result = await discoverCollaboration(forceRefresh)
           
           set({
             collaborationAvailable: result.available,

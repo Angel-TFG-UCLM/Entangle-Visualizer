@@ -297,6 +297,7 @@ function App() {
     
     setIsRefreshing(true)
     setIsLoading(true)
+    setIsExiting(false)
     setLoadingResult(null)
     setQuantumPhrase(0)
     

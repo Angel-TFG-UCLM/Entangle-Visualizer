@@ -720,19 +720,228 @@
   backdrop-filter: blur(24px);
   pointer-events: auto;
   animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
 .detailPanelExpanded {
-  width: 440px;
+  top: 50%;
+  right: 50%;
+  transform: translate(50%, -50%);
+  width: min(1100px, calc(100vw - 60px));
+  max-height: calc(100vh - 60px);
+  padding: 22px 28px;
+  border-radius: 18px;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(8, 10, 28, 0.95);
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  animation: expandPanel 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+
+/* Overlay backdrop when expanded */
+.detailPanelExpanded::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes expandPanel {
+  from { opacity: 0; transform: translate(50%, -50%) scale(0.88); filter: blur(4px); }
+  to   { opacity: 1; transform: translate(50%, -50%) scale(1); filter: blur(0px); }
+}
+
+/* ─── Layout system: compact = column, expanded = 2-col row ─── */
+.detailLayout {
+  display: contents; /* invisible in compact — children flow into parent */
+}
+.detailSidebar {
+  display: contents;
+}
+.detailMain {
+  display: contents;
+}
+
+.detailPanelExpanded .detailLayout {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.detailPanelExpanded .detailSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 320px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 14px;
+  scrollbar-gutter: stable;
+}
+.detailPanelExpanded .detailMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  padding-left: 24px;
+  padding-right: 10px;
+  scrollbar-gutter: stable;
+}
+
+/* Expanded sidebar/main scrollbar styling */
+.detailPanelExpanded .detailSidebar::-webkit-scrollbar,
+.detailPanelExpanded .detailMain::-webkit-scrollbar {
+  width: 5px;
+}
+.detailPanelExpanded .detailSidebar::-webkit-scrollbar-track,
+.detailPanelExpanded .detailMain::-webkit-scrollbar-track {
+  background: transparent;
+}
+.detailPanelExpanded .detailSidebar::-webkit-scrollbar-thumb,
+.detailPanelExpanded .detailMain::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.detailPanelExpanded .detailSidebar::-webkit-scrollbar-thumb:hover,
+.detailPanelExpanded .detailMain::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Expanded mode: make sub-elements larger / more spacious */
+.detailPanelExpanded .detailHeader {
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.detailPanelExpanded .detailAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+}
+.detailPanelExpanded .detailHeaderText h3 {
+  font-size: 18px;
+}
+.detailPanelExpanded .detailRadarSvg {
+  width: 280px;
+  height: 280px;
+}
+.detailPanelExpanded .detailHealthSvg {
+  width: 170px;
+  height: 96px;
+}
+.detailPanelExpanded .detailStatsGrid {
+  grid-template-columns: repeat(4, 1fr);
+}
+.detailPanelExpanded .detailStatCard {
+  padding: 12px 8px;
+}
+.detailPanelExpanded .detailStatValue {
+  font-size: 18px;
+}
+.detailPanelExpanded .detailBody {
+  gap: 14px;
+}
+.detailPanelExpanded .detailTabs {
+  margin-bottom: 4px;
+  gap: 4px;
+}
+.detailPanelExpanded .detailTabBtn {
+  padding: 7px 16px;
+  font-size: 12px;
+}
+.detailPanelExpanded .detailFlowRepo {
+  max-width: 160px;
+}
+.detailPanelExpanded .detailFlowBar {
+  width: 80px;
+}
+.detailPanelExpanded .detailMiniStats {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.detailPanelExpanded .detailHealthBreakdown {
+  gap: 6px;
+}
+.detailPanelExpanded .detailHealthLabel {
+  width: 82px;
+  font-size: 11px;
+}
+.detailPanelExpanded .detailHealthBarTrack {
+  height: 6px;
+}
+.detailPanelExpanded .detailDepsItem {
+  padding: 6px 8px;
+}
+.detailPanelExpanded .detailRepoItem {
+  padding: 6px 8px;
+}
+.detailPanelExpanded .detailUserItem {
+  padding: 5px 8px;
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(30px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* Closing animations */
+.detailPanelClosing {
+  animation: slideOutRight 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+@keyframes slideOutRight {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(30px) scale(0.97); }
+}
+
+.detailPanelExpandedClosing {
+  animation: collapsePanel 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+@keyframes collapsePanel {
+  from { opacity: 1; transform: translate(50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(50%, -50%) scale(0.93); }
+}
+
+/* Loading overlay */
+.detailLoadingOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  flex: 1;
+}
+.detailLoadingSpinner {
+  color: rgba(255, 255, 255, 0.5);
+  animation: detailSpin 1s linear infinite;
+}
+@keyframes detailSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.detailLoadingText {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* Stat card tooltip cursor */
+.detailStatCard {
+  cursor: help;
 }
 
 /* Toolbar */
@@ -1347,6 +1556,456 @@
   margin: 4px 0 0;
 }
 
+/* ─── COLLABORATION RADAR ─── */
+.detailRadar {
+  padding: 4px 10px 8px;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+}
+.detailRadarSvg {
+  width: 200px;
+  height: 200px;
+  opacity: 0.92;
+  overflow: visible;
+}
+
+/* ─── HEALTH SCORE ─── */
+.detailHealthSection {
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.detailHealthGauge {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+.detailHealthSvg {
+  width: 130px;
+  height: 74px;
+}
+.detailHealthBreakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.detailHealthRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+}
+.detailHealthLabel {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  width: 72px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.detailHealthBarTrack {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.detailHealthBarFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.detailHealthVal {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  width: 22px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── KEY DEPENDENCIES ─── */
+.detailSectionHint {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 0 6px;
+  font-style: italic;
+}
+.detailDepsList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detailDepsItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.detailDepsItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.detailDepsLeft {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 0;
+}
+.detailDepsLeft > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detailDepsRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.detailDepsBadge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.detailDepsRepos {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── KNOWLEDGE FLOWS ─── */
+.detailFlowsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detailFlowItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.detailFlowPair {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.detailFlowRepo {
+  font-size: 10px;
+  color: rgba(189, 0, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+  transition: color 0.15s;
+}
+.detailFlowRepo:hover {
+  color: #bd00ff;
+  text-decoration: underline;
+}
+.detailFlowArrow {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+.detailFlowBar {
+  width: 40px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.detailFlowBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffbd00, #ffd166);
+  border-radius: 2px;
+}
+.detailFlowCount {
+  font-size: 10px;
+  color: rgba(255, 189, 0, 0.7);
+  font-family: 'JetBrains Mono', monospace;
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ─── COLLABORATION DNA ─── */
+.detailDNA {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+.detailDNASvg {
+  width: 100%;
+  height: 60px;
+  display: block;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.detailDNALabels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.detailDNALabel {
+  font-size: 8px;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.detailDNADot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ─── COLLABORATION MATRIX ─── */
+.detailMatrixWrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.detailMatrix {
+  display: grid;
+  gap: 1px;
+  min-width: fit-content;
+}
+.detailMatrixCorner {
+  background: transparent;
+}
+.detailMatrixHeader {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 2px 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  transform: rotate(-35deg);
+  transform-origin: bottom left;
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.detailMatrixRowLabel {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 3px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.detailMatrixCell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  background: var(--cell-color, rgba(255, 255, 255, 0.02));
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: help;
+  transition: transform 0.15s;
+  min-width: 24px;
+  min-height: 24px;
+}
+.detailMatrixCell:hover {
+  transform: scale(1.15);
+  z-index: 2;
+}
+.detailMatrixDiag {
+  opacity: 0.5;
+}
+
+/* ─── IMPACT SIMULATION ─── */
+.detailImpactList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detailImpactCard {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.detailImpactCritical {
+  border-color: rgba(255, 107, 107, 0.25);
+  background: rgba(255, 107, 107, 0.04);
+}
+.detailImpactHigh {
+  border-color: rgba(255, 189, 0, 0.2);
+  background: rgba(255, 189, 0, 0.03);
+}
+.detailImpactModerate {
+  border-color: rgba(162, 155, 254, 0.15);
+}
+.detailImpactHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.detailImpactUser {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 500;
+}
+.detailImpactBadge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.detailImpactBadgeCritical {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+}
+.detailImpactBadgeHigh {
+  color: #ffbd00;
+  background: rgba(255, 189, 0, 0.1);
+}
+.detailImpactBadgeModerate {
+  color: #a29bfe;
+  background: rgba(162, 155, 254, 0.1);
+}
+.detailImpactMetrics {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detailImpactMetric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.detailImpactMetric > span:first-child {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+.detailImpactMetric > span:last-child {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.detailImpactVal {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── SIMILAR ENTITIES ─── */
+.detailSimilarList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.detailSimilarItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.detailSimilarItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.detailSimilarLeft {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.detailSimilarName {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detailSimilarRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.detailSimilarBarTrack {
+  width: 50px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.detailSimilarBarFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.detailSimilarPct {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'JetBrains Mono', monospace;
+  width: 28px;
+  text-align: right;
+}
+
+/* ─── SKELETON SHIMMER (progressive loading) ─── */
+.detailSkeleton {
+  height: 48px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  position: relative;
+}
+.detailSkeletonShimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 40%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 60%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+@keyframes skeletonShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* ============================================================================
    3D Label (estilo dei Html component)
    ============================================================================ */
@@ -1639,6 +2298,32 @@
     width: 100%;
     max-height: 40vh;
     border-radius: 14px 14px 0 0;
+  }  
+  .detailPanelExpanded {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    animation: none;
+  }
+  .detailPanelExpanded .detailLayout {
+    flex-direction: column;
+  }
+  .detailPanelExpanded .detailSidebar {
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .detailPanelExpanded .detailMain {
+    border-left: none;
+    padding-left: 0;
   }
 
   .metricsFloat {
@@ -2373,4 +3058,40 @@
     transform: none;
     top: 48px;
   }
+}
+
+/* ─── FLOATING TOOLTIP ─── */
+.floatingTooltip {
+  position: fixed;
+  z-index: 9999;
+  transform: translate(-50%, -100%);
+  max-width: 280px;
+  padding: 8px 12px;
+  background: rgba(15, 17, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.5;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+.floatingTooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: rgba(15, 17, 35, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translate(-50%, -100%) translateY(4px); }
+  to   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
 }

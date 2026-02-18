@@ -21,7 +21,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward } from 'react-icons/fi'
+import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink } from 'react-icons/fi'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -1422,6 +1422,7 @@ const CHANNEL_VERTEX = `
   attribute float aIntensity;
   uniform float uOpacity;
   varying float vIntensity;
+  varying float vDist;
   void main() {
     vIntensity = aIntensity;
     // Mover fuera del clip space cuando invisible para evitar 1px GPU clamp
@@ -1431,11 +1432,13 @@ const CHANNEL_VERTEX = `
       return;
     }
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float dist = -mv.z;
+    vDist = dist;
     // Tamaño base en píxeles — escala con intensidad Y distancia a cámara
-    // Escala perspectiva: puntos más grandes al acercarse, más pequeños al alejarse
-    float basePx = mix(1.5, 3.5, aIntensity);
-    float distScale = 300.0 / max(-mv.z, 1.0);
-    gl_PointSize = basePx * clamp(distScale, 0.5, 6.0);
+    // Reducido para evitar líneas gruesas de lejos; de cerca se mantiene bien
+    float basePx = mix(1.2, 3.0, aIntensity);
+    float distScale = 200.0 / max(dist, 1.0);
+    gl_PointSize = basePx * clamp(distScale, 0.2, 5.0);
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -1443,11 +1446,15 @@ const CHANNEL_FRAGMENT = `
   uniform vec3 uColor;
   uniform float uOpacity;
   varying float vIntensity;
+  varying float vDist;
   void main() {
     // Círculo suave
     float d = length(gl_PointCoord - 0.5) * 2.0;
     if (d > 1.0) discard;
-    float alpha = (1.0 - d * d) * uOpacity * mix(0.25, 1.0, vIntensity);
+    // Fade con distancia: de lejos los puntos se vuelven más tenues
+    // evitando que la acumulación de overlap cree líneas gruesas
+    float distFade = clamp(150.0 / max(vDist, 1.0), 0.15, 1.0);
+    float alpha = (1.0 - d * d) * uOpacity * mix(0.25, 1.0, vIntensity) * distFade;
     gl_FragColor = vec4(uColor * mix(0.6, 1.8, vIntensity), alpha);
   }
 `
@@ -1881,7 +1888,8 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation }) {
 function HawkingRadiation({ orgNodes, positions, startAnimation }) {
   const ref = useRef()
   const matRef = useRef()
-  const PER_ORG = 12
+  const glowTex = useMemo(() => createGlowTexture(), [])
+  const PER_ORG = 18
   const animTimer = useRef(0) // tiempo acumulado desde que startAnimation=true
   const DELAY_BEFORE_VISIBLE = 4.0 // aparecer después de que los procesadores estén visibles
 
@@ -1912,9 +1920,9 @@ function HawkingRadiation({ orgNodes, positions, startAnimation }) {
       if (!startAnimation) { matRef.current.opacity = 0; animTimer.current = 0; return }
       animTimer.current += dt
       if (animTimer.current < DELAY_BEFORE_VISIBLE) { matRef.current.opacity = 0; return }
-      const target = 0.3
+      const target = 0.7
       const cur = matRef.current.opacity
-      matRef.current.opacity = cur < target ? Math.min(cur + dt * 0.3, target) : target
+      matRef.current.opacity = cur < target ? Math.min(cur + dt * 0.4, target) : target
     }
     const t = clock.getElapsedTime()
     const pos = ref.current.geometry.attributes.position
@@ -1936,8 +1944,9 @@ function HawkingRadiation({ orgNodes, positions, startAnimation }) {
       </bufferGeometry>
       <pointsMaterial
         ref={matRef}
-        size={0.08}
-        color={new THREE.Color('#00f7ff').multiplyScalar(1.2)}
+        size={0.35}
+        map={glowTex}
+        color={new THREE.Color('#00f7ff').multiplyScalar(2.0)}
         toneMapped={false}
         transparent
         opacity={0}
@@ -2605,6 +2614,12 @@ export default function UniverseView() {
   const [navHistory, setNavHistory] = useState([])    // stack de entidades previas
   const [pinnedEntity, setPinnedEntity] = useState(null)   // entidad fijada para comparar
   const [pinnedData, setPinnedData] = useState(null)       // snapshot de detailData de la entidad fijada
+  const [panelClosing, setPanelClosing] = useState(false)  // animación de cierre
+  const [detailLoading, setDetailLoading] = useState(false) // indicador de carga
+  const [tooltipText, setTooltipText] = useState('')       // tooltip flotante
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
+  const tooltipTimeout = useRef(null)
+  const detailWorkerRef = useRef(null)
   const [hovered, setHovered] = useState(null)
   const [focusTarget, setFocusTarget] = useState(null)
   const [resetTrigger, setResetTrigger] = useState(0)
@@ -2734,18 +2749,59 @@ export default function UniverseView() {
     }
   }, [showCollaborationGraph])
 
+  // ─── Tooltip – delegación global sobre data-tip ───
+  useEffect(() => {
+    const onOver = (e) => {
+      const el = e.target.closest('[data-tip]')
+      if (el) {
+        clearTimeout(tooltipTimeout.current)
+        const rect = el.getBoundingClientRect()
+        setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 })
+        setTooltipText(el.getAttribute('data-tip'))
+      }
+    }
+    const onOut = (e) => {
+      const el = e.target.closest('[data-tip]')
+      if (el && !el.contains(e.relatedTarget)) {
+        tooltipTimeout.current = setTimeout(() => setTooltipText(''), 120)
+      }
+    }
+    document.addEventListener('mouseover', onOver)
+    document.addEventListener('mouseout', onOut)
+    return () => {
+      document.removeEventListener('mouseover', onOver)
+      document.removeEventListener('mouseout', onOut)
+    }
+  }, [])
+
+  // ─── Cierre animado del panel ───
+  const handleClosePanel = useCallback(() => {
+    setPanelClosing(true)
+    setTimeout(() => {
+      setSelectedEntity(null)
+      setResetTrigger(t => t + 1)
+      setNavHistory([])
+      setDetailTab('info')
+      setPinnedEntity(null)
+      setPinnedData(null)
+      setPanelClosing(false)
+      setDetailExpanded(false)
+    }, 280)
+  }, [])
+
   useEffect(() => {
     if (!showCollaborationGraph) return
     const handler = (e) => {
       if (e.key === 'Escape') {
         if (searchEntity) { handleSearchClear() }
-        else if (selectedEntity) { setSelectedEntity(null); setResetTrigger(t => t + 1) }
+        else if (detailExpanded) { setDetailExpanded(false) }
+        else if (selectedEntity) { handleClosePanel() }
         else closeCollaborationGraph()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showCollaborationGraph, selectedEntity, searchEntity, closeCollaborationGraph, handleSearchClear])
+  }, [showCollaborationGraph, selectedEntity, searchEntity, closeCollaborationGraph, handleSearchClear, handleClosePanel, detailExpanded])
 
   // Mapeo de filtro activo → tipos de entidad permitidos para selección
   const allowedTypes = useMemo(() => {
@@ -2794,212 +2850,36 @@ export default function UniverseView() {
     })
   }, [universeData])
 
-  // ─── MEMO: datos derivados para el panel de detalle ───
-  // Se recalcula SOLO cuando cambia selectedEntity, universeData o networkMetrics
-  const detailData = useMemo(() => {
-    if (!selectedEntity) return null
-    const entityColor = selectedEntity.type === 'org' ? '#00f7ff' : selectedEntity.type === 'repo' ? '#bd00ff' : '#00ff9f'
-    const nm = networkMetrics?.node_metrics?.[selectedEntity.id]
-    const community = nm ? networkMetrics.communities?.find(c => c.id === nm.community_id) : null
-    const centrality = nm?.collab_centrality ?? 0
-    const connectivity = nm?.collab_connectivity ?? 0
-
-    // ORG data
-    let orgReposList = [], orgTotalUsers = 0, orgBridgeCount = 0, orgSortedRepos = []
-    let orgLangs = [], orgTotalStars = 0, orgAvgStars = 0, orgBridgePct = 0
-    let orgTopContributors = [], orgEntangledOrgs = []
-    let orgCrossPollination = 0, orgLangBreakdown = []
-
-    if (selectedEntity.type === 'org') {
-      orgReposList = universeData?.orgRepos[selectedEntity.id] || []
-      const orgAllUsers = orgReposList.reduce((acc, r) => {
-        (universeData?.repoUsers[r.id] || []).forEach(u => acc.set(u.id, u)); return acc
-      }, new Map())
-      orgTotalUsers = orgAllUsers.size
-      orgBridgeCount = Array.from(orgAllUsers.values()).filter(u => u.isBridge).length
-      orgSortedRepos = [...orgReposList].sort((a, b) =>
-        (universeData?.repoUsers[b.id] || []).length - (universeData?.repoUsers[a.id] || []).length
-      )
-      orgLangs = [...new Set(orgReposList.map(r => r.language).filter(Boolean))]
-      orgTotalStars = orgReposList.reduce((s, r) => s + (r.stars || 0), 0)
-      orgAvgStars = orgReposList.length > 0 ? (orgTotalStars / orgReposList.length).toFixed(1) : 0
-      orgBridgePct = orgTotalUsers > 0 ? ((orgBridgeCount / orgTotalUsers) * 100).toFixed(0) : 0
-
-      const orgUserRepoCounts = new Map()
-      orgReposList.forEach(r => {
-        (universeData?.repoUsers[r.id] || []).forEach(u => {
-          orgUserRepoCounts.set(u.id, (orgUserRepoCounts.get(u.id) || 0) + 1)
-        })
-      })
-      orgTopContributors = Array.from(orgAllUsers.values())
-        .map(u => ({ ...u, repoCount: orgUserRepoCounts.get(u.id) || 0 }))
-        .sort((a, b) => b.repoCount - a.repoCount)
-
-      // Orgs entrelazadas — usar índice inverso para O(U×R) en vez de O(U×R×O)
-      if (universeData) {
-        // índice inverso: repoId → orgId
-        const repoToOrg = {}
-        for (const [oid, repos] of Object.entries(universeData.orgRepos)) {
-          for (const r of repos) repoToOrg[r.id] = oid
-        }
-        const sharedMap = new Map()
-        orgAllUsers.forEach((user) => {
-          for (const [rid, users] of Object.entries(universeData.repoUsers)) {
-            if (!users.some(u => u.id === user.id)) continue
-            const oid = repoToOrg[rid]
-            if (oid && oid !== selectedEntity.id) {
-              sharedMap.set(oid, (sharedMap.get(oid) || 0) + 1)
-            }
-          }
-        })
-        orgEntangledOrgs = Array.from(sharedMap.entries())
-          .map(([oid, count]) => {
-            const org = universeData.orgNodes.find(o => o.id === oid)
-            return org ? { ...org, sharedCount: count } : null
-          })
-          .filter(Boolean)
-          .sort((a, b) => b.sharedCount - a.sharedCount)
-
-        // Cross-pollination: % de contributors que también contribuyen a otras orgs
-        if (orgAllUsers.size > 0) {
-          let crossCount = 0
-          orgAllUsers.forEach((user) => {
-            for (const [rid, users] of Object.entries(universeData.repoUsers)) {
-              if (!users.some(u => u.id === user.id)) continue
-              const oid = repoToOrg[rid]
-              if (oid && oid !== selectedEntity.id) { crossCount++; break }
-            }
-          })
-          orgCrossPollination = ((crossCount / orgAllUsers.size) * 100).toFixed(0)
-        }
-      }
-
-      // Language breakdown con porcentajes
-      const langCount = {}
-      orgReposList.forEach(r => { if (r.language) langCount[r.language] = (langCount[r.language] || 0) + 1 })
-      const langTotal = orgReposList.length || 1
-      orgLangBreakdown = Object.entries(langCount)
-        .map(([lang, count]) => ({ lang, count, pct: ((count / langTotal) * 100).toFixed(0) }))
-        .sort((a, b) => b.count - a.count)
-    }
-
-    // REPO data
-    let repoUsers = [], repoBridgeUsers = [], repoNormalUsers = [], repoOwnerOrg = null, repoOrgDiversity = []
-
-    if (selectedEntity.type === 'repo') {
-      repoUsers = universeData?.repoUsers[selectedEntity.id] || []
-      repoBridgeUsers = repoUsers.filter(u => u.isBridge)
-      repoNormalUsers = repoUsers.filter(u => !u.isBridge)
-      repoOwnerOrg = universeData?.orgNodes?.find(o =>
-        (universeData.orgRepos[o.id] || []).some(r => r.id === selectedEntity.id)
-      ) || null
-
-      // Diversidad de orgs — usar índice inverso
-      if (universeData) {
-        const repoToOrg = {}
-        for (const [oid, repos] of Object.entries(universeData.orgRepos)) {
-          for (const r of repos) repoToOrg[r.id] = oid
-        }
-        const orgMap = new Map()
-        repoUsers.forEach(u => {
-          for (const [rid, users] of Object.entries(universeData.repoUsers)) {
-            if (!users.some(uu => uu.id === u.id)) continue
-            const oid = repoToOrg[rid]
-            if (oid) {
-              const org = universeData.orgNodes.find(o => o.id === oid)
-              if (org) orgMap.set(oid, org)
-            }
-          }
-        })
-        repoOrgDiversity = Array.from(orgMap.values())
+  // ─── WEB WORKER: computation off-main-thread (progressive) ───
+  const [detailData, setDetailData] = useState(null)
+  useEffect(() => {
+    const w = new Worker(
+      new URL('./computeDetailData.worker.js', import.meta.url)
+    )
+    w.onmessage = (e) => {
+      const { phase, data } = e.data
+      if (phase === 1) {
+        // Core data + DNA — show panel immediately
+        setDetailData(data)
+        setDetailLoading(false)
+      } else if (phase === 2) {
+        // Medium features (impact sims + collab matrix) — merge
+        setDetailData(prev => prev ? { ...prev, ...data } : data)
+      } else if (phase === 3) {
+        // Heavy features (similar entities) — merge + mark complete
+        setDetailData(prev => prev ? { ...prev, ...data, _advancedLoaded: true } : data)
       }
     }
+    detailWorkerRef.current = w
+    return () => w.terminate()
+  }, [])
 
-    // USER data
-    let userRepos = [], userOrgs = [], userLangs = [], userTotalStars = 0, userCoContributors = []
-    const expertise = selectedEntity.quantum_expertise_score || 0
-
-    if (selectedEntity.type === 'user' && universeData) {
-      const userRepoMap = new Map()
-      for (const [repoId, users] of Object.entries(universeData.repoUsers)) {
-        if (users.some(u => u.id === selectedEntity.id)) {
-          const repo = universeData.repoNodes.find(r => r.id === repoId)
-          if (repo) userRepoMap.set(repoId, repo)
-        }
-      }
-      userRepos = Array.from(userRepoMap.values())
-
-      const userOrgSet = new Map()
-      for (const repo of userRepos) {
-        for (const [orgId, repos] of Object.entries(universeData.orgRepos)) {
-          if (repos.some(r => r.id === repo.id)) {
-            const org = universeData.orgNodes.find(o => o.id === orgId)
-            if (org) userOrgSet.set(orgId, org)
-          }
-        }
-      }
-      userOrgs = Array.from(userOrgSet.values())
-      userLangs = [...new Set(userRepos.map(r => r.language).filter(Boolean))]
-      userTotalStars = userRepos.reduce((s, r) => s + (r.stars || 0), 0)
-
-      // Co-contributors
-      const coMap = new Map()
-      userRepos.forEach(r => {
-        (universeData.repoUsers[r.id] || []).forEach(u => {
-          if (u.id !== selectedEntity.id) {
-            coMap.set(u.id, { ...u, sharedRepos: (coMap.get(u.id)?.sharedRepos || 0) + 1 })
-          }
-        })
-      })
-      userCoContributors = Array.from(coMap.values()).sort((a, b) => b.sharedRepos - a.sharedRepos)
-    }
-
-    // ─── NETWORK ROLE CLASSIFICATION ───
-    let networkRole = null
-    if (nm) {
-      const highC = centrality > 50, highConn = connectivity > 50
-      if (highC && highConn) networkRole = { key: 'hub', label: 'Hub Central', icon: '⊛', color: '#ffd166', desc: 'Altamente conectado y central — núcleo de colaboración' }
-      else if (highC && !highConn) networkRole = { key: 'bridge', label: 'Puente Estratégico', icon: '⚡', color: '#ff6b6b', desc: 'Pocas conexiones pero muy estratégicas — une clusters' }
-      else if (!highC && highConn) networkRole = { key: 'local', label: 'Conector Local', icon: '◉', color: '#00b4d8', desc: 'Bien conectado en su zona pero no central globalmente' }
-      else networkRole = { key: 'peripheral', label: 'Periférico', icon: '·', color: '#a29bfe', desc: 'En la periferia de la red — potencial de integración' }
-    }
-
-    // ─── REPO HUB SCORE ───
-    const repoHubScore = selectedEntity.type === 'repo' ? repoOrgDiversity.length : 0
-
-    // ─── ANALYSIS SUMMARY TEXT ───
-    let analysisText = ''
-    const name = selectedEntity.name || selectedEntity.login || selectedEntity.full_name?.split('/')[1] || selectedEntity.id
-    if (selectedEntity.type === 'org') {
-      const roleLabel = networkRole?.label || 'entidad'
-      const crossNote = orgCrossPollination > 50
-        ? `Alta cross-pollination (${orgCrossPollination}%): sus contributors participan activamente en otras organizaciones.`
-        : orgCrossPollination > 20
-        ? `Cross-pollination moderada (${orgCrossPollination}%): cierto intercambio de talento con el ecosistema.`
-        : `Baja cross-pollination (${orgCrossPollination}%): ecosistema relativamente cerrado.`
-      const bridgeNote = orgBridgeCount > 0 ? ` ${orgBridgeCount} bridge users conectan con ${orgEntangledOrgs.length} org${orgEntangledOrgs.length !== 1 ? 's' : ''} externas.` : ''
-      analysisText = `${name} es un ${roleLabel} con ${orgTotalUsers} contributors en ${orgReposList.length} repos. ${crossNote}${bridgeNote}`
-    } else if (selectedEntity.type === 'repo') {
-      const hubNote = repoHubScore > 2 ? `Hub de colaboración inter-org con contributors de ${repoHubScore} organizaciones.` : repoHubScore === 2 ? `Atrae contributors de 2 organizaciones.` : 'Actividad concentrada en una organización.'
-      const bridgeNote = repoBridgeUsers.length > 0 ? ` ${repoBridgeUsers.length} bridge users (${repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}%) amplifican su alcance.` : ''
-      analysisText = `${name}: ${repoUsers.length} contributors. ${hubNote}${bridgeNote}`
-    } else if (selectedEntity.type === 'user') {
-      const spanNote = userOrgs.length > 1 ? `Activo en ${userOrgs.length} organizaciones, alcanzando ${userCoContributors.length} co-contributors.` : `Concentrado en ${userOrgs.length} organización con ${userCoContributors.length} co-contributors.`
-      const bridgeNote = selectedEntity.isBridge ? ' Partícula entrelazada: funciona como puente entre organizaciones.' : ''
-      analysisText = `${name} contribuye a ${userRepos.length} repos. ${spanNote}${bridgeNote}`
-    }
-
-    return {
-      entityColor, nm, community, centrality, connectivity,
-      orgReposList, orgTotalUsers, orgBridgeCount, orgSortedRepos, orgLangs,
-      orgTotalStars, orgAvgStars, orgBridgePct, orgTopContributors, orgEntangledOrgs,
-      orgCrossPollination, orgLangBreakdown,
-      repoUsers, repoBridgeUsers, repoNormalUsers, repoOwnerOrg, repoOrgDiversity, repoHubScore,
-      userRepos, userOrgs, userLangs, userTotalStars, expertise, userCoContributors,
-      networkRole, analysisText,
-    }
+  useEffect(() => {
+    if (!selectedEntity) { setDetailData(null); setDetailLoading(false); return }
+    setDetailLoading(true)
+    setDetailData(null)
+    detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics })
   }, [selectedEntity, universeData, networkMetrics])
-
   // Pin / unpin para modo comparación
   const handlePinToggle = useCallback(() => {
     if (pinnedEntity?.id === selectedEntity?.id) {
@@ -3437,7 +3317,7 @@ export default function UniverseView() {
             <button
               className={`${styles.settingsBtn} ${showSettings ? styles.settingsBtnActive : ''}`}
               onClick={() => setShowSettings(s => !s)}
-              title="Ajustes"
+              data-tip="Ajustes"
             >
               <FiSettings size={14} />
               <span>Ajustes</span>
@@ -3497,7 +3377,7 @@ export default function UniverseView() {
               </div>
             )}
           </div>
-          <button className={styles.resetBtn} onClick={handleReset} title="Vista general"><FiMaximize2 size={14} /></button>
+          <button className={styles.resetBtn} onClick={handleReset} data-tip="Vista general"><FiMaximize2 size={14} /></button>
           <button className={styles.closeBtn} onClick={closeCollaborationGraph}><FiX size={18} /><span>ESC</span></button>
         </div>
       </header>
@@ -3584,7 +3464,7 @@ export default function UniverseView() {
             style={activeLens === lens.id ? { '--lens-color': lens.color, borderColor: lens.color, color: lens.color } : { '--lens-color': lens.color }}
             onClick={() => handleLensClick(lens.id)}
             disabled={lensTransitioning}
-            title={lensTransitioning ? 'Procesando...' : lens.name}
+            data-tip={lensTransitioning ? 'Procesando...' : lens.name}
           >
             {lensTransitioning && activeLens === lens.id ? <FiLoader size={13} className={styles.lensSpinner} /> : lens.icon}
             <span>{lens.name}</span>
@@ -3595,7 +3475,7 @@ export default function UniverseView() {
           className={`${styles.lensBtn} ${showTunneling ? styles.lensBtnActive : ''}`}
           style={showTunneling ? { '--lens-color': '#00ffaa', borderColor: '#00ffaa', color: '#00ffaa' } : { '--lens-color': '#00ffaa' }}
           onClick={() => setShowTunneling(t => !t)}
-          title="Quantum Tunneling — encontrar camino entre entidades"
+          data-tip="Quantum Tunneling — encontrar camino entre entidades"
         >
           <FiCrosshair size={13} />
           <span>Túnel</span>
@@ -3734,24 +3614,30 @@ export default function UniverseView() {
       </div>
 
       {/* Panel de detalle — PRO */}
-      {selectedEntity && detailData && (() => {
+      {(selectedEntity || panelClosing) && (() => {
+        // While loading or closing, show skeleton or use stale data
+        const hasData = detailData && !detailLoading
         const {
-          entityColor, nm, community, centrality, connectivity,
-          orgReposList, orgTotalUsers, orgBridgeCount, orgSortedRepos, orgLangs,
-          orgTotalStars, orgAvgStars, orgBridgePct, orgTopContributors, orgEntangledOrgs,
-          orgCrossPollination, orgLangBreakdown,
-          repoUsers, repoBridgeUsers, repoNormalUsers, repoOwnerOrg, repoOrgDiversity, repoHubScore,
-          userRepos, userOrgs, userLangs, userTotalStars, expertise, userCoContributors,
-          networkRole, analysisText,
-        } = detailData
+          entityColor = selectedEntity?.type === 'org' ? '#00f7ff' : selectedEntity?.type === 'repo' ? '#bd00ff' : '#00ff9f',
+          nm, community, centrality = 0, connectivity = 0,
+          orgReposList = [], orgTotalUsers = 0, orgBridgeCount = 0, orgSortedRepos = [], orgLangs = [],
+          orgTotalStars = 0, orgAvgStars = 0, orgBridgePct = 0, orgTopContributors = [], orgEntangledOrgs = [],
+          orgCrossPollination = 0, orgLangBreakdown = [],
+          repoUsers = [], repoBridgeUsers = [], repoNormalUsers = [], repoOwnerOrg, repoOrgDiversity = [], repoHubScore = 0,
+          userRepos = [], userOrgs = [], userLangs = [], userTotalStars = 0, expertise = [], userCoContributors = [],
+          networkRole, analysisText, radarAxes = [],
+          knowledgeFlows = [], keyDependencies = [], healthScore, healthBreakdown = [],
+          impactSimulations = [], collabMatrix, similarEntities = [], collabDNA,
+          _advancedLoaded = false,
+        } = detailData || {}
         const isPinned = pinnedEntity?.id === selectedEntity?.id
 
         return (
-        <aside className={`${styles.detailPanel} ${detailExpanded ? styles.detailPanelExpanded : ''}`}>
+        <aside className={`${styles.detailPanel} ${detailExpanded ? styles.detailPanelExpanded : ''} ${panelClosing ? (detailExpanded ? styles.detailPanelExpandedClosing : styles.detailPanelClosing) : ''}`}>
           {/* === TOOLBAR === */}
           <div className={styles.detailToolbar}>
             {navHistory.length > 0 && (
-              <button className={styles.detailToolBtn} onClick={navigateBack} title="Volver">
+              <button className={styles.detailToolBtn} onClick={navigateBack} data-tip="Volver">
                 <FiChevronLeft size={14} />
               </button>
             )}
@@ -3759,21 +3645,33 @@ export default function UniverseView() {
             <button
               className={`${styles.detailToolBtn} ${isPinned ? styles.detailToolBtnActive : ''}`}
               onClick={handlePinToggle}
-              title={isPinned ? 'Dejar de comparar' : 'Fijar para comparar'}
+              data-tip={isPinned ? 'Dejar de comparar' : 'Fijar para comparar'}
             >
               <FiBookmark size={13} />
             </button>
             <button
               className={styles.detailToolBtn}
               onClick={() => setDetailExpanded(e => !e)}
-              title={detailExpanded ? 'Compactar' : 'Expandir'}
+              data-tip={detailExpanded ? 'Compactar' : 'Expandir'}
             >
               {detailExpanded ? <FiMinimize2 size={13} /> : <FiMaximize2 size={13} />}
             </button>
-            <button className={styles.detailToolBtn} onClick={() => { setSelectedEntity(null); setResetTrigger(t => t + 1); setNavHistory([]); setDetailTab('info'); setPinnedEntity(null); setPinnedData(null) }}>
+            <button className={styles.detailToolBtn} onClick={handleClosePanel}>
               <FiX size={14} />
             </button>
           </div>
+
+          {/* === LOADING OVERLAY === */}
+          {detailLoading && (
+            <div className={styles.detailLoadingOverlay}>
+              <FiLoader size={22} className={styles.detailLoadingSpinner} />
+              <span className={styles.detailLoadingText}>Analizando entidad…</span>
+            </div>
+          )}
+
+          {hasData && (<>
+          <div className={styles.detailLayout}>
+          <div className={styles.detailSidebar}>
 
           {/* === HEADER CON AVATAR === */}
           <div className={styles.detailHeader}>
@@ -3801,12 +3699,12 @@ export default function UniverseView() {
           <div className={styles.detailHandle}>
             <span>@{selectedEntity.login || selectedEntity.full_name || selectedEntity.id}</span>
             {(selectedEntity.type === 'org' || selectedEntity.type === 'user') && selectedEntity.login && (
-              <a href={`https://github.com/${selectedEntity.login}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} title="Ver en GitHub">
+              <a href={`https://github.com/${selectedEntity.login}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip="Ver en GitHub">
                 <FiExternalLink size={11} />
               </a>
             )}
             {selectedEntity.type === 'repo' && selectedEntity.full_name && (
-              <a href={`https://github.com/${selectedEntity.full_name}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} title="Ver en GitHub">
+              <a href={`https://github.com/${selectedEntity.full_name}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip="Ver en GitHub">
                 <FiExternalLink size={11} />
               </a>
             )}
@@ -3814,7 +3712,8 @@ export default function UniverseView() {
 
           {/* === BADGE BRIDGE === */}
           {selectedEntity.isBridge && (
-            <div className={styles.detailBridge}>
+            <div className={styles.detailBridge}
+              data-tip="Un usuario 'puente' contribuye a repositorios de múltiples organizaciones, conectando equipos que de otra forma no colaborarían">
               <FiZap size={12} />
               <span>Partícula Entrelazada</span>
               <span className={styles.detailBridgeHint}>Conecta {userOrgs.length} organizaciones</span>
@@ -3823,12 +3722,81 @@ export default function UniverseView() {
 
           {/* === NETWORK ROLE BADGE === */}
           {networkRole && (
-            <div className={styles.detailRoleBadge} style={{ '--role-color': networkRole.color }}>
+            <div className={styles.detailRoleBadge} style={{ '--role-color': networkRole.color }}
+              data-tip="Clasificación automática basada en centralidad y conectividad en la red de colaboración">
               <span className={styles.detailRoleIcon}>{networkRole.icon}</span>
               <div className={styles.detailRoleText}>
                 <span className={styles.detailRoleLabel}>{networkRole.label}</span>
                 <span className={styles.detailRoleDesc}>{networkRole.desc}</span>
               </div>
+            </div>
+          )}
+
+          {/* === COLLABORATION RADAR — perfil pentagonal === */}
+          {radarAxes.length === 5 && (
+            <div className={styles.detailRadar}
+              data-tip="Perfil de colaboración: muestra las fortalezas relativas en 5 dimensiones clave">
+              <svg viewBox="-80 -25 360 260" className={styles.detailRadarSvg}>
+                {/* Grid pentagonal — 3 niveles */}
+                {[1, 0.66, 0.33].map((scale, si) => (
+                  <polygon key={si}
+                    points={radarAxes.map((_, i) => {
+                      const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                      return `${100 + Math.cos(angle) * 70 * scale},${100 + Math.sin(angle) * 70 * scale}`
+                    }).join(' ')}
+                    fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"
+                  />
+                ))}
+                {/* Ejes */}
+                {radarAxes.map((_, i) => {
+                  const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                  return <line key={i} x1="100" y1="100"
+                    x2={100 + Math.cos(angle) * 70} y2={100 + Math.sin(angle) * 70}
+                    stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+                })}
+                {/* Área rellena */}
+                <polygon
+                  points={radarAxes.map((ax, i) => {
+                    const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                    const r = Math.max(ax.value, 0.05) * 70
+                    return `${100 + Math.cos(angle) * r},${100 + Math.sin(angle) * r}`
+                  }).join(' ')}
+                  fill={`${entityColor}18`} stroke={entityColor} strokeWidth="1.5" strokeLinejoin="round"
+                />
+                {/* Puntos en vértices */}
+                {radarAxes.map((ax, i) => {
+                  const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                  const r = Math.max(ax.value, 0.05) * 70
+                  return <circle key={i} cx={100 + Math.cos(angle) * r} cy={100 + Math.sin(angle) * r}
+                    r="2.5" fill={entityColor} opacity="0.9" />
+                })}
+                {/* Labels — posicionados dinámicamente sin cortes */}
+                {radarAxes.map((ax, i) => {
+                  const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                  const cosA = Math.cos(angle)
+                  const sinA = Math.sin(angle)
+                  const lx = 100 + cosA * 98
+                  const ly = 100 + sinA * 98
+                  // Dynamic textAnchor based on position
+                  const anchor = cosA < -0.1 ? 'end' : cosA > 0.1 ? 'start' : 'middle'
+                  const baseline = sinA < -0.3 ? 'auto' : sinA > 0.3 ? 'hanging' : 'middle'
+                  return (
+                    <g key={i}>
+                      <text x={lx} y={ly} textAnchor={anchor} dominantBaseline={baseline}
+                        fill="rgba(255,255,255,0.7)" fontSize="11" fontFamily="monospace" fontWeight="500" style={{ cursor: 'default' }}>
+                        {ax.label}
+                      </text>
+                      <text x={lx} y={ly + (sinA < -0.3 ? -12 : 12)} textAnchor={anchor} dominantBaseline={baseline}
+                        fill="rgba(255,255,255,0.4)" fontSize="9" fontFamily="monospace">
+                        {Math.round(ax.value * 100)}%
+                      </text>
+                      {/* Invisible hit area for tooltip */}
+                      <rect x={lx - 30} y={ly - 10} width="60" height="20" fill="transparent" style={{ cursor: 'help' }}
+                        data-tip={ax.tip} />
+                    </g>
+                  )
+                })}
+              </svg>
             </div>
           )}
 
@@ -3871,18 +3839,75 @@ export default function UniverseView() {
             </div>
           )}
 
+          {/* ─── COLLABORATION DNA ─── */}
+          {detailExpanded && !collabDNA && !_advancedLoaded && radarAxes.length >= 3 && (
+            <div className={styles.detailDNA}>
+              <p className={styles.detailSectionTitle}><FiHash size={10} /> Collaboration DNA</p>
+              <div className={styles.detailSkeleton}><div className={styles.detailSkeletonShimmer} /></div>
+            </div>
+          )}
+          {collabDNA && detailExpanded && (
+            <div className={styles.detailDNA}>
+              <p className={styles.detailSectionTitle} data-tip="Huella visual única generada a partir del perfil colaborativo de esta entidad"><FiHash size={10} /> Collaboration DNA</p>
+              <svg viewBox="0 0 200 60" className={styles.detailDNASvg}>
+                {/* Background grid */}
+                {Array.from({ length: 20 }, (_, i) => (
+                  <line key={`g${i}`} x1={i * 10} y1={0} x2={i * 10} y2={60} stroke="rgba(255,255,255,0.03)" />
+                ))}
+                {/* DNA double helix based on radar values */}
+                {collabDNA.values.map((v, i) => {
+                  const colors = ['#00f7ff', '#bd00ff', '#00ff9f', '#ffbd00', '#ff6b6b']
+                  const segs = 40
+                  return Array.from({ length: segs }, (_, s) => {
+                    const x = (s / segs) * 200
+                    const phase = (i * 1.2) + ((collabDNA.seed % 100) / 100) * Math.PI
+                    const y1 = 30 + Math.sin((s / segs) * Math.PI * 4 + phase) * (10 + v * 18)
+                    const y2 = 30 - Math.sin((s / segs) * Math.PI * 4 + phase) * (10 + v * 18)
+                    const opacity = 0.15 + v * 0.55
+                    return (
+                      <g key={`${i}-${s}`}>
+                        <circle cx={x} cy={y1} r={1 + v * 1.5} fill={colors[i % 5]} opacity={opacity * 0.8} />
+                        <circle cx={x} cy={y2} r={1 + v * 1.5} fill={colors[i % 5]} opacity={opacity * 0.4} />
+                        {s % 8 === 0 && <line x1={x} y1={y1} x2={x} y2={y2} stroke={colors[i % 5]} strokeWidth={0.5} opacity={opacity * 0.3} />}
+                      </g>
+                    )
+                  })
+                })}
+                {/* Central axis */}
+                <line x1={0} y1={30} x2={200} y2={30} stroke="rgba(255,255,255,0.06)" strokeDasharray="2 4" />
+              </svg>
+              <div className={styles.detailDNALabels}>
+                {collabDNA.labels.map((label, i) => {
+                  const colors = ['#00f7ff', '#bd00ff', '#00ff9f', '#ffbd00', '#ff6b6b']
+                  return (
+                    <span key={i} className={styles.detailDNALabel} style={{ color: colors[i % 5] }}>
+                      <span className={styles.detailDNADot} style={{ background: colors[i % 5] }} />
+                      {label}: {Math.round(collabDNA.values[i] * 100)}%
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          </div>{/* end detailSidebar */}
+          <div className={styles.detailMain}>
+
           {/* === TABS === */}
           <div className={styles.detailTabs}>
             <button className={`${styles.detailTabBtn} ${detailTab === 'info' ? styles.detailTabActive : ''}`}
-              onClick={() => setDetailTab('info')} style={{ '--tab-color': entityColor }}>
+              onClick={() => setDetailTab('info')} style={{ '--tab-color': entityColor }}
+              data-tip="Información general: métricas, repositorios y lenguajes">
               <FiBarChart2 size={11} /> Info
             </button>
             <button className={`${styles.detailTabBtn} ${detailTab === 'red' ? styles.detailTabActive : ''}`}
-              onClick={() => setDetailTab('red')} style={{ '--tab-color': entityColor }}>
+              onClick={() => setDetailTab('red')} style={{ '--tab-color': entityColor }}
+              data-tip="Métricas de red: centralidad, conectividad y comunidad">
               <FiActivity size={11} /> Red
             </button>
             <button className={`${styles.detailTabBtn} ${detailTab === 'explorer' ? styles.detailTabActive : ''}`}
-              onClick={() => setDetailTab('explorer')} style={{ '--tab-color': entityColor }}>
+              onClick={() => setDetailTab('explorer')} style={{ '--tab-color': entityColor }}
+              data-tip="Explorar conexiones: usuarios, repos y organizaciones relacionadas">
               <FiSearch size={11} /> Explorar
             </button>
           </div>
@@ -3894,22 +3919,22 @@ export default function UniverseView() {
               {selectedEntity.type === 'org' && (
                 <>
                   <div className={styles.detailStatsGrid}>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Número total de repositorios en esta organización">
                       <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                       <span className={styles.detailStatValue}>{orgReposList.length}</span>
                       <span className={styles.detailStatLabel}>Repositorios</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Usuarios únicos que contribuyen a repos de esta org">
                       <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
                       <span className={styles.detailStatValue}>{orgTotalUsers}</span>
                       <span className={styles.detailStatLabel}>Contributors</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Usuarios que contribuyen a múltiples organizaciones — conectores clave de la red">
                       <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
                       <span className={styles.detailStatValue}>{orgBridgeCount}</span>
                       <span className={styles.detailStatLabel}>Bridge Users</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Suma total de estrellas de todos los repositorios">
                       <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                       <span className={styles.detailStatValue}>{orgTotalStars}</span>
                       <span className={styles.detailStatLabel}>Estrellas total</span>
@@ -3918,10 +3943,10 @@ export default function UniverseView() {
 
                   {/* Mini stats fila */}
                   <div className={styles.detailMiniStats}>
-                    <span><FiCode size={10} /> {orgLangs.length} lenguajes</span>
-                    <span><FiStar size={10} /> ~{orgAvgStars} avg ★</span>
-                    <span><FiPercent size={10} /> {orgBridgePct}% bridge</span>
-                    <span><FiShare2 size={10} /> {orgCrossPollination}% cross</span>
+                    <span data-tip="Lenguajes de programación distintos usados en los repositorios"><FiCode size={10} /> {orgLangs.length} lenguajes</span>
+                    <span data-tip="Promedio de estrellas por repositorio"><FiStar size={10} /> ~{orgAvgStars} avg ★</span>
+                    <span data-tip="Porcentaje de usuarios que son bridge (conectan múltiples orgs)"><FiPercent size={10} /> {orgBridgePct}% bridge</span>
+                    <span data-tip="Tasa de polinización cruzada: colaboradores compartidos con otras orgs"><FiShare2 size={10} /> {orgCrossPollination}% cross</span>
                   </div>
 
                   {/* Language breakdown bars */}
@@ -3981,26 +4006,26 @@ export default function UniverseView() {
 
                   <div className={styles.detailStatsGrid}>
                     {selectedEntity.stars > 0 && (
-                      <div className={styles.detailStatCard}>
+                      <div className={styles.detailStatCard} data-tip="Estrellas en GitHub — indicador de popularidad del repositorio">
                         <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                         <span className={styles.detailStatValue}>{selectedEntity.stars}</span>
                         <span className={styles.detailStatLabel}>Estrellas</span>
                       </div>
                     )}
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Número de usuarios únicos que contribuyen a este repositorio">
                       <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
                       <span className={styles.detailStatValue}>{repoUsers.length}</span>
                       <span className={styles.detailStatLabel}>Contributors</span>
                     </div>
                     {repoBridgeUsers.length > 0 && (
-                      <div className={styles.detailStatCard}>
+                      <div className={styles.detailStatCard} data-tip="Usuarios puente: contribuyen a múltiples organizaciones, conectando la red">
                         <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
                         <span className={styles.detailStatValue}>{repoBridgeUsers.length}</span>
                         <span className={styles.detailStatLabel}>Bridge</span>
                       </div>
                     )}
                     {selectedEntity.language && (
-                      <div className={styles.detailStatCard}>
+                      <div className={styles.detailStatCard} data-tip="Lenguaje de programación principal del repositorio">
                         <FiCode size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                         <span className={styles.detailStatValue} style={{ fontSize: 12 }}>{selectedEntity.language}</span>
                         <span className={styles.detailStatLabel}>Lenguaje</span>
@@ -4011,9 +4036,9 @@ export default function UniverseView() {
                   {/* Diversidad de orgs */}
                   {repoOrgDiversity.length > 1 && (
                     <div className={styles.detailMiniStats}>
-                      <span><FiGlobe size={10} /> Contributors de {repoOrgDiversity.length} orgs</span>
-                      <span><FiPercent size={10} /> {repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}% bridge</span>
-                      {repoHubScore > 1 && <span><FiAward size={10} /> Hub score: {repoHubScore}</span>}
+                      <span data-tip="Organizaciones distintas cuyos miembros contribuyen a este repo"><FiGlobe size={10} /> Contributors de {repoOrgDiversity.length} orgs</span>
+                      <span data-tip="Porcentaje de contribuidores que son bridge users"><FiPercent size={10} /> {repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}% bridge</span>
+                      {repoHubScore > 1 && <span data-tip="Puntuación de hub: cuántas organizaciones conecta este repositorio"><FiAward size={10} /> Hub score: {repoHubScore}</span>}
                     </div>
                   )}
 
@@ -4055,23 +4080,23 @@ export default function UniverseView() {
               {selectedEntity.type === 'user' && (
                 <>
                   <div className={styles.detailStatsGrid}>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Repositorios en los que este usuario contribuye">
                       <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                       <span className={styles.detailStatValue}>{userRepos.length}</span>
                       <span className={styles.detailStatLabel}>Repositorios</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Organizaciones en las que participa este usuario">
                       <FiGlobe size={14} className={styles.detailStatIcon} style={{ color: '#00f7ff' }} />
                       <span className={styles.detailStatValue}>{userOrgs.length}</span>
                       <span className={styles.detailStatLabel}>Organizaciones</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Total de estrellas de los repositorios a los que contribuye">
                       <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                       <span className={styles.detailStatValue}>{userTotalStars}</span>
                       <span className={styles.detailStatLabel}>★ en sus repos</span>
                     </div>
                     {expertise > 0 && (
-                      <div className={styles.detailStatCard}>
+                      <div className={styles.detailStatCard} data-tip="Nivel de expertise basado en diversidad de repos, orgs y lenguajes">
                         <FiActivity size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
                         <span className={styles.detailStatValue}>{expertise}</span>
                         <span className={styles.detailStatLabel}>Expertise</span>
@@ -4080,8 +4105,8 @@ export default function UniverseView() {
                   </div>
 
                   <div className={styles.detailMiniStats}>
-                    <span><FiCode size={10} /> {userLangs.length} lenguajes</span>
-                    <span><FiUsers size={10} /> {userCoContributors.length} co-contributors</span>
+                    <span data-tip="Lenguajes de programación distintos en los que trabaja"><FiCode size={10} /> {userLangs.length} lenguajes</span>
+                    <span data-tip="Usuarios con los que comparte al menos un repositorio"><FiUsers size={10} /> {userCoContributors.length} co-contributors</span>
                   </div>
 
                   {userRepos.length > 0 && (
@@ -4124,8 +4149,85 @@ export default function UniverseView() {
               {/* ─── ANALYSIS SUMMARY (shared all types) ─── */}
               {analysisText && (
                 <div className={styles.detailAnalysis}>
-                  <p className={styles.detailSectionTitle}><FiAward size={10} /> Resumen de análisis</p>
+                  <p className={styles.detailSectionTitle} data-tip="Resumen generado automáticamente del perfil de colaboración"><FiAward size={10} /> Resumen de análisis</p>
                   <p className={styles.detailAnalysisText}>{analysisText}</p>
+                </div>
+              )}
+
+              {/* ─── HEALTH SCORE (orgs only) ─── */}
+              {healthScore !== null && (
+                <div className={styles.detailHealthSection}>
+                  <p className={styles.detailSectionTitle} data-tip="Puntuación 0-100 que mide la salud del ecosistema colaborativo de esta organización"><FiHeart size={10} /> Salud colaborativa</p>
+                  <div className={styles.detailHealthGauge}>
+                    <svg viewBox="0 0 120 68" className={styles.detailHealthSvg}>
+                      {/* Arco semicircular — envuelve el número */}
+                      <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
+                      <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none"
+                        stroke={healthScore >= 70 ? '#00ff9f' : healthScore >= 40 ? '#ffd166' : '#ff6b6b'}
+                        strokeWidth="5" strokeLinecap="round"
+                        strokeDasharray={`${healthScore * 1.57} 200`}
+                      />
+                      {/* Número centrado dentro del arco */}
+                      <text x="60" y="44" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="monospace">{healthScore}</text>
+                      <text x="60" y="56" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="9" fontFamily="monospace">/ 100</text>
+                    </svg>
+                  </div>
+                  <div className={styles.detailHealthBreakdown}>
+                    {healthBreakdown.map(({ label, value, color, tip }) => (
+                      <div key={label} className={styles.detailHealthRow} data-tip={tip}>
+                        <span className={styles.detailHealthLabel}>{label}</span>
+                        <div className={styles.detailHealthBarTrack}>
+                          <div className={styles.detailHealthBarFill} style={{ width: `${value}%`, background: color }} />
+                        </div>
+                        <span className={styles.detailHealthVal}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ─── COLLABORATION MATRIX (orgs, expanded) ─── */}
+              {detailExpanded && !collabMatrix && !_advancedLoaded && selectedEntity.type === 'org' && orgReposList.length >= 2 && orgReposList.length <= 15 && (
+                <div className={styles.detailSection}>
+                  <p className={styles.detailSectionTitle}><FiLayers size={10} /> Matriz de colaboración</p>
+                  <div className={styles.detailSkeleton} style={{ height: 120 }}><div className={styles.detailSkeletonShimmer} /></div>
+                </div>
+              )}
+              {collabMatrix && detailExpanded && (
+                <div className={styles.detailSection}>
+                  <p className={styles.detailSectionTitle} data-tip="Heatmap que muestra cuántos contribuidores comparten entre repos — indica transferencia de conocimiento interna"><FiLayers size={10} /> Matriz de colaboración</p>
+                  <p className={styles.detailSectionHint}>Contributors compartidos entre repos</p>
+                  <div className={styles.detailMatrixWrap}>
+                    <div className={styles.detailMatrix} style={{ gridTemplateColumns: `48px repeat(${collabMatrix.labels.length}, 1fr)` }}>
+                      {/* Header row */}
+                      <div className={styles.detailMatrixCorner} />
+                      {collabMatrix.labels.map((label, i) => (
+                        <div key={`h${i}`} className={styles.detailMatrixHeader} data-tip={label}>
+                          {label.length > 6 ? label.slice(0, 5) + '…' : label}
+                        </div>
+                      ))}
+                      {/* Data rows */}
+                      {collabMatrix.matrix.map((row, i) => (
+                        <>{/* Fragment for row */}
+                          <div key={`l${i}`} className={styles.detailMatrixRowLabel} data-tip={collabMatrix.labels[i]}>
+                            {collabMatrix.labels[i].length > 6 ? collabMatrix.labels[i].slice(0, 5) + '…' : collabMatrix.labels[i]}
+                          </div>
+                          {row.map((val, j) => {
+                            const isdiag = i === j
+                            const intensity = isdiag ? 0.15 : Math.min(val / collabMatrix.maxShared, 1)
+                            return (
+                              <div key={`${i}-${j}`}
+                                className={`${styles.detailMatrixCell} ${isdiag ? styles.detailMatrixDiag : ''}`}
+                                style={{ '--intensity': intensity, '--cell-color': isdiag ? 'rgba(255,255,255,0.05)' : `rgba(0,247,255,${0.1 + intensity * 0.6})` }}
+                                data-tip={isdiag ? `${val} contributors` : `${val} shared entre ${collabMatrix.labels[i]} y ${collabMatrix.labels[j]}`}>
+                                {val > 0 ? val : ''}
+                              </div>
+                            )
+                          })}
+                        </>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -4137,12 +4239,12 @@ export default function UniverseView() {
               {nm ? (
                 <>
                   <div className={styles.detailStatsGrid}>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Qué tan central es esta entidad en la red global de colaboración (0-100%)">
                       <FiTarget size={14} className={styles.detailStatIcon} style={{ color: '#00b4d8' }} />
                       <span className={styles.detailStatValue}>{centrality}%</span>
                       <span className={styles.detailStatLabel}>Centralidad</span>
                     </div>
-                    <div className={styles.detailStatCard}>
+                    <div className={styles.detailStatCard} data-tip="Fuerza y cantidad de conexiones directas con otras entidades (0-100%)">
                       <FiShare2 size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
                       <span className={styles.detailStatValue}>{connectivity}%</span>
                       <span className={styles.detailStatLabel}>Conectividad</span>
@@ -4213,6 +4315,86 @@ export default function UniverseView() {
                       )}
                     </div>
                   )}
+
+                  {/* ─── KEY DEPENDENCIES — nodos críticos ─── */}
+                  {keyDependencies.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle} data-tip="Usuarios críticos cuya marcha tendría mayor impacto en la red de colaboración"><FiAlertTriangle size={10} /> Dependencias clave <span className={styles.detailCount}>{keyDependencies.length}</span></p>
+                      <p className={styles.detailSectionHint}>Usuarios cuya marcha tendría mayor impacto</p>
+                      <div className={styles.detailDepsList}>
+                        {keyDependencies.map(u => (
+                          <div key={u.id} className={styles.detailDepsItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            <div className={styles.detailDepsLeft}>
+                              {u.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />}
+                              <span>{u.login || u.id}</span>
+                            </div>
+                            <div className={styles.detailDepsRight}>
+                              {u.soleConnections > 0 && (
+                                <span className={styles.detailDepsBadge} data-tip={`Único puente a ${u.soleConnections} org(s)`}>
+                                  <FiAlertTriangle size={8} /> {u.soleConnections} sole bridge{u.soleConnections > 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {u.repoCount > 0 && (
+                                <span className={styles.detailDepsRepos}>{u.repoCount} repos</span>
+                              )}
+                              <FiArrowRight size={8} className={styles.detailNavArrow} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── IMPACT SIMULATION ─── */}
+                  {detailExpanded && impactSimulations.length === 0 && !_advancedLoaded && keyDependencies.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiAlertTriangle size={10} /> ¿Qué pasaría si…?</p>
+                      <div className={styles.detailSkeleton} style={{ height: 80 }}><div className={styles.detailSkeletonShimmer} /></div>
+                    </div>
+                  )}
+                  {impactSimulations.length > 0 && detailExpanded && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle} data-tip="Simulación del impacto que tendría la pérdida de usuarios clave en la red de colaboración"><FiAlertTriangle size={10} /> ¿Qué pasaría si…?</p>
+                      <p className={styles.detailSectionHint}>Impacto simulado si un usuario clave se va</p>
+                      <div className={styles.detailImpactList}>
+                        {impactSimulations.map((sim, i) => (
+                          <div key={i} className={`${styles.detailImpactCard} ${styles['detailImpact' + sim.severity.charAt(0).toUpperCase() + sim.severity.slice(1)]}`}>
+                            <div className={styles.detailImpactHeader}>
+                              <span className={styles.detailImpactUser}>
+                                {sim.user.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} />}
+                                @{sim.user.login}
+                              </span>
+                              <span className={`${styles.detailImpactBadge} ${styles['detailImpactBadge' + sim.severity.charAt(0).toUpperCase() + sim.severity.slice(1)]}`}>
+                                {sim.severity === 'critical' ? '⚠ Crítico' : sim.severity === 'high' ? '⚡ Alto' : '◉ Moderado'}
+                              </span>
+                            </div>
+                            <div className={styles.detailImpactMetrics}>
+                              {sim.orgConnectionsLost > 0 && (
+                                <div className={styles.detailImpactMetric}>
+                                  <span className={styles.detailImpactVal} style={{ color: '#ff6b6b' }}>-{sim.orgConnectionsLost}</span>
+                                  <span>conexiones org</span>
+                                </div>
+                              )}
+                              <div className={styles.detailImpactMetric}>
+                                <span className={styles.detailImpactVal} style={{ color: '#ffbd00' }}>{sim.bridgeConnectionsLost}</span>
+                                <span>orgs afectadas</span>
+                              </div>
+                              <div className={styles.detailImpactMetric}>
+                                <span className={styles.detailImpactVal} style={{ color: '#bd00ff' }}>{sim.reposAffected}</span>
+                                <span>repos</span>
+                              </div>
+                              {sim.healthDelta !== 0 && (
+                                <div className={styles.detailImpactMetric}>
+                                  <span className={styles.detailImpactVal} style={{ color: '#ff6b6b' }}>{sim.healthDelta}</span>
+                                  <span>health</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className={styles.detailEmptyState}>
@@ -4260,6 +4442,36 @@ export default function UniverseView() {
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── KNOWLEDGE FLOWS: flujos internos de conocimiento ─── */}
+                  {knowledgeFlows.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle} data-tip="Pares de repositorios que comparten más contribuidores — indica transferencia de conocimiento"><FiLink size={10} /> Flujos de conocimiento <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
+                      <p className={styles.detailSectionHint}>Pares de repos que comparten más contributors</p>
+                      <div className={styles.detailFlowsList}>
+                        {knowledgeFlows.map((flow, i) => {
+                          const maxShared = knowledgeFlows[0]?.shared || 1
+                          return (
+                            <div key={i} className={styles.detailFlowItem}>
+                              <div className={styles.detailFlowPair}>
+                                <span className={styles.detailFlowRepo} onClick={() => navigateToEntity(flow.repoA)} style={{ cursor: 'pointer' }}>
+                                  {flow.repoA.name || flow.repoA.full_name?.split('/')[1]}
+                                </span>
+                                <span className={styles.detailFlowArrow}>⇄</span>
+                                <span className={styles.detailFlowRepo} onClick={() => navigateToEntity(flow.repoB)} style={{ cursor: 'pointer' }}>
+                                  {flow.repoB.name || flow.repoB.full_name?.split('/')[1]}
+                                </span>
+                              </div>
+                              <div className={styles.detailFlowBar}>
+                                <div className={styles.detailFlowBarFill} style={{ width: `${(flow.shared / maxShared) * 100}%` }} />
+                              </div>
+                              <span className={styles.detailFlowCount}>{flow.shared}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -4355,8 +4567,53 @@ export default function UniverseView() {
                   )}
                 </>
               )}
+
+              {/* ─── SIMILAR ENTITIES ─── */}
+              {detailExpanded && similarEntities.length === 0 && !_advancedLoaded && radarAxes.length >= 3 && (
+                <div className={styles.detailSection}>
+                  <p className={styles.detailSectionTitle}><FiCrosshair size={10} /> Entidades similares</p>
+                  <div className={styles.detailSkeleton}><div className={styles.detailSkeletonShimmer} /></div>
+                </div>
+              )}
+              {similarEntities.length > 0 && detailExpanded && (
+                <div className={styles.detailSection}>
+                  <p className={styles.detailSectionTitle} data-tip="Entidades con perfil de colaboración similar basado en distancia euclidiana del radar"><FiCrosshair size={10} /> Entidades similares</p>
+                  <p className={styles.detailSectionHint}>Perfiles de radar parecidos al actual</p>
+                  <div className={styles.detailSimilarList}>
+                    {similarEntities.map((sim, i) => (
+                      <div key={i} className={styles.detailSimilarItem}
+                        onClick={() => {
+                          const entity = selectedEntity.type === 'org'
+                            ? universeData?.orgNodes?.find(o => o.id === sim.entity.id)
+                            : selectedEntity.type === 'repo'
+                            ? universeData?.repoNodes?.find(r => r.id === sim.entity.id)
+                            : null
+                          if (entity) navigateToEntity(entity)
+                        }}
+                        style={{ cursor: 'pointer' }}>
+                        <div className={styles.detailSimilarLeft}>
+                          {selectedEntity.type === 'org' && <FiGrid size={10} style={{ color: '#00f7ff' }} />}
+                          {selectedEntity.type === 'repo' && <FiGitBranch size={10} style={{ color: '#bd00ff' }} />}
+                          {selectedEntity.type === 'user' && <FiUser size={10} style={{ color: '#00ff9f' }} />}
+                          <span className={styles.detailSimilarName}>{sim.entity.name}</span>
+                        </div>
+                        <div className={styles.detailSimilarRight}>
+                          <div className={styles.detailSimilarBarTrack}>
+                            <div className={styles.detailSimilarBarFill} style={{ width: `${sim.similarity}%`, background: sim.similarity > 80 ? '#00ff9f' : sim.similarity > 60 ? '#ffd166' : '#a29bfe' }} />
+                          </div>
+                          <span className={styles.detailSimilarPct}>{sim.similarity}%</span>
+                          <FiArrowRight size={8} className={styles.detailNavArrow} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          </div>{/* end detailMain */}
+          </div>{/* end detailLayout */}
 
           {/* === NAV BREADCRUMB === */}
           {navHistory.length > 0 && (
@@ -4372,12 +4629,21 @@ export default function UniverseView() {
               </span>
             </div>
           )}
+          </>)}{/* end hasData */}
         </aside>
         )
       })()}
 
+      {/* Floating tooltip */}
+      {tooltipText && (
+        <div className={styles.floatingTooltip}
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}>
+          {tooltipText}
+        </div>
+      )}
+
       {/* Botón de ayuda */}
-      <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)} title="¿Qué estoy viendo?">
+      <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)} data-tip="¿Qué estoy viendo?">
         <FiHelpCircle size={16} />
         <span>¿Qué estoy viendo?</span>
       </button>

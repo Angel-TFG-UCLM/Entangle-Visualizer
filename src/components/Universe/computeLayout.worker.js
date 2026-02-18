@@ -245,7 +245,9 @@ function computeLayout(graph, nodeMetrics) {
   midOrgs.forEach(org => placeOrg(org, CORE_RADIUS * 0.5, PERIPHERY_MIN))
   isolatedOrgs.forEach(org => placeOrg(org, PERIPHERY_MIN, PERIPHERY_MAX))
 
-  // FASE 4: Repos en órbita alrededor de sus orgs
+  // FASE 4: Repos en órbita alrededor de sus orgs — ponderados por nº de contribuidores
+  // Repos con más contribuidores orbitan más cerca de su org ("planetas masivos"),
+  // repos con pocos contribuidores orbitan más lejos ("satélites periféricos").
   const assignedRepos = new Set()
   const baseRepoMin = REPO_MIN_ORBIT * Math.max(1, scaleFactor * 0.7)
   const baseRepoMax = REPO_MAX_ORBIT * Math.max(1, scaleFactor * 0.7)
@@ -258,11 +260,22 @@ function computeLayout(graph, nodeMetrics) {
     const rMin = baseRepoMin * repoSpread
     const rMax = baseRepoMax * repoSpread
 
-    repos.forEach((repo, i) => {
+    // Calcular contributorCount para cada repo de esta org
+    const repoContribs = repos.map(repo => {
+      const users = repoUsers[repo.id]
+      return { repo, count: users ? users.length : 0 }
+    })
+    const maxContribs = Math.max(...repoContribs.map(r => r.count), 1)
+
+    repoContribs.forEach(({ repo, count }, i) => {
       const baseAngle = (i / numRepos) * Math.PI * 2
       const angleJitter = (rng() - 0.5) * (Math.PI * 2 / Math.max(numRepos, 3)) * 0.8
       const a = baseAngle + angleJitter
-      const orbitR = rMin + rng() * (rMax - rMin)
+
+      // Normalizar: 1.0 = máx contribuidores → órbita cercana, 0 → órbita lejana
+      const importance = maxContribs > 1 ? count / maxContribs : 0.5
+      // Invertir: más importante = radio más pequeño
+      const orbitR = rMax - (rMax - rMin) * importance + (rng() - 0.5) * (rMax - rMin) * 0.15
       const tilt = (rng() - 0.5) * Math.PI * 0.4
 
       positions[repo.id] = new Vec3(
@@ -286,7 +299,10 @@ function computeLayout(graph, nodeMetrics) {
     )
   })
 
-  // FASE 5: Users
+  // FASE 5: Users — posicionados en centroide de sus repos
+  // Si un user contribuye a 1 repo → orbita ese repo (como antes)
+  // Si contribuye a N repos de la misma org → centroide de esos repos (más cerca del org center)
+  // Si contribuye a repos de distintas orgs → centroide ponderado ("bridge developer")
   const assignedUsers = new Set()
   const userRepoLinks = {}
   graph.links.forEach(link => {
@@ -302,19 +318,33 @@ function computeLayout(graph, nodeMetrics) {
     const repoPositions = linkedRepos.map(rid => positions[rid]).filter(Boolean)
     if (repoPositions.length === 0) return
 
-    const rp = repoPositions[0]
-    const repoId = linkedRepos[0]
-    const repoUserCount = repoId && repoUsers[repoId] ? repoUsers[repoId].length : 1
+    // Calcular centroide de todos los repos a los que contribuye
+    let cx = 0, cy = 0, cz = 0
+    for (const rp of repoPositions) {
+      cx += rp.x; cy += rp.y; cz += rp.z
+    }
+    cx /= repoPositions.length
+    cy /= repoPositions.length
+    cz /= repoPositions.length
+
+    // Para 1 repo: orbita normal alrededor del repo
+    // Para N repos: orbita alrededor del centroide con radio menor (cluster)
+    const isMultiRepo = repoPositions.length > 1
+    const primaryRepoId = linkedRepos[0]
+    const repoUserCount = primaryRepoId && repoUsers[primaryRepoId] ? repoUsers[primaryRepoId].length : 1
     const densityScale = repoUserCount > 50
       ? 1 + Math.sqrt(repoUserCount) * 0.5
       : 1 + Math.log2(Math.max(repoUserCount, 1)) * 0.5
-    const uR = (USER_MIN_ORBIT + rng() * (USER_MAX_ORBIT - USER_MIN_ORBIT)) * densityScale
+
+    // Multi-repo users orbitan más cerca de su centroide (radio reducido)
+    const radiusScale = isMultiRepo ? 0.6 : 1.0
+    const uR = (USER_MIN_ORBIT + rng() * (USER_MAX_ORBIT - USER_MIN_ORBIT)) * densityScale * radiusScale
     const θ = rng() * Math.PI * 2
     const φ = Math.acos(2 * rng() - 1)
     positions[user.id] = new Vec3(
-      rp.x + uR * Math.sin(φ) * Math.cos(θ),
-      rp.y + uR * Math.cos(φ),
-      rp.z + uR * Math.sin(φ) * Math.sin(θ)
+      cx + uR * Math.sin(φ) * Math.cos(θ),
+      cy + uR * Math.cos(φ),
+      cz + uR * Math.sin(φ) * Math.sin(θ)
     )
     assignedUsers.add(user.id)
   })
@@ -331,7 +361,7 @@ function computeLayout(graph, nodeMetrics) {
 
   const connections = graph.links
     .filter(l => positions[l.source] && positions[l.target])
-    .map(l => ({ source: l.source, target: l.target, type: l.type, start: positions[l.source], end: positions[l.target] }))
+    .map(l => ({ source: l.source, target: l.target, type: l.type, strength: l.strength || 0, start: positions[l.source], end: positions[l.target] }))
 
   const maxOrgScore = Math.max(...Object.values(orgScore), 1)
   const maxOrgNeighbors = Object.values(orgNeighbors).reduce((mx, m) => Math.max(mx, m.size), 1)
@@ -345,7 +375,17 @@ function computeLayout(graph, nodeMetrics) {
     userDensity[user.id] = Math.max(0.15, 1.0 / Math.pow(count, 0.3))
   })
 
-  return { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions, connections, orgScore, orgNeighbors, maxOrgScore, maxOrgNeighbors, userDensity }
+  // Metadatos de zonas para el toggle de fronteras
+  const zoneMeta = {
+    coreRadius: CORE_RADIUS,
+    peripheryMin: PERIPHERY_MIN,
+    peripheryMax: PERIPHERY_MAX,
+    coreCount: coreOrgs.length,
+    midCount: midOrgs.length,
+    isolatedCount: isolatedOrgs.length,
+  }
+
+  return { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions, connections, orgScore, orgNeighbors, maxOrgScore, maxOrgNeighbors, userDensity, zoneMeta }
 }
 
 // ============================================================================
@@ -371,7 +411,7 @@ self.onmessage = (e) => {
   }
 
   const connections = result.connections.map(c => ({
-    source: c.source, target: c.target, type: c.type,
+    source: c.source, target: c.target, type: c.type, strength: c.strength || 0,
     start: { x: c.start.x, y: c.start.y, z: c.start.z },
     end: { x: c.end.x, y: c.end.y, z: c.end.z },
   }))
@@ -402,6 +442,7 @@ self.onmessage = (e) => {
       maxOrgScore: result.maxOrgScore,
       maxOrgNeighbors: result.maxOrgNeighbors,
       userDensity: result.userDensity,
+      zoneMeta: result.zoneMeta,
     },
     requestId,
   })

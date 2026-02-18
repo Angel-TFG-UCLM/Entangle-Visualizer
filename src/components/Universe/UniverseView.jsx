@@ -21,7 +21,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiHelpCircle, FiChevronDown, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader } from 'react-icons/fi'
+import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward } from 'react-icons/fi'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -427,7 +427,7 @@ function computeRelatedIds(entity, data) {
 // VACÍO CUÁNTICO: Lattice hexagonal + fluctuaciones del vacío
 // ============================================================================
 
-function QuantumVacuum({ progress }) {
+function QuantumVacuum({ progressRef, progressKey }) {
   const fluctRef = useRef()
   const latticeRef = useRef()
 
@@ -470,7 +470,7 @@ function QuantumVacuum({ progress }) {
   useFrame(({ clock }) => {
     if (!fluctRef.current) return
     const t = clock.getElapsedTime()
-    const p = easeOutCubic(progress)
+    const p = easeOutCubic(progressRef.current[progressKey])
     const sizes = fluctRef.current.geometry.attributes.size
     for (let i = 0; i < fluctCount; i++) {
       const phase = fluctSizes[i] * Math.PI * 2
@@ -481,6 +481,9 @@ function QuantumVacuum({ progress }) {
 
     // Lattice fade-in
     if (latticeRef.current) latticeRef.current.material.opacity = 0.025 * p
+
+    // Fluctuaciones: fade-in MUY suave — son fondo sutil, no protagonistas
+    if (fluctRef.current?.material) fluctRef.current.material.opacity = p > 0.01 ? 0.15 * p : 0
   })
 
   return (
@@ -490,17 +493,17 @@ function QuantumVacuum({ progress }) {
         <lineBasicMaterial color="#00f7ff" transparent opacity={0} depthWrite={false} />
       </lineSegments>
 
-      {/* Fluctuaciones del vacío */}
+      {/* Fluctuaciones del vacío — partículas muy tenues de fondo */}
       <points ref={fluctRef}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" array={fluctPositions} itemSize={3} count={fluctCount} />
           <bufferAttribute attach="attributes-size" array={new Float32Array(fluctCount)} itemSize={1} count={fluctCount} />
         </bufferGeometry>
         <pointsMaterial
-          size={0.3}
-          color="#4488ff"
+          size={0.2}
+          color="#3366aa"
           transparent
-          opacity={0.3}
+          opacity={0}
           sizeAttenuation
           depthWrite={false}
           toneMapped={false}
@@ -514,7 +517,7 @@ function QuantumVacuum({ progress }) {
 // PROCESADORES CUÁNTICOS (Orgs) — Toros de energía rotando
 // ============================================================================
 
-function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100 }) {
+function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
   const groupRef = useRef()
 
   const torusGeo = useMemo(() => new THREE.TorusGeometry(2.8, 0.25, 12, 48), [])
@@ -557,6 +560,7 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, hi
     }
     const blend = orgLensBlend.current
 
+    const progress = progressRef.current[progressKey]
     groupRef.current.children.forEach((group, i) => {
       const stagger = n > 1 ? i / (n - 1) : 0
       const localP = easeOutElastic(Math.min(Math.max((progress - stagger * 0.6) / 0.5, 0), 1))
@@ -625,7 +629,7 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progress, hi
 // NUBES DE PROBABILIDAD (partículas alrededor de cada qubit/repo)
 // ============================================================================
 
-function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
+function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dimmed }) {
   const ref = useRef()
   const PER_QUBIT = 10
 
@@ -656,7 +660,7 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
   useFrame(({ clock }) => {
     if (!ref.current) return
     const t = clock.getElapsedTime() * 0.4
-    const p = easeOutCubic(progress)
+    const p = easeOutCubic(progressRef.current[progressKey])
     const pos = ref.current.geometry.attributes.position
     basePositions.forEach((bp, i) => {
       const θ = bp.θ + t * (0.3 + (i % 5) * 0.1)
@@ -668,6 +672,8 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
       pos.array[i * 3 + 2] = bp.cz + r * Math.cos(φ)
     })
     pos.needsUpdate = true
+    // Fade opacidad con progress
+    if (ref.current.material) ref.current.material.opacity = (dimmed ? 0.02 : 0.5) * p
   })
 
   if (repoNodes.length === 0) return null
@@ -682,7 +688,7 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
         color={new THREE.Color('#bd00ff').multiplyScalar(2)}
         toneMapped={false}
         transparent
-        opacity={dimmed ? 0.02 : 0.5}
+        opacity={0}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -695,7 +701,7 @@ function ProbabilityClouds({ repoNodes, positions, progress, dimmed }) {
 // QUBITS (Repos) — Esferas con ejes de Bloch
 // ============================================================================
 
-function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100 }) {
+function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
   const ref = useRef()
   const hitRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
@@ -738,6 +744,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet
     repoNodes.forEach((repo, i) => {
       const pos = positions[repo.id]; if (!pos) return
       const baseScale = Math.min(Math.max((repo.stars || 0) / 800, 0.7), 1.5)
+      const progress = progressRef.current[progressKey]
       const stagger = n > 1 ? i / (n - 1) : 0
       const localP = easeOutElastic(Math.min(Math.max((progress - stagger * 0.5) / 0.6, 0), 1))
       const isHighlighted = hasSel && highlightSet.has(repo.id)
@@ -801,7 +808,8 @@ function Qubits({ repoNodes, positions, onHover, onClick, progress, highlightSet
 // EJES DE BLOCH — líneas |0⟩↔|1⟩ por cada qubit
 // ============================================================================
 
-function BlochAxes({ repoNodes, positions }) {
+function BlochAxes({ repoNodes, positions, progressRef, progressKey }) {
+  const matRef = useRef()
   const geometry = useMemo(() => {
     const pts = []
     repoNodes.forEach(repo => {
@@ -816,14 +824,19 @@ function BlochAxes({ repoNodes, positions }) {
     return g
   }, [repoNodes, positions])
 
+  useFrame(() => {
+    if (matRef.current) matRef.current.opacity = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0)
+  })
+
   if (repoNodes.length === 0) return null
 
   return (
     <lineSegments geometry={geometry}>
       <lineBasicMaterial
+        ref={matRef}
         color={new THREE.Color('#bd00ff').multiplyScalar(0.8)}
         transparent
-        opacity={0.15}
+        opacity={0}
         depthWrite={false}
         toneMapped={false}
       />
@@ -866,12 +879,14 @@ const PARTICLE_VERTEX = /* glsl */`
   uniform float uBaseSize;
   uniform float uBridgeSize;
   uniform float uLensActive;
+  uniform float uBridgeReveal;
   varying float vBrightness;
   varying float vIsBridge;
   varying float vGlow;
   varying vec3 vLensColor;
   varying float vLensActive;
   varying float vDensity;
+  varying float vBridgeBlend;
 
   void main() {
     vBrightness = aBrightness;
@@ -880,6 +895,25 @@ const PARTICLE_VERTEX = /* glsl */`
     vLensActive = uLensActive;
     vDensity = aDensity;
     float p = smoothstep(0.0, 1.0, uProgress);
+
+    // === STAGGERING PER-PARTICLE ===
+    float stagger = fract(aSeed * 3.7) * 0.55;
+    float localP = smoothstep(stagger, stagger + 0.45, p);
+
+    // === CRITICAL: GPU clampea gl_PointSize mínimo a 1px ===
+    if (localP < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+
+    // === BRIDGE REVEAL: bridges nacen verdes, transicionan a dorado ===
+    // Driven por entanglement progress, staggered por seed
+    float bStagger = fract(aSeed * 5.3) * 0.35;
+    float bridgeBlend = aIsBridge > 0.5
+      ? smoothstep(bStagger, bStagger + 0.5, uBridgeReveal)
+      : 0.0;
+    vBridgeBlend = bridgeBlend;
 
     // === Heisenberg jitter — incertidumbre cuántica ===
     float jx = sin(uTime * 3.14 + aSeed * 17.3) * 0.04;
@@ -891,24 +925,25 @@ const PARTICLE_VERTEX = /* glsl */`
 
     // === Bridge: pulso suave + brillo aleatorio por usuario ===
     float personalFlash = pow(max(cos(uTime * 0.8 + aSeed * 6.28), 0.0), 20.0);
-    float bridgePulse = p >= 0.99
+    float bridgePulse = localP >= 0.99
       ? (1.0 + sin(uTime * 1.8 + aSeed) * 0.15 + personalFlash * 0.25)
-      : p;
-    float normalPulse = p * (1.0 + sin(uTime * 1.5 + aSeed) * 0.05);
+      : localP;
+    float normalPulse = localP * (1.0 + sin(uTime * 1.5 + aSeed) * 0.05);
 
     // === Lens mode: centrality enlarges important nodes ===
     float lensScale = mix(1.0, 0.6 + aBrightness * 1.4, uLensActive);
 
-    float size = aIsBridge > 0.5
-      ? uBridgeSize * bridgePulse * lensScale
-      : uBaseSize * normalPulse * lensScale;
+    // Tamaño: blend suave de normal → bridge según bridgeBlend
+    float normalSize = uBaseSize * normalPulse * lensScale;
+    float bridgeSize = uBridgeSize * bridgePulse * lensScale;
+    float size = mix(normalSize, bridgeSize, bridgeBlend);
 
     // Reducir tamaño en repos densos (bridges preservan tamaño mínimo)
-    float densitySize = aIsBridge > 0.5 ? max(aDensity, 0.5) : aDensity;
+    float densitySize = mix(aDensity, max(aDensity, 0.5), bridgeBlend);
     size *= (0.4 + densitySize * 0.6);
 
-    // === Glow intensity para fragment shader ===
-    vGlow = aIsBridge > 0.5 ? (1.0 + personalFlash * 0.6) : 1.0;
+    // === Glow intensity — crece con la revelación del bridge ===
+    vGlow = mix(1.0, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
     gl_Position = projectionMatrix * mvPos;
@@ -925,10 +960,12 @@ const PARTICLE_FRAGMENT = /* glsl */`
   varying vec3 vLensColor;
   varying float vLensActive;
   varying float vDensity;
+  varying float vBridgeBlend;
 
   void main() {
     vec4 texel = texture2D(uMap, gl_PointCoord);
-    vec3 baseCol = vIsBridge > 0.5 ? uColorBridge : uColorNormal;
+    // Bridge reveal: verde → dorado progresivo según vBridgeBlend
+    vec3 baseCol = mix(uColorNormal, uColorBridge, vBridgeBlend);
     // Lens mode: blend towards per-particle analytical color
     vec3 col = mix(baseCol, vLensColor, vLensActive);
     // Halo radiante: centro más brillante, borde con color
@@ -946,7 +983,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 // PARTÍCULAS CUÁNTICAS (Users) — 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
-function QuantumParticles({ userNodes, positions, onHover, onClick, progress, highlightSet, lensData, lensRevealDelay = 100, userDensity }) {
+function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity }) {
   const ref = useRef()
   const glowMap = useMemo(() => createGlowTexture(), [])
 
@@ -1002,6 +1039,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
       uColorNormal: { value: new THREE.Color('#00ff9f').multiplyScalar(2.0) },
       uColorBridge: { value: new THREE.Color('#ffbd00').multiplyScalar(2.5) },
       uLensActive: { value: 0.0 },
+      uBridgeReveal: { value: 0.0 },
     },
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -1017,7 +1055,9 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progress, hi
   const LENS_BLEND_SPEED = 0.04
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
-    mat.uniforms.uProgress.value = progress
+    mat.uniforms.uProgress.value = progressRef.current[progressKey]
+    // Bridge reveal driven by entanglement progress — bridges "se descubren" con las conexiones
+    mat.uniforms.uBridgeReveal.value = easeOutCubic(progressRef.current.entanglement || 0)
 
     // Lens colors: update when lens data changes
     if (lensData !== lastLens.current) {
@@ -1105,6 +1145,14 @@ const BOND_VERTEX = /* glsl */`
 
   void main() {
     float p = smoothstep(0.0, 1.0, uProgress);
+
+    // === CRITICAL: GPU clampea gl_PointSize mínimo a 1px ===
+    if (p < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+
     // Múltiples partículas por bond con offsets distintos
     float phase = fract(uTime * 0.06 + aSeed + aParticleIdx * 0.33);
     vPhase = phase;
@@ -1150,7 +1198,7 @@ const BOND_FRAGMENT = /* glsl */`
   }
 `
 
-function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
+function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }) {
   const ref = useRef()
 
   const PARTICLES_PER_BOND = 1
@@ -1218,6 +1266,7 @@ function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
   // Solo 3 uniforms por frame — CPU ≈ 0%
   useFrame(({ clock }) => {
     if (!mat) return
+    const progress = progressRef.current[progressKey]
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
     mat.uniforms.uOpacity.value = (dimmed ? 0.02 : 0.35) * easeOutCubic(progress)
@@ -1229,106 +1278,299 @@ function QuantumBonds({ repoUsers, positions, progress, dimmed }) {
 }
 
 // ============================================================================
+// ARCOS DE ENTRELAZAMIENTO ORG↔ORG — curvas cuadráticas entre procesadores
+// ============================================================================
+
+const ARC_VERTEX = `
+  attribute float aT;
+  attribute float aStrength;
+  varying float vT;
+  varying float vStrength;
+  uniform float uTime;
+  uniform float uProgress;
+  uniform float uOpacity;
+  uniform float uBoost;
+  void main() {
+    vT = aT;
+    vStrength = aStrength;
+    // Descartar TODO cuando opacity es 0 (pre-animación)
+    if (uOpacity < 0.001 || uProgress < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+    float vis = smoothstep(max(aT - 0.03, 0.001), aT + 0.01, uProgress);
+    // Mover fuera del clip space cuando invisible
+    if (vis < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float baseSize = mix(1.2, 2.5, aStrength) * (1.0 + uBoost * 1.8);
+    gl_PointSize = baseSize * vis * (300.0 / -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }
+`
+const ARC_FRAGMENT = `
+  varying float vT;
+  varying float vStrength;
+  uniform float uTime;
+  uniform float uOpacity;
+  uniform float uBoost;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    float alpha = (1.0 - d * d) * uOpacity * mix(0.35, 0.8, vStrength);
+    // Gradiente cyan → púrpura a lo largo del arco
+    vec3 cyan = vec3(0.0, 0.83, 0.89);
+    vec3 purple = vec3(0.74, 0.44, 0.86);
+    vec3 col = mix(cyan, purple, vT);
+    // Pulso viajero sutil
+    float pulse = smoothstep(0.0, 0.08, abs(vT - fract(uTime * 0.15))) *
+                  smoothstep(0.0, 0.08, abs(vT - fract(uTime * 0.15 + 0.5)));
+    alpha *= mix(1.0, 0.5, 1.0 - pulse);
+    // Brillo extra cuando está resaltado
+    float glow = 1.8 + uBoost * 1.2;
+    gl_FragColor = vec4(col * glow, alpha);
+  }
+`
+
+function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHighlight }) {
+  const ref = useRef()
+  const POINTS_PER_ARC = 32
+
+  const { geo, maxStrength } = useMemo(() => {
+    if (arcs.length === 0) return { geo: null, maxStrength: 1 }
+    const total = arcs.length * POINTS_PER_ARC
+    const pos = new Float32Array(total * 3)
+    const tArr = new Float32Array(total)
+    const strArr = new Float32Array(total)
+    let maxS = 1
+
+    arcs.forEach(arc => {
+      if (arc.strength > maxS) maxS = arc.strength
+    })
+
+    let idx = 0
+    arcs.forEach(arc => {
+      const s = arc.start
+      const e = arc.end
+      // Punto de control elevado para la curva cuadrática
+      const mid = {
+        x: (s.x + e.x) / 2,
+        y: (s.y + e.y) / 2 + Math.sqrt((e.x - s.x) ** 2 + (e.y - s.y) ** 2 + (e.z - s.z) ** 2) * 0.25,
+        z: (s.z + e.z) / 2
+      }
+      const normStrength = Math.min(arc.strength / maxS, 1)
+
+      for (let i = 0; i < POINTS_PER_ARC; i++) {
+        const t = i / (POINTS_PER_ARC - 1)
+        // Bezier cuadrático: B(t) = (1-t)²·S + 2(1-t)t·M + t²·E
+        const omt = 1 - t
+        pos[idx * 3] = omt * omt * s.x + 2 * omt * t * mid.x + t * t * e.x
+        pos[idx * 3 + 1] = omt * omt * s.y + 2 * omt * t * mid.y + t * t * e.y
+        pos[idx * 3 + 2] = omt * omt * s.z + 2 * omt * t * mid.z + t * t * e.z
+        tArr[idx] = t
+        strArr[idx] = normStrength
+        idx++
+      }
+    })
+
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    g.setAttribute('aT', new THREE.BufferAttribute(tArr, 1))
+    g.setAttribute('aStrength', new THREE.BufferAttribute(strArr, 1))
+    return { geo: g, maxStrength: maxS }
+  }, [arcs])
+
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: ARC_VERTEX,
+    fragmentShader: ARC_FRAGMENT,
+    uniforms: {
+      uTime: { value: 0 },
+      uProgress: { value: 0 },
+      uOpacity: { value: 0.7 },
+      uBoost: { value: 0 },
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [])
+
+  useFrame(({ clock }) => {
+    if (!mat) return
+    mat.uniforms.uTime.value = clock.getElapsedTime()
+    const p = easeOutCubic(progressRef.current[progressKey])
+    mat.uniforms.uProgress.value = p
+    mat.uniforms.uOpacity.value = p < 0.01 ? 0 : (collabHighlight ? 1.0 : (dimmed ? 0.04 : 0.7))
+    // Smooth boost transition
+    const targetBoost = collabHighlight ? 1.0 : 0.0
+    mat.uniforms.uBoost.value += (targetBoost - mat.uniforms.uBoost.value) * 0.08
+  })
+
+  if (!geo || arcs.length === 0) return null
+  return <points geometry={geo} material={mat} ref={ref} frustumCulled={false} />
+}
+
+// ============================================================================
 // CANALES DE ENTRELAZAMIENTO — ondas sinusoidales entre entidades
 // ============================================================================
 
-function EntanglementChannels({ connections, progress, dimmed }) {
-  const ref = useRef()
+// Shader para canales con intensidad variable por punto
+const CHANNEL_VERTEX = `
+  attribute float aIntensity;
+  uniform float uOpacity;
+  varying float vIntensity;
+  void main() {
+    vIntensity = aIntensity;
+    // Mover fuera del clip space cuando invisible para evitar 1px GPU clamp
+    if (uOpacity < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    // Tamaño base en píxeles — escala con intensidad Y distancia a cámara
+    // Escala perspectiva: puntos más grandes al acercarse, más pequeños al alejarse
+    float basePx = mix(1.5, 3.5, aIntensity);
+    float distScale = 300.0 / max(-mv.z, 1.0);
+    gl_PointSize = basePx * clamp(distScale, 0.5, 6.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`
+const CHANNEL_FRAGMENT = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vIntensity;
+  void main() {
+    // Círculo suave
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    float alpha = (1.0 - d * d) * uOpacity * mix(0.25, 1.0, vIntensity);
+    gl_FragColor = vec4(uColor * mix(0.6, 1.8, vIntensity), alpha);
+  }
+`
 
-  // Crear puntos a lo largo de cada conexión con forma sinusoidal
-  const POINTS_PER_CONN = 20
-  const { posArr, count } = useMemo(() => {
+function EntanglementChannels({ connections, progressRef, progressKey, dimmed, highlightSet, starRepos, collabHighlight }) {
+  const ref = useRef()
+  const matRef = useRef()
+
+  const POINTS_PER_CONN = 35
+  // ===== useMemo LIGERO: solo meta + geom (38K iters) =====
+  // Posiciones se inicializan a cero y useFrame las llena al activarse entanglement
+  // Antes: 1.33M iteraciones síncronas bloqueaban main thread 200-500ms
+  const { posArr, intensityArr, count, connMeta, connGeom } = useMemo(() => {
     const total = connections.length * POINTS_PER_CONN
-    const arr = new Float32Array(total * 3)
-    let idx = 0
+    const arr = new Float32Array(total * 3)   // zeros — useFrame llenará
+    const intens = new Float32Array(total)     // zeros — useFrame llenará
+    const meta = []
+    const geom = []
 
     connections.forEach(conn => {
-      const start = conn.start
-      const end = conn.end
+      const sx = conn.start.x, sy = conn.start.y, sz = conn.start.z
+      const ex = conn.end.x, ey = conn.end.y, ez = conn.end.z
+      const isStar = starRepos ? starRepos.has(conn.target) : false
+      meta.push({ sourceId: conn.source, targetId: conn.target, isStar })
 
-      // Vector dirección y perpendicular para la onda
-      const dir = new THREE.Vector3().subVectors(end, start)
-      const len = dir.length()
-      const norm = dir.clone().normalize()
-      // Vector perpendicular para la onda sinusoidal
-      const up = new THREE.Vector3(0, 1, 0)
-      const perp = new THREE.Vector3().crossVectors(norm, up).normalize()
-      if (perp.length() < 0.01) perp.set(1, 0, 0) // fallback
+      const dx = ex - sx, dy = ey - sy, dz = ez - sz
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      const invLen = len > 0.001 ? 1 / len : 0
+      const nx = dx * invLen, ny = dy * invLen, nz = dz * invLen
 
-      for (let i = 0; i < POINTS_PER_CONN; i++) {
-        const t = i / (POINTS_PER_CONN - 1)
-        const wave = Math.sin(t * Math.PI * 3) * Math.min(len * 0.04, 2.0)
-        arr[idx++] = start.x + dir.x * t + perp.x * wave
-        arr[idx++] = start.y + dir.y * t + perp.y * wave
-        arr[idx++] = start.z + dir.z * t + perp.z * wave
-      }
+      let px = -nz, py = 0, pz = nx
+      const pLen = Math.sqrt(px * px + py * py + pz * pz)
+      if (pLen < 0.01) { px = 1; py = 0; pz = 0 }
+      else { const pInv = 1 / pLen; px *= pInv; py *= pInv; pz *= pInv }
+
+      geom.push({ dx, dy, dz, len, px, py, pz })
+      // NO escribimos posiciones iniciales — ahorra 1.33M writes síncronos
     })
 
-    return { posArr: arr, count: total }
-  }, [connections])
+    return { posArr: arr, intensityArr: intens, count: total, connMeta: meta, connGeom: geom }
+  }, [connections, starRepos])
 
-  // Animación — la onda se desplaza + draw-on con progress
+  // Material de shader personalizado
+  const shaderMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color('#ffbd00').multiplyScalar(1.5) },
+      uOpacity: { value: 0 },
+    },
+    vertexShader: CHANNEL_VERTEX,
+    fragmentShader: CHANNEL_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [])
+
+  // Animación — onda + draw-on + actualización de intensidad por highlightSet
+  // Usa geometría pre-calculada (connGeom) — CERO allocations Vector3 por frame
   useFrame(({ clock }) => {
     if (!ref.current || connections.length === 0) return
+    const p = easeOutCubic(progressRef.current[progressKey])
+
+    // Opacidad global — 0 cuando entanglement aún no ha empezado
+    const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? 0.15 : 0.55))
+    shaderMat.uniforms.uOpacity.value = baseOpacity
+
+    // ¡CRITICAL! Skip loop de 1.33M iteraciones durante los primeros 6.5s
+    // Ahorra 15-50ms por frame (todo el frame budget a 60fps)
+    if (p < 0.01) return
+
     const t = clock.getElapsedTime()
-    const p = easeOutCubic(progress)
-    const pos = ref.current.geometry.attributes.position
+    const geo = ref.current.geometry
+    const posAttr = geo.attributes.position
+    const intAttr = geo.attributes.aIntensity
     const nConn = connections.length
+    const hasSel = highlightSet !== null
 
-    let idx = 0
-    connections.forEach((conn, ci) => {
-      const start = conn.start
-      const end = conn.end
-      const dir = new THREE.Vector3().subVectors(end, start)
-      const len = dir.length()
-      const norm = dir.clone().normalize()
-      const up = new THREE.Vector3(0, 1, 0)
-      const perp = new THREE.Vector3().crossVectors(norm, up).normalize()
-      if (perp.length() < 0.01) perp.set(1, 0, 0)
+    let idx = 0, iIdx = 0
+    for (let ci = 0; ci < nConn; ci++) {
+      const conn = connections[ci]
+      const g = connGeom[ci]
+      const sx = conn.start.x, sy = conn.start.y, sz = conn.start.z
 
-      // Cada conexión se dibuja con su propio delay
       const stagger = nConn > 1 ? ci / (nConn - 1) : 0
       const connP = Math.min(Math.max((p - stagger * 0.5) / 0.6, 0), 1)
 
+      // Intensidad: focus mode → conexiones del org seleccionado brillan
+      const { sourceId, targetId, isStar } = connMeta[ci]
+      let intensity
+      if (hasSel) {
+        const orgFocused = highlightSet.has(sourceId)
+        intensity = orgFocused ? (isStar ? 1.0 : 0.65) : 0.04
+      } else {
+        intensity = isStar ? 1.0 : 0.3
+      }
+
       for (let i = 0; i < POINTS_PER_CONN; i++) {
         const prog = i / (POINTS_PER_CONN - 1)
-        // Solo dibujar puntos hasta donde progress permite (draw-on)
-        const drawT = Math.min(prog / Math.max(connP, 0.001), 1)
-        const actualProg = prog * connP
-        const wave = Math.sin(actualProg * Math.PI * 3 + t * 3) * Math.min(len * 0.04, 2.0) * connP
         if (prog <= connP) {
-          pos.array[idx++] = start.x + dir.x * actualProg + perp.x * wave
-          pos.array[idx++] = start.y + dir.y * actualProg + perp.y * wave
-          pos.array[idx++] = start.z + dir.z * actualProg + perp.z * wave
+          const actualProg = prog * connP
+          const wave = Math.sin(actualProg * Math.PI * 3 + t * 3) * Math.min(g.len * 0.04, 2.0) * connP
+          posAttr.array[idx++] = sx + g.dx * actualProg + g.px * wave
+          posAttr.array[idx++] = sy + g.dy * actualProg + g.py * wave
+          posAttr.array[idx++] = sz + g.dz * actualProg + g.pz * wave
         } else {
-          // Puntos no dibujados todavía — colapsar en el extremo visible
-          const lastProg = connP
-          pos.array[idx++] = start.x + dir.x * lastProg
-          pos.array[idx++] = start.y + dir.y * lastProg
-          pos.array[idx++] = start.z + dir.z * lastProg
+          posAttr.array[idx++] = sx + g.dx * connP
+          posAttr.array[idx++] = sy + g.dy * connP
+          posAttr.array[idx++] = sz + g.dz * connP
         }
+        intAttr.array[iIdx++] = intensity
       }
-    })
-    pos.needsUpdate = true
+    }
+    posAttr.needsUpdate = true
+    intAttr.needsUpdate = true
   })
 
   if (connections.length === 0) return null
 
   return (
-    <points ref={ref}>
+    <points ref={ref} material={shaderMat} frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" array={posArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aIntensity" array={intensityArr} itemSize={1} count={count} />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.18}
-        color={new THREE.Color('#ffbd00').multiplyScalar(1.5)}
-        toneMapped={false}
-        transparent
-        opacity={dimmed ? 0.02 : 0.55}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
     </points>
   )
 }
@@ -1337,21 +1579,21 @@ function EntanglementChannels({ connections, progress, dimmed }) {
 // ENERGY RINGS — anillos de energía que se expanden desde cada procesador
 // ============================================================================
 
-function EnergyRings({ orgNodes, positions, progress, highlightSet }) {
+function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightSet }) {
   const ringsRef = useRef([])
   const ringGeo = useMemo(() => new THREE.RingGeometry(0.4, 0.6, 48), [])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({
     color: new THREE.Color('#00f7ff').multiplyScalar(1.5),
     toneMapped: false,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0,
     side: THREE.DoubleSide,
   }), [])
 
   // Ondas expandiéndose — aparecen con los procesadores
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
-    const p = easeOutCubic(progress)
+    const p = easeOutCubic(progressRef.current[progressKey])
     const hasSel = highlightSet !== null
     ringsRef.current.forEach((ring, i) => {
       if (!ring) return
@@ -1387,7 +1629,7 @@ function EnergyRings({ orgNodes, positions, progress, highlightSet }) {
 // INTERFERENCE PATTERN — patrón de interferencia tipo doble rendija
 // ============================================================================
 
-function InterferenceField({ progress }) {
+function InterferenceField({ progressRef, progressKey }) {
   const ref = useRef()
   const matRef = useRef()
   const count = 600
@@ -1411,7 +1653,7 @@ function InterferenceField({ progress }) {
   useFrame(({ clock }) => {
     if (!ref.current) return
     const t = clock.getElapsedTime()
-    const p = easeOutCubic(progress)
+    const p = easeOutCubic(progressRef.current[progressKey])
     const pos = ref.current.geometry.attributes.position
     for (let i = 0; i < count; i++) {
       const x = pos.array[i * 3]
@@ -1419,7 +1661,7 @@ function InterferenceField({ progress }) {
       pos.array[i * 3 + 1] += Math.sin(t + phases[i]) * 0.01
     }
     pos.needsUpdate = true
-    if (matRef.current) matRef.current.opacity = 0.12 * p
+    if (matRef.current) matRef.current.opacity = 0.06 * p
   })
 
   return (
@@ -1429,11 +1671,11 @@ function InterferenceField({ progress }) {
       </bufferGeometry>
       <pointsMaterial
         ref={matRef}
-        size={0.6}
-        color={new THREE.Color('#2244ff').multiplyScalar(0.8)}
+        size={0.4}
+        color={new THREE.Color('#2244ff').multiplyScalar(0.5)}
         toneMapped={false}
         transparent
-        opacity={0.12}
+        opacity={0}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -1446,15 +1688,15 @@ function InterferenceField({ progress }) {
 // QUANTUM GENESIS — explosión inicial tipo Big Bang
 // ============================================================================
 
-function QuantumGenesis({ progress }) {
+function QuantumGenesis({ progressRef, progressKey }) {
   const flashRef = useRef()
   const waveRef = useRef()
-  const done = progress >= 1
 
   useFrame(() => {
-    const p = progress
+    const p = progressRef.current[progressKey]
+    const done = p >= 1
     if (flashRef.current) {
-      if (done) {
+      if (done || p < 0.001) {
         flashRef.current.visible = false
       } else {
         flashRef.current.visible = true
@@ -1464,7 +1706,7 @@ function QuantumGenesis({ progress }) {
       }
     }
     if (waveRef.current) {
-      if (done) {
+      if (done || p < 0.001) {
         waveRef.current.visible = false
       } else {
         waveRef.current.visible = true
@@ -1477,13 +1719,13 @@ function QuantumGenesis({ progress }) {
 
   return (
     <group>
-      <mesh ref={flashRef}>
+      <mesh ref={flashRef} visible={false}>
         <sphereGeometry args={[1, 32, 32]} />
-        <meshBasicMaterial color={new THREE.Color('#88ccff').multiplyScalar(5)} toneMapped={false} transparent opacity={0.85} />
+        <meshBasicMaterial color={new THREE.Color('#88ccff').multiplyScalar(5)} toneMapped={false} transparent opacity={0} />
       </mesh>
-      <mesh ref={waveRef}>
+      <mesh ref={waveRef} visible={false}>
         <icosahedronGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#00f7ff" wireframe transparent opacity={0.2} toneMapped={false} />
+        <meshBasicMaterial color="#00f7ff" wireframe transparent opacity={0} toneMapped={false} />
       </mesh>
     </group>
   )
@@ -1493,10 +1735,18 @@ function QuantumGenesis({ progress }) {
 // TUNNELING PULSES — fotones viajando por canales de entrelazamiento
 // ============================================================================
 
-function TunnelingPulses({ connections }) {
+// Vector3 reutilizables para evitar allocations en useFrame (antes: 100 allocs/frame)
+const _dir = new THREE.Vector3()
+const _norm = new THREE.Vector3()
+const _up = new THREE.Vector3()
+const _perp = new THREE.Vector3()
+
+function TunnelingPulses({ connections, startAnimation }) {
   const ref = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const PULSE_COUNT = Math.min(connections.length, 25)
+  const animTimer = useRef(0) // tiempo acumulado desde startAnimation
+  const DELAY_BEFORE_VISIBLE = 7.0 // esperar a que entanglement (6.5s) haya empezado
 
   const pulseData = useMemo(() =>
     Array.from({ length: PULSE_COUNT }, (_, i) => ({
@@ -1509,11 +1759,30 @@ function TunnelingPulses({ connections }) {
   const geo = useMemo(() => new THREE.SphereGeometry(0.18, 6, 6), [])
   const mat = useMemo(() => new THREE.MeshBasicMaterial({
     color: new THREE.Color('#ffbd00').multiplyScalar(4),
-    toneMapped: false, transparent: true, opacity: 0.9,
+    toneMapped: false, transparent: true, opacity: 0,
   }), [])
+  const fadeRef = useRef(0) // opacity fade-in tracker
 
   useFrame((_, delta) => {
     if (!ref.current || connections.length === 0) return
+    // No animar hasta que la animación principal empiece
+    if (!startAnimation) {
+      mat.opacity = 0
+      fadeRef.current = 0
+      animTimer.current = 0
+      return
+    }
+    // Esperar a que las fases principales terminen antes de mostrar pulsos
+    animTimer.current += delta
+    if (animTimer.current < DELAY_BEFORE_VISIBLE) {
+      mat.opacity = 0
+      fadeRef.current = 0
+      return
+    }
+    // Fade-in gradual (empieza DESPUÉS del delay)
+    fadeRef.current = Math.min(fadeRef.current + delta * 0.5, 0.9)
+    mat.opacity = fadeRef.current
+
     pulseData.forEach((pulse, i) => {
       pulse.t += pulse.speed * delta
       if (pulse.t >= 1) {
@@ -1523,18 +1792,18 @@ function TunnelingPulses({ connections }) {
       const conn = connections[pulse.connIdx]
       if (!conn) return
       const { start, end } = conn
-      const dir = new THREE.Vector3().subVectors(end, start)
-      const len = dir.length()
-      const norm = dir.clone().normalize()
-      const up = new THREE.Vector3(0, 1, 0)
-      const perp = new THREE.Vector3().crossVectors(norm, up).normalize()
-      if (perp.length() < 0.01) perp.set(1, 0, 0)
+      _dir.subVectors(end, start)
+      const len = _dir.length()
+      _norm.copy(_dir).normalize()
+      _up.set(0, 1, 0)
+      _perp.crossVectors(_norm, _up).normalize()
+      if (_perp.length() < 0.01) _perp.set(1, 0, 0)
       const t = pulse.t
       const wave = Math.sin(t * Math.PI * 3) * Math.min(len * 0.04, 2.0)
       dummy.position.set(
-        start.x + dir.x * t + perp.x * wave,
-        start.y + dir.y * t + perp.y * wave,
-        start.z + dir.z * t + perp.z * wave,
+        start.x + _dir.x * t + _perp.x * wave,
+        start.y + _dir.y * t + _perp.y * wave,
+        start.z + _dir.z * t + _perp.z * wave,
       )
       const edgeFade = Math.sin(t * Math.PI)
       dummy.scale.setScalar(0.3 + edgeFade * 0.8)
@@ -1552,7 +1821,7 @@ function TunnelingPulses({ connections }) {
 // DECOHERENCE SHOCKWAVES — ondas de decoherencia desde procesadores
 // ============================================================================
 
-function DecoherenceWaves({ orgNodes, positions }) {
+function DecoherenceWaves({ orgNodes, positions, startAnimation }) {
   const MAX_WAVES = 3
   const wavesRef = useRef([])
   const waveState = useRef(
@@ -1568,7 +1837,7 @@ function DecoherenceWaves({ orgNodes, positions }) {
   , [])
 
   useFrame(({ clock }, delta) => {
-    if (orgNodes.length === 0) return
+    if (orgNodes.length === 0 || !startAnimation) return
     const t = clock.getElapsedTime()
     nextWave.current -= delta
     if (nextWave.current <= 0) {
@@ -1609,10 +1878,12 @@ function DecoherenceWaves({ orgNodes, positions }) {
 // HAWKING RADIATION — micropartículas escapando de procesadores
 // ============================================================================
 
-function HawkingRadiation({ orgNodes, positions }) {
+function HawkingRadiation({ orgNodes, positions, startAnimation }) {
   const ref = useRef()
   const matRef = useRef()
   const PER_ORG = 12
+  const animTimer = useRef(0) // tiempo acumulado desde que startAnimation=true
+  const DELAY_BEFORE_VISIBLE = 4.0 // aparecer después de que los procesadores estén visibles
 
   const { posArr, particleData, total } = useMemo(() => {
     const data = []
@@ -1634,8 +1905,17 @@ function HawkingRadiation({ orgNodes, positions }) {
     return { posArr: arr, particleData: data, total: data.length }
   }, [orgNodes, positions])
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     if (!ref.current || total === 0) return
+    // Fade-in gradual — SOLO después de que la animación lleve 4s
+    if (matRef.current) {
+      if (!startAnimation) { matRef.current.opacity = 0; animTimer.current = 0; return }
+      animTimer.current += dt
+      if (animTimer.current < DELAY_BEFORE_VISIBLE) { matRef.current.opacity = 0; return }
+      const target = 0.3
+      const cur = matRef.current.opacity
+      matRef.current.opacity = cur < target ? Math.min(cur + dt * 0.3, target) : target
+    }
     const t = clock.getElapsedTime()
     const pos = ref.current.geometry.attributes.position
     particleData.forEach((p, i) => {
@@ -1645,7 +1925,6 @@ function HawkingRadiation({ orgNodes, positions }) {
       pos.array[i * 3 + 2] = p.cz + r * Math.sin(p.phi) * Math.sin(p.theta)
     })
     pos.needsUpdate = true
-    if (matRef.current) matRef.current.opacity = 0.3
   })
 
   if (total === 0) return null
@@ -1661,7 +1940,7 @@ function HawkingRadiation({ orgNodes, positions }) {
         color={new THREE.Color('#00f7ff').multiplyScalar(1.2)}
         toneMapped={false}
         transparent
-        opacity={0.3}
+        opacity={0}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -1860,41 +2139,35 @@ function easeOutElastic(t) {
 }
 
 // Fase timings: [inicio, duración] en segundos
+// La explosión (genesis) va PRIMERO y sola — luego el resto emerge secuencialmente
 const PHASE_TIMINGS = {
-  genesis:      [0.0,  2.0],  // flash + onda expansiva
-  vacuum:       [0.3,  1.5],  // lattice + fluctuaciones
-  processors:   [1.5,  1.8],  // orgs aparecen escalonadas
-  qubits:       [2.8,  2.0],  // repos materializan
-  particles:    [4.2,  1.5],  // users orbitan
-  entanglement: [5.5,  1.8],  // conexiones se dibujan
+  genesis:      [0.0,  2.0],  // flash + onda expansiva (SOLO al inicio)
+  vacuum:       [2.5,  2.0],  // lattice + fluctuaciones — emerge CON los procesadores, no antes
+  processors:   [2.8,  1.8],  // orgs aparecen escalonadas
+  qubits:       [4.0,  2.0],  // repos materializan
+  particles:    [5.5,  1.5],  // users orbitan
+  entanglement: [6.5,  1.8],  // conexiones se dibujan
 }
 
-function BuildDirector({ onProgress, onReady, startAnimation }) {
-  const startTime = useRef(null)
-  const readyFired = useRef(false)
+function BuildDirector({ progressRef, startAnimation }) {
+  const accumulated = useRef(0)
 
-  useFrame(({ clock }) => {
-    // No arrancar animaciones hasta que se indique
+  useFrame((_, delta) => {
+    const bp = progressRef.current
     if (!startAnimation) {
-      startTime.current = null
-      readyFired.current = false
-      onProgress({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
+      accumulated.current = 0
+      bp.genesis = 0; bp.vacuum = 0; bp.processors = 0
+      bp.qubits = 0; bp.particles = 0; bp.entanglement = 0
       return
     }
 
-    if (startTime.current === null) startTime.current = clock.getElapsedTime()
-    const elapsed = clock.getElapsedTime() - startTime.current
+    // Delta ya viene de R3F, capear a 50ms para prevenir saltos
+    const cappedDelta = Math.min(delta, 0.05)
+    accumulated.current += cappedDelta
+    const elapsed = accumulated.current
 
-    const progress = {}
     for (const [key, [start, dur]] of Object.entries(PHASE_TIMINGS)) {
-      progress[key] = Math.min(Math.max((elapsed - start) / dur, 0), 1)
-    }
-    onProgress(progress)
-
-    // Señalizar que la escena tiene contenido visible (para futuros usos)
-    if (!readyFired.current && progress.processors > 0.3) {
-      readyFired.current = true
-      onReady?.()
+      bp[key] = Math.min(Math.max((elapsed - start) / dur, 0), 1)
     }
   })
 
@@ -1926,37 +2199,231 @@ function useLOD() {
 }
 
 // ============================================================================
+// FRONTERAS ZONALES — esferas wireframe para visualizar core/mid/isolated
+// ============================================================================
+
+const ZONE_CONFIGS = [
+  { key: 'core',     color: '#00ff9f', label: 'Core',     radiusKey: 'coreRadius',    countKey: 'coreCount' },
+  { key: 'mid',      color: '#4488ff', label: 'Mid',      radiusKey: 'peripheryMin',  countKey: 'midCount' },
+  { key: 'isolated', color: '#aa44ff', label: 'Isolated', radiusKey: 'peripheryMax',  countKey: 'isolatedCount' },
+]
+
+function ZoneBoundary({ radius, color, label, count, visible }) {
+  const groupRef = useRef()
+  const meshRef = useRef()
+  const wireRef = useRef()
+  const labelRef = useRef()
+  const blendRef = useRef(0) // 0=hidden, 1=fully visible
+
+  useFrame((_, delta) => {
+    // Smooth blend hacia target (visible ? 1 : 0)
+    const target = visible ? 1.0 : 0.0
+    const speed = 1.8 // ~0.55s para transición completa
+    blendRef.current += (target - blendRef.current) * Math.min(delta * speed, 0.12)
+    // Snap a 0/1 cuando está muy cerca
+    if (Math.abs(blendRef.current - target) < 0.005) blendRef.current = target
+
+    const b = blendRef.current
+    if (meshRef.current) meshRef.current.material.opacity = b * 0.07
+    if (wireRef.current) wireRef.current.material.opacity = b * 0.18
+    // Label opacity via CSS
+    if (labelRef.current) labelRef.current.style.opacity = b
+    // Rotación lenta para dar profundidad visual
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.03
+      groupRef.current.rotation.x += delta * 0.01
+    }
+    // Scale: 0.85 → 1.0 durante la aparición
+    if (groupRef.current) {
+      const s = 0.85 + b * 0.15
+      groupRef.current.scale.setScalar(s)
+    }
+  })
+
+  return (
+    <group ref={groupRef}>
+      {/* Esfera sólida semi-transparente */}
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[radius, 48, 32]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          side={THREE.BackSide}
+        />
+      </mesh>
+      {/* Wireframe superpuesto */}
+      <lineSegments ref={wireRef}>
+        <wireframeGeometry args={[new THREE.SphereGeometry(radius, 24, 16)]} />
+        <lineBasicMaterial color={color} transparent opacity={0} depthWrite={false} />
+      </lineSegments>
+      {/* Label flotante en la parte superior */}
+      <Html
+        position={[0, radius * 0.92, 0]}
+        center
+        style={{
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+          userSelect: 'none',
+        }}
+      >
+        <div ref={labelRef} style={{
+          background: 'rgba(0,0,0,0.65)',
+          border: `1px solid ${color}40`,
+          borderRadius: 8,
+          padding: '3px 10px',
+          color: color,
+          fontSize: 11,
+          fontFamily: 'monospace',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          opacity: 0,
+          transition: 'none',
+        }}>
+          <span style={{ opacity: 0.6 }}>◈</span>
+          {label}
+          <span style={{ opacity: 0.5, fontSize: 10 }}>({count} orgs)</span>
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+function ZoneBoundaries({ zoneMeta, visible }) {
+  return (
+    <group>
+      {ZONE_CONFIGS.map(({ key, color, label, radiusKey, countKey }) => (
+        <ZoneBoundary
+          key={key}
+          radius={zoneMeta[radiusKey]}
+          color={color}
+          label={label}
+          count={zoneMeta[countKey]}
+          visible={visible}
+        />
+      ))}
+    </group>
+  )
+}
+
+// ============================================================================
 // ESCENA COMPLETA
 // ============================================================================
 
-function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation }) {
-  const [bp, setBp] = useState({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
+const MOUNT_STAGES = 9 // Total de fases de montaje progresivo
+const SCENE_READY_STAGE = 5 // Señalizar "listo" tras montar lo esencial (orgs+repos+users)
+// Los stages 5-8 (channels, arcs, effects) se montan MIENTRAS el loader se desvanece
+// Sus animaciones no empiezan hasta 5.5-6.5s después del Big Bang
+
+function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter }) {
+  // === PROGRESO VIA REF — CERO re-renders de React desde el render-loop ===
+  // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
+  const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
   const lod = useLOD()
 
+  // ===== MONTAJE PROGRESIVO — cada stage monta un grupo de componentes =====
+  // Esto evita que el hilo principal se bloquee al alocar todas las geometrías de golpe
+  const [mountStage, setMountStage] = useState(0)
+
+  useEffect(() => {
+    if (!universeData) { setMountStage(0); return }
+    if (mountStage >= MOUNT_STAGES) return
+    // setTimeout con delay GENEROSO entre stages para que el browser pueda
+    // procesar eventos y NUNCA dispare "la página no responde"
+    // Delays más grandes DESPUÉS de stages pesados (particles, channels)
+    const STAGE_DELAYS = [200, 300, 200, 500, 800, 600, 900, 200, 250, 200]
+    const delay = STAGE_DELAYS[mountStage] || 300
+    const id = setTimeout(() => setMountStage(s => s + 1), delay)
+    return () => clearTimeout(id)
+  }, [universeData, mountStage])
+
+  // Señalizar escena lista cuando las fases esenciales (1-4) se han montado
+  // Stages 5+ continúan montando en paralelo con el fade del loader
+  useEffect(() => {
+    if (mountStage >= SCENE_READY_STAGE) onSceneReady?.()
+  }, [mountStage, onSceneReady])
+
+  // Set de IDs para entity filter (org/repo/user-bridge/user-normal)
+  const filterHighlightSet = useMemo(() => {
+    if (entityFilter.size === 0 || !universeData) return null
+    const ids = new Set()
+    if (entityFilter.has('org')) {
+      universeData.orgNodes.forEach(n => ids.add(n.id))
+    }
+    if (entityFilter.has('repo')) {
+      universeData.repoNodes.forEach(n => ids.add(n.id))
+    }
+    if (entityFilter.has('user-bridge')) {
+      universeData.userNodes.forEach(n => { if (n.isBridge) ids.add(n.id) })
+    }
+    if (entityFilter.has('user-normal')) {
+      universeData.userNodes.forEach(n => { if (!n.isBridge) ids.add(n.id) })
+    }
+    if (entityFilter.has('collab')) {
+      // Resaltar todas las orgs involucradas en arcos de colaboración
+      universeData.orgNodes.forEach(n => ids.add(n.id))
+    }
+    return ids
+  }, [entityFilter, universeData])
+
   // Set de IDs relacionados para dimming selectivo
-  // Prioridad: selectedEntity > searchHighlightSet
+  // Prioridad: selectedEntity > searchHighlightSet > entityFilter
   const highlightSet = useMemo(() => {
     const entitySet = computeRelatedIds(selectedEntity, universeData)
     if (entitySet) return entitySet
-    return searchHighlightSet || null
-  }, [selectedEntity, universeData, searchHighlightSet])
-  const dimmed = selectedEntity !== null || searchHighlightSet !== null
+    if (searchHighlightSet) return searchHighlightSet
+    return filterHighlightSet
+  }, [selectedEntity, universeData, searchHighlightSet, filterHighlightSet])
+  const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0
 
   const handleHover = useCallback((entity, pos) => {
+    // Bloquear hover sobre entidades no resaltadas por el filtro activo
+    if (entity && filterHighlightSet && !filterHighlightSet.has(entity.id)) {
+      setHovered(null)
+      document.body.style.cursor = 'auto'
+      return
+    }
     setHovered(entity ? { entity, pos } : null)
     document.body.style.cursor = entity ? 'pointer' : 'auto'
-  }, [setHovered])
+  }, [setHovered, filterHighlightSet])
 
-  // Conexiones largas (owns + contributed_to cross-org) para canales y pulsos
-  // Las contributed_to cortas (user→repo orbital) se muestran con OrbitalLinks
+  // Conexiones largas (owns) para canales y pulsos
   const longConnections = useMemo(
-    () => (universeData?.connections || []).filter(c => c.type !== 'contributed_to'),
+    () => (universeData?.connections || []).filter(c => c.type !== 'contributed_to' && c.type !== 'entangled_with'),
     [universeData?.connections]
   )
 
+  // Arcos de entrelazamiento org↔org
+  const entanglementArcs = useMemo(
+    () => (universeData?.connections || []).filter(c => c.type === 'entangled_with'),
+    [universeData?.connections]
+  )
+
+  // Repo estrella por org
+  const starRepos = useMemo(() => {
+    if (!universeData) return new Set()
+    const { orgRepos: oRepos, repoUsers: rUsers } = universeData
+    const stars = new Set()
+    Object.entries(oRepos || {}).forEach(([, repos]) => {
+      if (!repos || repos.length === 0) return
+      let best = null, bestCount = -1
+      repos.forEach(r => {
+        const count = (rUsers[r.id] || []).length
+        if (count > bestCount) { bestCount = count; best = r.id }
+      })
+      if (best) stars.add(best)
+    })
+    return stars
+  }, [universeData])
+
   if (!universeData) return null
 
-  const { orgNodes, repoNodes, userNodes, repoUsers, positions, connections, userDensity } = universeData
+  const { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions, connections, userDensity } = universeData
 
   const showUsers = true
   const showEffects = true
@@ -1969,43 +2436,54 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       {/* Cámara */}
       <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} />
 
-      {/* Director de animación con progreso continuo */}
-      <BuildDirector onProgress={setBp} onReady={onSceneReady} startAnimation={startAnimation} />
+      {/* Director de animación — escribe directo al ref, sin setState */}
+      <BuildDirector progressRef={bpRef} startAnimation={startAnimation} />
 
       {/* Génesis cuántica — Big Bang inicial */}
-      <QuantumGenesis progress={bp.genesis} />
+      <QuantumGenesis progressRef={bpRef} progressKey="genesis" />
 
-      {/* Vacío cuántico — fade-in del lattice + fluctuaciones */}
-      <QuantumVacuum progress={bp.vacuum} />
-      {showEffects && <InterferenceField progress={bp.vacuum} />}
+      {/* Vacío cuántico */}
+      <QuantumVacuum progressRef={bpRef} progressKey="vacuum" />
+      {showEffects && <InterferenceField progressRef={bpRef} progressKey="vacuum" />}
 
-      {/* Procesadores cuánticos — scale-in elástico escalonado */}
-      {bp.processors > 0 && (
-        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.processors} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
-      )}
-      {bp.processors > 0 && <EnergyRings orgNodes={orgNodes} positions={positions} progress={bp.processors} highlightSet={highlightSet} />}
-
-      {bp.qubits > 0 && (
-        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.qubits} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
-      )}
-      {bp.qubits > 0 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progress={bp.qubits} dimmed={dimmed} />}
-      {bp.qubits > 0 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} />}
-
-      {/* Users: solo en LOD mid/near */}
-      {bp.particles > 0 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={onSelect} progress={bp.particles} highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
+      {/* ===== MONTAJE PROGRESIVO — 9 stages con pausas >= 200ms entre cada uno ===== */}
+      {/* group invisible → garantiza 0 fugas visuales pre-Big Bang (Bloom, GPU clamping, etc.) */}
+      <group visible={startAnimation}>
+      {/* Stage 1: Procesadores (orgs) — 701 materiales + geometría */}
+      {mountStage >= 1 && (
+        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
       )}
 
-      {/* Quantum Bonds user→repo: solo en LOD mid/near */}
-      {bp.particles > 0 && showUsers && <QuantumBonds repoUsers={repoUsers} positions={positions} progress={bp.particles} dimmed={dimmed} />}
+      {/* Stage 2: Anillos de energía (orgs) */}
+      {mountStage >= 2 && <EnergyRings orgNodes={orgNodes} positions={positions} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} />}
 
-      {/* Canales de entrelazamiento (solo conexiones largas org↔repo) */}
-      {bp.entanglement > 0 && <EntanglementChannels connections={longConnections} progress={bp.entanglement} dimmed={dimmed} />}
+      {/* Stage 3: Qubits (repos) — 1122 instanced meshes */}
+      {mountStage >= 3 && (
+        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="qubits" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
+      )}
 
-      {/* Efectos pasivos cuánticos — solo en LOD near */}
-      {bp.processors > 0 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} />}
-      {bp.processors > 0 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} />}
-      {bp.entanglement > 0 && showEffects && <TunnelingPulses connections={longConnections} />}
+      {/* Stage 4: Partículas (users) — 27K+ vertices × 6 atributos (MÁS PESADO) */}
+      {mountStage >= 4 && showUsers && (
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
+      )}
+
+      {/* Stage 5: Bonds (user-repo connections) */}
+      {mountStage >= 5 && showUsers && <QuantumBonds repoUsers={repoUsers} positions={positions} progressRef={bpRef} progressKey="particles" dimmed={dimmed} />}
+
+      {/* Stage 6: Canales de entrelazamiento (38K×35pts — PESADO) */}
+      {mountStage >= 6 && <EntanglementChannels connections={longConnections} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} highlightSet={highlightSet} starRepos={starRepos} collabHighlight={entityFilter.has('collab')} />}
+
+      {/* Stage 7: Arcos org↔org + nubes + ejes (ligeros) */}
+      {mountStage >= 7 && entanglementArcs.length > 0 && <OrgEntanglementArcs arcs={entanglementArcs} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} collabHighlight={entityFilter.has('collab')} />}
+      {mountStage >= 7 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} />}
+      {mountStage >= 7 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" />}
+
+      {/* Stage 8: Efectos de ambiente — radiación + decoherencia + tunelización */}
+      {/* Pasan startAnimation para no hacerse visibles durante la carga */}
+      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} />}
+      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} />}
+      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} />}
+      </group>
 
       {/* Highlight de selección — anillos rotando */}
       {selectedEntity && focusTarget && (
@@ -2014,6 +2492,11 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
 
       {/* Label flotante */}
       {hovered && <FloatingLabel entity={hovered.entity} position={hovered.pos} />}
+
+      {/* === FRONTERAS ZONALES — siempre montadas, fade in/out via visible prop === */}
+      {universeData?.zoneMeta && (
+        <ZoneBoundaries zoneMeta={universeData.zoneMeta} visible={showZones} />
+      )}
 
       {/* === BLOOM POSTPROCESSING — glow cuántico espectacular === */}
       <EffectComposer multisampling={0}>
@@ -2028,6 +2511,72 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       </EffectComposer>
     </>
   )
+}
+
+// ============================================================================
+// PROCESAMIENTO ASÍNCRONO DE RESULTADOS DEL WORKER
+// Convierte posiciones y conexiones en chunks con yields al browser
+// para evitar bloquear el hilo principal con 27K+ nodos y 98K+ conexiones
+// ============================================================================
+
+function yieldToMain() {
+  return new Promise(r => setTimeout(r, 8))
+}
+
+async function processLayoutResultAsync(result, requestIdRef) {
+  const currentId = requestIdRef.current
+
+  // Fase 1: Convertir posiciones {x,y,z} → THREE.Vector3 en chunks
+  const positions = {}
+  const posKeys = Object.keys(result.positions)
+  const POS_CHUNK = 500
+  for (let i = 0; i < posKeys.length; i += POS_CHUNK) {
+    if (requestIdRef.current !== currentId) return null // resultado obsoleto
+    const end = Math.min(i + POS_CHUNK, posKeys.length)
+    for (let j = i; j < end; j++) {
+      const v = result.positions[posKeys[j]]
+      positions[posKeys[j]] = new THREE.Vector3(v.x, v.y, v.z)
+    }
+    if (end < posKeys.length) await yieldToMain()
+  }
+
+  // Fase 2: Mapear conexiones en chunks (sin spread)
+  const connections = new Array(result.connections.length)
+  const CONN_CHUNK = 1000
+  for (let i = 0; i < result.connections.length; i += CONN_CHUNK) {
+    if (requestIdRef.current !== currentId) return null
+    const end = Math.min(i + CONN_CHUNK, result.connections.length)
+    for (let j = i; j < end; j++) {
+      const c = result.connections[j]
+      connections[j] = {
+        source: c.source,
+        target: c.target,
+        type: c.type,
+        strength: c.strength || 0,
+        start: positions[c.source] || new THREE.Vector3(c.start.x, c.start.y, c.start.z),
+        end: positions[c.target] || new THREE.Vector3(c.end.x, c.end.y, c.end.z),
+      }
+    }
+    if (end < result.connections.length) await yieldToMain()
+  }
+
+  if (requestIdRef.current !== currentId) return null
+
+  return {
+    orgNodes: result.orgNodes,
+    repoNodes: result.repoNodes,
+    userNodes: result.userNodes,
+    orgRepos: result.orgRepos,
+    repoUsers: result.repoUsers,
+    orgScore: result.orgScore,
+    orgNeighbors: result.orgNeighbors,
+    maxOrgScore: result.maxOrgScore,
+    maxOrgNeighbors: result.maxOrgNeighbors,
+    userDensity: result.userDensity,
+    zoneMeta: result.zoneMeta,
+    positions,
+    connections,
+  }
 }
 
 // ============================================================================
@@ -2051,6 +2600,11 @@ export default function UniverseView() {
 
   const [entering, setEntering] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
+  const [detailExpanded, setDetailExpanded] = useState(false)
+  const [detailTab, setDetailTab] = useState('info') // 'info' | 'red' | 'explorer'
+  const [navHistory, setNavHistory] = useState([])    // stack de entidades previas
+  const [pinnedEntity, setPinnedEntity] = useState(null)   // entidad fijada para comparar
+  const [pinnedData, setPinnedData] = useState(null)       // snapshot de detailData de la entidad fijada
   const [hovered, setHovered] = useState(null)
   const [focusTarget, setFocusTarget] = useState(null)
   const [resetTrigger, setResetTrigger] = useState(0)
@@ -2062,6 +2616,22 @@ export default function UniverseView() {
   const [canvasMounted, setCanvasMounted] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showBots, setShowBots] = useState(false)
+  const [showZones, setShowZones] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const settingsRef = useRef(null)
+  const [entityFilter, setEntityFilter] = useState(new Set()) // Set of 'org' | 'repo' | 'user-bridge' | 'user-normal'
+
+  // Cerrar dropdown de ajustes al hacer clic fuera
+  useEffect(() => {
+    if (!showSettings) return
+    const handleClickOutside = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setShowSettings(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSettings])
   const [showTunneling, setShowTunneling] = useState(false)
   const [tunnelingSource, setTunnelingSource] = useState('')
   const [tunnelingTarget, setTunnelingTarget] = useState('')
@@ -2123,21 +2693,12 @@ export default function UniverseView() {
     )
     worker.onmessage = (e) => {
       const { result, requestId } = e.data
-      if (requestId !== layoutRequestIdRef.current) return // ignorar resultados obsoletos
+      if (requestId !== layoutRequestIdRef.current) return
       if (!result) { setUniverseData(null); return }
-      // Convertir posiciones {x,y,z} planas → THREE.Vector3
-      const positions = {}
-      for (const key of Object.keys(result.positions)) {
-        const v = result.positions[key]
-        positions[key] = new THREE.Vector3(v.x, v.y, v.z)
-      }
-      // Reconstruir start/end de conexiones con Vector3
-      const connections = result.connections.map(c => ({
-        ...c,
-        start: positions[c.source] || new THREE.Vector3(c.start.x, c.start.y, c.start.z),
-        end: positions[c.target] || new THREE.Vector3(c.end.x, c.end.y, c.end.z),
-      }))
-      setUniverseData({ ...result, positions, connections })
+      // Procesar en chunks asíncronos para no bloquear el hilo principal
+      processLayoutResultAsync(result, layoutRequestIdRef).then(processed => {
+        if (processed) setUniverseData(processed)
+      })
     }
     layoutWorkerRef.current = worker
     return () => { worker.terminate(); layoutWorkerRef.current = null }
@@ -2186,43 +2747,301 @@ export default function UniverseView() {
     return () => window.removeEventListener('keydown', handler)
   }, [showCollaborationGraph, selectedEntity, searchEntity, closeCollaborationGraph, handleSearchClear])
 
+  // Mapeo de filtro activo → tipos de entidad permitidos para selección
+  const allowedTypes = useMemo(() => {
+    if (entityFilter.size === 0) return null // sin filtro → todo permitido
+    const types = new Set()
+    if (entityFilter.has('org') || entityFilter.has('collab')) types.add('org')
+    if (entityFilter.has('repo')) types.add('repo')
+    if (entityFilter.has('user-normal') || entityFilter.has('user-bridge')) types.add('user')
+    return types.size > 0 ? types : null
+  }, [entityFilter])
+
   const handleSelect = useCallback((entity, pos) => {
+    if (allowedTypes && !allowedTypes.has(entity.type)) return // bloquear selección fuera del filtro
     setSelectedEntity(entity)
     if (pos) setFocusTarget(pos)
-  }, [])
+  }, [allowedTypes])
 
   const handleReset = useCallback(() => {
     setSelectedEntity(null)
     setResetTrigger(t => t + 1)
+    setNavHistory([])
+    setDetailTab('info')
   }, [])
+
+  // Navegar a una entidad desde dentro del panel (push a historial)
+  const navigateToEntity = useCallback((entity) => {
+    if (!entity || !universeData) return
+    setNavHistory(prev => selectedEntity ? [...prev, selectedEntity] : prev)
+    setSelectedEntity(entity)
+    setDetailTab('info')
+    const pos = universeData.positions?.[entity.id]
+    if (pos) setFocusTarget(pos)
+  }, [universeData, selectedEntity])
+
+  // Volver al nodo anterior del historial
+  const navigateBack = useCallback(() => {
+    setNavHistory(prev => {
+      if (prev.length === 0) return prev
+      const newHist = [...prev]
+      const prevEntity = newHist.pop()
+      setSelectedEntity(prevEntity)
+      setDetailTab('info')
+      const pos = universeData?.positions?.[prevEntity.id]
+      if (pos) setFocusTarget(pos)
+      return newHist
+    })
+  }, [universeData])
+
+  // ─── MEMO: datos derivados para el panel de detalle ───
+  // Se recalcula SOLO cuando cambia selectedEntity, universeData o networkMetrics
+  const detailData = useMemo(() => {
+    if (!selectedEntity) return null
+    const entityColor = selectedEntity.type === 'org' ? '#00f7ff' : selectedEntity.type === 'repo' ? '#bd00ff' : '#00ff9f'
+    const nm = networkMetrics?.node_metrics?.[selectedEntity.id]
+    const community = nm ? networkMetrics.communities?.find(c => c.id === nm.community_id) : null
+    const centrality = nm?.collab_centrality ?? 0
+    const connectivity = nm?.collab_connectivity ?? 0
+
+    // ORG data
+    let orgReposList = [], orgTotalUsers = 0, orgBridgeCount = 0, orgSortedRepos = []
+    let orgLangs = [], orgTotalStars = 0, orgAvgStars = 0, orgBridgePct = 0
+    let orgTopContributors = [], orgEntangledOrgs = []
+    let orgCrossPollination = 0, orgLangBreakdown = []
+
+    if (selectedEntity.type === 'org') {
+      orgReposList = universeData?.orgRepos[selectedEntity.id] || []
+      const orgAllUsers = orgReposList.reduce((acc, r) => {
+        (universeData?.repoUsers[r.id] || []).forEach(u => acc.set(u.id, u)); return acc
+      }, new Map())
+      orgTotalUsers = orgAllUsers.size
+      orgBridgeCount = Array.from(orgAllUsers.values()).filter(u => u.isBridge).length
+      orgSortedRepos = [...orgReposList].sort((a, b) =>
+        (universeData?.repoUsers[b.id] || []).length - (universeData?.repoUsers[a.id] || []).length
+      )
+      orgLangs = [...new Set(orgReposList.map(r => r.language).filter(Boolean))]
+      orgTotalStars = orgReposList.reduce((s, r) => s + (r.stars || 0), 0)
+      orgAvgStars = orgReposList.length > 0 ? (orgTotalStars / orgReposList.length).toFixed(1) : 0
+      orgBridgePct = orgTotalUsers > 0 ? ((orgBridgeCount / orgTotalUsers) * 100).toFixed(0) : 0
+
+      const orgUserRepoCounts = new Map()
+      orgReposList.forEach(r => {
+        (universeData?.repoUsers[r.id] || []).forEach(u => {
+          orgUserRepoCounts.set(u.id, (orgUserRepoCounts.get(u.id) || 0) + 1)
+        })
+      })
+      orgTopContributors = Array.from(orgAllUsers.values())
+        .map(u => ({ ...u, repoCount: orgUserRepoCounts.get(u.id) || 0 }))
+        .sort((a, b) => b.repoCount - a.repoCount)
+
+      // Orgs entrelazadas — usar índice inverso para O(U×R) en vez de O(U×R×O)
+      if (universeData) {
+        // índice inverso: repoId → orgId
+        const repoToOrg = {}
+        for (const [oid, repos] of Object.entries(universeData.orgRepos)) {
+          for (const r of repos) repoToOrg[r.id] = oid
+        }
+        const sharedMap = new Map()
+        orgAllUsers.forEach((user) => {
+          for (const [rid, users] of Object.entries(universeData.repoUsers)) {
+            if (!users.some(u => u.id === user.id)) continue
+            const oid = repoToOrg[rid]
+            if (oid && oid !== selectedEntity.id) {
+              sharedMap.set(oid, (sharedMap.get(oid) || 0) + 1)
+            }
+          }
+        })
+        orgEntangledOrgs = Array.from(sharedMap.entries())
+          .map(([oid, count]) => {
+            const org = universeData.orgNodes.find(o => o.id === oid)
+            return org ? { ...org, sharedCount: count } : null
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.sharedCount - a.sharedCount)
+
+        // Cross-pollination: % de contributors que también contribuyen a otras orgs
+        if (orgAllUsers.size > 0) {
+          let crossCount = 0
+          orgAllUsers.forEach((user) => {
+            for (const [rid, users] of Object.entries(universeData.repoUsers)) {
+              if (!users.some(u => u.id === user.id)) continue
+              const oid = repoToOrg[rid]
+              if (oid && oid !== selectedEntity.id) { crossCount++; break }
+            }
+          })
+          orgCrossPollination = ((crossCount / orgAllUsers.size) * 100).toFixed(0)
+        }
+      }
+
+      // Language breakdown con porcentajes
+      const langCount = {}
+      orgReposList.forEach(r => { if (r.language) langCount[r.language] = (langCount[r.language] || 0) + 1 })
+      const langTotal = orgReposList.length || 1
+      orgLangBreakdown = Object.entries(langCount)
+        .map(([lang, count]) => ({ lang, count, pct: ((count / langTotal) * 100).toFixed(0) }))
+        .sort((a, b) => b.count - a.count)
+    }
+
+    // REPO data
+    let repoUsers = [], repoBridgeUsers = [], repoNormalUsers = [], repoOwnerOrg = null, repoOrgDiversity = []
+
+    if (selectedEntity.type === 'repo') {
+      repoUsers = universeData?.repoUsers[selectedEntity.id] || []
+      repoBridgeUsers = repoUsers.filter(u => u.isBridge)
+      repoNormalUsers = repoUsers.filter(u => !u.isBridge)
+      repoOwnerOrg = universeData?.orgNodes?.find(o =>
+        (universeData.orgRepos[o.id] || []).some(r => r.id === selectedEntity.id)
+      ) || null
+
+      // Diversidad de orgs — usar índice inverso
+      if (universeData) {
+        const repoToOrg = {}
+        for (const [oid, repos] of Object.entries(universeData.orgRepos)) {
+          for (const r of repos) repoToOrg[r.id] = oid
+        }
+        const orgMap = new Map()
+        repoUsers.forEach(u => {
+          for (const [rid, users] of Object.entries(universeData.repoUsers)) {
+            if (!users.some(uu => uu.id === u.id)) continue
+            const oid = repoToOrg[rid]
+            if (oid) {
+              const org = universeData.orgNodes.find(o => o.id === oid)
+              if (org) orgMap.set(oid, org)
+            }
+          }
+        })
+        repoOrgDiversity = Array.from(orgMap.values())
+      }
+    }
+
+    // USER data
+    let userRepos = [], userOrgs = [], userLangs = [], userTotalStars = 0, userCoContributors = []
+    const expertise = selectedEntity.quantum_expertise_score || 0
+
+    if (selectedEntity.type === 'user' && universeData) {
+      const userRepoMap = new Map()
+      for (const [repoId, users] of Object.entries(universeData.repoUsers)) {
+        if (users.some(u => u.id === selectedEntity.id)) {
+          const repo = universeData.repoNodes.find(r => r.id === repoId)
+          if (repo) userRepoMap.set(repoId, repo)
+        }
+      }
+      userRepos = Array.from(userRepoMap.values())
+
+      const userOrgSet = new Map()
+      for (const repo of userRepos) {
+        for (const [orgId, repos] of Object.entries(universeData.orgRepos)) {
+          if (repos.some(r => r.id === repo.id)) {
+            const org = universeData.orgNodes.find(o => o.id === orgId)
+            if (org) userOrgSet.set(orgId, org)
+          }
+        }
+      }
+      userOrgs = Array.from(userOrgSet.values())
+      userLangs = [...new Set(userRepos.map(r => r.language).filter(Boolean))]
+      userTotalStars = userRepos.reduce((s, r) => s + (r.stars || 0), 0)
+
+      // Co-contributors
+      const coMap = new Map()
+      userRepos.forEach(r => {
+        (universeData.repoUsers[r.id] || []).forEach(u => {
+          if (u.id !== selectedEntity.id) {
+            coMap.set(u.id, { ...u, sharedRepos: (coMap.get(u.id)?.sharedRepos || 0) + 1 })
+          }
+        })
+      })
+      userCoContributors = Array.from(coMap.values()).sort((a, b) => b.sharedRepos - a.sharedRepos)
+    }
+
+    // ─── NETWORK ROLE CLASSIFICATION ───
+    let networkRole = null
+    if (nm) {
+      const highC = centrality > 50, highConn = connectivity > 50
+      if (highC && highConn) networkRole = { key: 'hub', label: 'Hub Central', icon: '⊛', color: '#ffd166', desc: 'Altamente conectado y central — núcleo de colaboración' }
+      else if (highC && !highConn) networkRole = { key: 'bridge', label: 'Puente Estratégico', icon: '⚡', color: '#ff6b6b', desc: 'Pocas conexiones pero muy estratégicas — une clusters' }
+      else if (!highC && highConn) networkRole = { key: 'local', label: 'Conector Local', icon: '◉', color: '#00b4d8', desc: 'Bien conectado en su zona pero no central globalmente' }
+      else networkRole = { key: 'peripheral', label: 'Periférico', icon: '·', color: '#a29bfe', desc: 'En la periferia de la red — potencial de integración' }
+    }
+
+    // ─── REPO HUB SCORE ───
+    const repoHubScore = selectedEntity.type === 'repo' ? repoOrgDiversity.length : 0
+
+    // ─── ANALYSIS SUMMARY TEXT ───
+    let analysisText = ''
+    const name = selectedEntity.name || selectedEntity.login || selectedEntity.full_name?.split('/')[1] || selectedEntity.id
+    if (selectedEntity.type === 'org') {
+      const roleLabel = networkRole?.label || 'entidad'
+      const crossNote = orgCrossPollination > 50
+        ? `Alta cross-pollination (${orgCrossPollination}%): sus contributors participan activamente en otras organizaciones.`
+        : orgCrossPollination > 20
+        ? `Cross-pollination moderada (${orgCrossPollination}%): cierto intercambio de talento con el ecosistema.`
+        : `Baja cross-pollination (${orgCrossPollination}%): ecosistema relativamente cerrado.`
+      const bridgeNote = orgBridgeCount > 0 ? ` ${orgBridgeCount} bridge users conectan con ${orgEntangledOrgs.length} org${orgEntangledOrgs.length !== 1 ? 's' : ''} externas.` : ''
+      analysisText = `${name} es un ${roleLabel} con ${orgTotalUsers} contributors en ${orgReposList.length} repos. ${crossNote}${bridgeNote}`
+    } else if (selectedEntity.type === 'repo') {
+      const hubNote = repoHubScore > 2 ? `Hub de colaboración inter-org con contributors de ${repoHubScore} organizaciones.` : repoHubScore === 2 ? `Atrae contributors de 2 organizaciones.` : 'Actividad concentrada en una organización.'
+      const bridgeNote = repoBridgeUsers.length > 0 ? ` ${repoBridgeUsers.length} bridge users (${repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}%) amplifican su alcance.` : ''
+      analysisText = `${name}: ${repoUsers.length} contributors. ${hubNote}${bridgeNote}`
+    } else if (selectedEntity.type === 'user') {
+      const spanNote = userOrgs.length > 1 ? `Activo en ${userOrgs.length} organizaciones, alcanzando ${userCoContributors.length} co-contributors.` : `Concentrado en ${userOrgs.length} organización con ${userCoContributors.length} co-contributors.`
+      const bridgeNote = selectedEntity.isBridge ? ' Partícula entrelazada: funciona como puente entre organizaciones.' : ''
+      analysisText = `${name} contribuye a ${userRepos.length} repos. ${spanNote}${bridgeNote}`
+    }
+
+    return {
+      entityColor, nm, community, centrality, connectivity,
+      orgReposList, orgTotalUsers, orgBridgeCount, orgSortedRepos, orgLangs,
+      orgTotalStars, orgAvgStars, orgBridgePct, orgTopContributors, orgEntangledOrgs,
+      orgCrossPollination, orgLangBreakdown,
+      repoUsers, repoBridgeUsers, repoNormalUsers, repoOwnerOrg, repoOrgDiversity, repoHubScore,
+      userRepos, userOrgs, userLangs, userTotalStars, expertise, userCoContributors,
+      networkRole, analysisText,
+    }
+  }, [selectedEntity, universeData, networkMetrics])
+
+  // Pin / unpin para modo comparación
+  const handlePinToggle = useCallback(() => {
+    if (pinnedEntity?.id === selectedEntity?.id) {
+      setPinnedEntity(null)
+      setPinnedData(null)
+    } else {
+      setPinnedEntity(selectedEntity)
+      setPinnedData(detailData)
+    }
+  }, [pinnedEntity, selectedEntity, detailData])
 
   const handleSceneReady = useCallback(() => setSceneReady(true), [])
 
-  // Cuando universeData está listo, iniciar fade del loader
+  // === FLUJO DE CARGA OPTIMIZADO ===
+  // 1. sceneReady (todas las geometrías montadas) → empezar fade del loader
   useEffect(() => {
-    if (universeData && entering && loaderVisible && !loaderFading) {
-      // Breve pausa para que el loader se muestre un mínimo
-      const t = setTimeout(() => setLoaderFading(true), 800)
+    if (sceneReady && loaderVisible && !loaderFading) {
+      const t = setTimeout(() => setLoaderFading(true), 300)
       return () => clearTimeout(t)
     }
-  }, [universeData, entering, loaderVisible, loaderFading])
+  }, [sceneReady, loaderVisible, loaderFading])
 
-  // Cuando el loader termina de desvanecerse, arrancar animaciones
+  // 2. Cuando el fade CSS termina → ocultar loader completamente
   useEffect(() => {
     if (loaderFading) {
-      // Esperar a que termine la transición CSS de salida (1s) y luego desmontar + arrancar animación
-      const t = setTimeout(() => {
-        setLoaderVisible(false)
-        setAnimationStarted(true)
-      }, 1100)
+      const t = setTimeout(() => setLoaderVisible(false), 1100)
       return () => clearTimeout(t)
     }
   }, [loaderFading])
 
-  // Mostrar UI tras un delay después de que arranquen las animaciones (genesis visible)
+  // 3. Cuando el loader desaparece → arrancar animación del Big Bang
+  //    El usuario ve el proceso de construcción FRESCO desde el inicio
+  useEffect(() => {
+    if (!loaderVisible && sceneReady && !animationStarted) {
+      setAnimationStarted(true)
+    }
+  }, [loaderVisible, sceneReady, animationStarted])
+
+  // 4. Mostrar UI después de que las animaciones principales terminen
   useEffect(() => {
     if (animationStarted) {
-      const t = setTimeout(() => setUiVisible(true), 2200)
+      const t = setTimeout(() => setUiVisible(true), 4500)
       return () => clearTimeout(t)
     } else {
       setUiVisible(false)
@@ -2368,11 +3187,15 @@ export default function UniverseView() {
       })
     })
 
-    // Users
+    // Users — pre-build reverse index userId→repoCount (O(R*A) una sola vez)
+    const userRepoCount = new Map()
+    for (const [, users] of Object.entries(universeData.repoUsers || {})) {
+      for (const u of users) {
+        userRepoCount.set(u.id, (userRepoCount.get(u.id) || 0) + 1)
+      }
+    }
     ;(universeData.userNodes || []).forEach(user => {
-      // Contar repos donde participa
-      const repoCount = Object.values(universeData.repoUsers || {})
-        .filter(users => users.some(u => u.id === user.id)).length
+      const repoCount = userRepoCount.get(user.id) || 0
       nodes.push({
         id: user.id,
         label: user.login || user.id,
@@ -2466,6 +3289,7 @@ export default function UniverseView() {
           dpr={[1, 2]}
           raycaster={{ params: { Points: { threshold: 3 } } }}
           onCreated={({ gl }) => gl.setClearColor('#020208')}
+          frameloop={animationStarted ? 'always' : 'demand'}
         >
           <QuantumScene
             universeData={universeData}
@@ -2480,6 +3304,8 @@ export default function UniverseView() {
             searchHighlightSet={searchHighlightSet}
             onSceneReady={handleSceneReady}
             startAnimation={animationStarted}
+            showZones={showZones}
+            entityFilter={entityFilter}
           />
         </Canvas>
         )}
@@ -2495,32 +3321,68 @@ export default function UniverseView() {
             <img src="/logo.png" alt="ENTANGLE" className={styles.loaderLogo} />
             <p className={styles.loaderSub}>Quantum Software Ecosystem Analysis</p>
             <div className={styles.loaderSpinnerWrap}>
-              {/* Átomo CSS puro 3D — perspective + rotateX crea elipses, electrones orbitan en plano inclinado */}
-              <div className={styles.loaderAtomCSS}>
-                {/* Órbita 1: cyan, 0° */}
-                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane1}`}>
-                  <div className={styles.loaderOrbitRing1} />
-                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin1}`}>
-                    <div className={`${styles.loaderElDot} ${styles.loaderElDot1}`} />
-                  </div>
-                </div>
-                {/* Órbita 2: purple, 60° */}
-                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane2}`}>
-                  <div className={styles.loaderOrbitRing2} />
-                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin2}`}>
-                    <div className={`${styles.loaderElDot} ${styles.loaderElDot2}`} />
-                  </div>
-                </div>
-                {/* Órbita 3: green, 120° */}
-                <div className={`${styles.loaderOrbitPlane} ${styles.loaderPlane3}`}>
-                  <div className={styles.loaderOrbitRing3} />
-                  <div className={`${styles.loaderElSpin} ${styles.loaderElSpin3}`}>
-                    <div className={`${styles.loaderElDot} ${styles.loaderElDot3}`} />
-                  </div>
-                </div>
-                {/* Núcleo */}
-                <div className={styles.loaderAtomCoreCSS} />
-              </div>
+              {/* Átomo SVG realista con órbitas elípticas y electrones brillantes */}
+              <svg className={styles.loaderAtomSVG} viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  {/* Glow filters para núcleo y electrones */}
+                  <radialGradient id="nucleusGrad">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+                    <stop offset="35%" stopColor="#00e5ff" stopOpacity="0.7" />
+                    <stop offset="70%" stopColor="#0088aa" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="transparent" />
+                  </radialGradient>
+                  <filter id="glowNucleus" x="-80%" y="-80%" width="260%" height="260%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                  <filter id="glowElectron" x="-200%" y="-200%" width="500%" height="500%">
+                    <feGaussianBlur stdDeviation="2.5" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                  <filter id="glowOrbit" x="-10%" y="-10%" width="120%" height="120%">
+                    <feGaussianBlur stdDeviation="0.8" />
+                  </filter>
+                </defs>
+
+                {/* Órbita 1: cyan — horizontal inclinada */}
+                <ellipse className={styles.svgOrbit1} cx="0" cy="0" rx="46" ry="16"
+                  fill="none" stroke="rgba(0,212,228,0.18)" strokeWidth="0.7"
+                  transform="rotate(-20)" filter="url(#glowOrbit)" />
+                {/* Órbita 2: purple — 60° */}
+                <ellipse className={styles.svgOrbit2} cx="0" cy="0" rx="42" ry="14"
+                  fill="none" stroke="rgba(157,111,219,0.16)" strokeWidth="0.7"
+                  transform="rotate(40)" filter="url(#glowOrbit)" />
+                {/* Órbita 3: green — 120° */}
+                <ellipse className={styles.svgOrbit3} cx="0" cy="0" rx="44" ry="15"
+                  fill="none" stroke="rgba(0,255,159,0.14)" strokeWidth="0.7"
+                  transform="rotate(100)" filter="url(#glowOrbit)" />
+
+                {/* Electrón 1: cyan */}
+                <g className={styles.svgElectronGroup1} style={{ transformOrigin: '0 0' }}>
+                  <g transform="rotate(-20)">
+                    <circle cx="46" cy="0" r="2.8" fill="#00e5ff" filter="url(#glowElectron)" opacity="0.95" />
+                    <circle cx="46" cy="0" r="1.2" fill="#ffffff" opacity="0.9" />
+                  </g>
+                </g>
+                {/* Electrón 2: purple */}
+                <g className={styles.svgElectronGroup2} style={{ transformOrigin: '0 0' }}>
+                  <g transform="rotate(40)">
+                    <circle cx="42" cy="0" r="2.4" fill="#9D6FDB" filter="url(#glowElectron)" opacity="0.9" />
+                    <circle cx="42" cy="0" r="1" fill="#ffffff" opacity="0.85" />
+                  </g>
+                </g>
+                {/* Electrón 3: green */}
+                <g className={styles.svgElectronGroup3} style={{ transformOrigin: '0 0' }}>
+                  <g transform="rotate(100)">
+                    <circle cx="44" cy="0" r="2" fill="#00ff9f" filter="url(#glowElectron)" opacity="0.85" />
+                    <circle cx="44" cy="0" r="0.9" fill="#ffffff" opacity="0.8" />
+                  </g>
+                </g>
+
+                {/* Núcleo central con glow */}
+                <circle cx="0" cy="0" r="6" fill="url(#nucleusGrad)" filter="url(#glowNucleus)" className={styles.svgNucleus} />
+                <circle cx="0" cy="0" r="2.5" fill="rgba(255,255,255,0.85)" className={styles.svgNucleus} />
+              </svg>
             </div>
             {/* Mensajes cíclicos — puro CSS, sin JS setInterval */}
             <div className={styles.loaderMessages}>
@@ -2571,16 +3433,70 @@ export default function UniverseView() {
           <span className={styles.headerSub}>Red de entrelazamiento cuántico</span>
         </div>
         <div className={styles.headerRight}>
-          {botCount > 0 && (
+          <div className={styles.settingsWrapper} ref={settingsRef}>
             <button
-              className={`${styles.botToggle} ${showBots ? styles.botToggleActive : ''}`}
-              onClick={() => { setShowBots(b => !b); setSelectedEntity(null); setResetTrigger(t => t + 1) }}
-              title={showBots ? 'Ocultar bots' : 'Mostrar bots'}
+              className={`${styles.settingsBtn} ${showSettings ? styles.settingsBtnActive : ''}`}
+              onClick={() => setShowSettings(s => !s)}
+              title="Ajustes"
             >
-              {showBots ? <FiEye size={13} /> : <FiEyeOff size={13} />}
-              <span>{showBots ? 'Bots visibles' : `${botCount} bots ocultos`}</span>
+              <FiSettings size={14} />
+              <span>Ajustes</span>
             </button>
-          )}
+            {showSettings && (
+              <div className={styles.settingsDropdown}>
+                <div className={styles.settingsSection}>
+                  <span className={styles.settingsSectionTitle}>Visualización</span>
+                  <button
+                    className={`${styles.settingsItem} ${showZones ? styles.settingsItemActive : ''}`}
+                    onClick={() => setShowZones(z => !z)}
+                  >
+                    <FiTarget size={12} />
+                    <span>Fronteras zonales</span>
+                    <span className={`${styles.settingsToggleIndicator} ${showZones ? styles.settingsToggleOn : ''}`} />
+                  </button>
+                  {botCount > 0 && (
+                    <button
+                      className={`${styles.settingsItem} ${showBots ? styles.settingsItemActive : ''}`}
+                      onClick={() => { setShowBots(b => !b); setSelectedEntity(null); setResetTrigger(t => t + 1) }}
+                    >
+                      {showBots ? <FiEye size={12} /> : <FiEyeOff size={12} />}
+                      <span>{showBots ? 'Bots visibles' : `Bots ocultos (${botCount})`}</span>
+                      <span className={`${styles.settingsToggleIndicator} ${showBots ? styles.settingsToggleOn : ''}`} />
+                    </button>
+                  )}
+                </div>
+                <div className={styles.settingsDivider} />
+                <div className={styles.settingsSection}>
+                  <span className={styles.settingsSectionTitle}>Resaltar entidades</span>
+                  {[
+                    { key: 'org', icon: <FiGrid size={12} />, label: 'Organizaciones', color: '#00f7ff' },
+                    { key: 'repo', icon: <FiGitBranch size={12} />, label: 'Repositorios', color: '#bd00ff' },
+                    { key: 'user-normal', icon: <FiUser size={12} />, label: 'Usuarios', color: '#00ff9f' },
+                    { key: 'user-bridge', icon: <FiZap size={12} />, label: 'Bridge users', color: '#ffbd00' },
+                    { key: 'collab', icon: <FiShare2 size={12} />, label: 'Colaboración org↔org', color: '#ff6b6b' },
+                  ].map(({ key, icon, label, color }) => (
+                    <button
+                      key={key}
+                      className={`${styles.settingsItem} ${entityFilter.has(key) ? styles.settingsItemActive : ''}`}
+                      style={entityFilter.has(key) ? { '--filter-color': color } : undefined}
+                      onClick={() => setEntityFilter(prev => {
+                        const next = new Set(prev)
+                        next.has(key) ? next.delete(key) : next.add(key)
+                        return next
+                      })}
+                    >
+                      {icon}
+                      <span>{label}</span>
+                      <span
+                        className={styles.settingsFilterDot}
+                        style={{ background: entityFilter.has(key) ? color : 'rgba(255,255,255,0.15)' }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <button className={styles.resetBtn} onClick={handleReset} title="Vista general"><FiMaximize2 size={14} /></button>
           <button className={styles.closeBtn} onClick={closeCollaborationGraph}><FiX size={18} /><span>ESC</span></button>
         </div>
@@ -2806,6 +3722,7 @@ export default function UniverseView() {
         <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} />Qubits (Repos)</div>
         <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} />Partículas (Users)</div>
         <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} />Entrelazadas (Bridge)</div>
+        <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #00d4e4, #bd70db)' }} />Entrelazamiento Org↔Org</div>
       </div>
 
       {/* Métricas — conteos reales del grafo renderizado */}
@@ -2816,257 +3733,648 @@ export default function UniverseView() {
         <div className={styles.metricPill}><FiZap size={12} />{metrics?.bridge_users_count || 0} entrelazadas</div>
       </div>
 
-      {/* Panel de detalle */}
-      {selectedEntity && (
-        <aside className={styles.detailPanel}>
-          <button className={styles.detailClose} onClick={() => { setSelectedEntity(null); setResetTrigger(t => t + 1) }}>
-            <FiX size={14} />
-          </button>
+      {/* Panel de detalle — PRO */}
+      {selectedEntity && detailData && (() => {
+        const {
+          entityColor, nm, community, centrality, connectivity,
+          orgReposList, orgTotalUsers, orgBridgeCount, orgSortedRepos, orgLangs,
+          orgTotalStars, orgAvgStars, orgBridgePct, orgTopContributors, orgEntangledOrgs,
+          orgCrossPollination, orgLangBreakdown,
+          repoUsers, repoBridgeUsers, repoNormalUsers, repoOwnerOrg, repoOrgDiversity, repoHubScore,
+          userRepos, userOrgs, userLangs, userTotalStars, expertise, userCoContributors,
+          networkRole, analysisText,
+        } = detailData
+        const isPinned = pinnedEntity?.id === selectedEntity?.id
+
+        return (
+        <aside className={`${styles.detailPanel} ${detailExpanded ? styles.detailPanelExpanded : ''}`}>
+          {/* === TOOLBAR === */}
+          <div className={styles.detailToolbar}>
+            {navHistory.length > 0 && (
+              <button className={styles.detailToolBtn} onClick={navigateBack} title="Volver">
+                <FiChevronLeft size={14} />
+              </button>
+            )}
+            <div className={styles.detailToolbarSpacer} />
+            <button
+              className={`${styles.detailToolBtn} ${isPinned ? styles.detailToolBtnActive : ''}`}
+              onClick={handlePinToggle}
+              title={isPinned ? 'Dejar de comparar' : 'Fijar para comparar'}
+            >
+              <FiBookmark size={13} />
+            </button>
+            <button
+              className={styles.detailToolBtn}
+              onClick={() => setDetailExpanded(e => !e)}
+              title={detailExpanded ? 'Compactar' : 'Expandir'}
+            >
+              {detailExpanded ? <FiMinimize2 size={13} /> : <FiMaximize2 size={13} />}
+            </button>
+            <button className={styles.detailToolBtn} onClick={() => { setSelectedEntity(null); setResetTrigger(t => t + 1); setNavHistory([]); setDetailTab('info'); setPinnedEntity(null); setPinnedData(null) }}>
+              <FiX size={14} />
+            </button>
+          </div>
+
+          {/* === HEADER CON AVATAR === */}
           <div className={styles.detailHeader}>
-            <div className={styles.detailIcon} style={{
-              background: selectedEntity.type === 'org' ? 'rgba(0,247,255,0.15)' : selectedEntity.type === 'repo' ? 'rgba(189,0,255,0.15)' : 'rgba(0,255,159,0.15)',
-              color: selectedEntity.type === 'org' ? '#00f7ff' : selectedEntity.type === 'repo' ? '#bd00ff' : '#00ff9f',
-            }}>
-              {selectedEntity.type === 'org' && <FiGrid size={20} />}
-              {selectedEntity.type === 'repo' && <FiGitBranch size={20} />}
-              {selectedEntity.type === 'user' && <FiUser size={20} />}
-            </div>
-            <div>
+            {selectedEntity.avatar_url ? (
+              <img src={selectedEntity.avatar_url} alt="" className={styles.detailAvatar} style={{ borderColor: entityColor }} />
+            ) : (
+              <div className={styles.detailIcon} style={{
+                background: `${entityColor}22`,
+                color: entityColor,
+              }}>
+                {selectedEntity.type === 'org' && <FiGrid size={20} />}
+                {selectedEntity.type === 'repo' && <FiGitBranch size={20} />}
+                {selectedEntity.type === 'user' && <FiUser size={20} />}
+              </div>
+            )}
+            <div className={styles.detailHeaderText}>
               <h3>{selectedEntity.name || selectedEntity.login || selectedEntity.full_name}</h3>
-              <span className={styles.detailType}>
+              <span className={styles.detailType} style={{ color: entityColor }}>
                 {{ org: 'Procesador Cuántico', repo: 'Qubit', user: 'Partícula Cuántica' }[selectedEntity.type]}
               </span>
             </div>
           </div>
-          <div className={styles.detailBody}>
-            {selectedEntity.type === 'org' && (() => {
-              const repos = universeData?.orgRepos[selectedEntity.id] || []
-              const totalUsers = repos.reduce((acc, r) => {
-                const users = universeData?.repoUsers[r.id] || []
-                users.forEach(u => acc.add(u.id))
-                return acc
-              }, new Set()).size
-              return (
-                <>
-                  <p className={styles.detailMeta}>Login: @{selectedEntity.login}</p>
-                  <div className={styles.detailStats}>
-                    <div className={styles.detailStat}>
-                      <span className={styles.detailStatValue}>{repos.length}</span>
-                      <span className={styles.detailStatLabel}>Qubits</span>
-                    </div>
-                    <div className={styles.detailStat}>
-                      <span className={styles.detailStatValue}>{totalUsers}</span>
-                      <span className={styles.detailStatLabel}>Partículas</span>
-                    </div>
-                  </div>
-                  {repos.length > 0 && (
-                    <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}>Qubits en registro</p>
-                      <div className={styles.detailChips}>
-                        {repos.slice(0, 8).map(r => (
-                          <span key={r.id} className={styles.detailChip} style={{ borderColor: 'rgba(189,0,255,0.3)' }}>
-                            {r.name || r.full_name?.split('/')[1] || r.id}
-                          </span>
-                        ))}
-                        {repos.length > 8 && <span className={styles.detailChipMore}>+{repos.length - 8}</span>}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-            {selectedEntity.type === 'repo' && (() => {
-              const users = universeData?.repoUsers[selectedEntity.id] || []
-              const bridgeUsers = users.filter(u => u.isBridge)
-              return (
-                <>
-                  <p className={styles.detailMeta}>{selectedEntity.full_name}</p>
-                  <div className={styles.detailStats}>
-                    {selectedEntity.stars > 0 && (
-                      <div className={styles.detailStat}>
-                        <span className={styles.detailStatValue}>⭐ {selectedEntity.stars}</span>
-                        <span className={styles.detailStatLabel}>Estrellas</span>
-                      </div>
-                    )}
-                    <div className={styles.detailStat}>
-                      <span className={styles.detailStatValue}>{users.length}</span>
-                      <span className={styles.detailStatLabel}>Partículas</span>
-                    </div>
-                    {bridgeUsers.length > 0 && (
-                      <div className={styles.detailStat}>
-                        <span className={styles.detailStatValue} style={{ color: '#ffbd00' }}>{bridgeUsers.length}</span>
-                        <span className={styles.detailStatLabel}>Entrelazadas</span>
-                      </div>
-                    )}
-                  </div>
-                  {selectedEntity.language && (
-                    <p className={styles.detailMeta}>
-                      Lenguaje: <strong style={{ color: '#bd00ff' }}>{selectedEntity.language}</strong>
-                    </p>
-                  )}
-                  {users.length > 0 && (
-                    <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}>Partículas orbitando</p>
-                      <div className={styles.detailChips}>
-                        {users.slice(0, 10).map(u => (
-                          <span key={u.id} className={styles.detailChip} style={{
-                            borderColor: u.isBridge ? 'rgba(255,189,0,0.3)' : 'rgba(0,255,159,0.3)',
-                            color: u.isBridge ? '#ffbd00' : undefined
-                          }}>
-                            {u.isBridge && '⚛ '}{u.login || u.id}
-                          </span>
-                        ))}
-                        {users.length > 10 && <span className={styles.detailChipMore}>+{users.length - 10}</span>}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-            {selectedEntity.type === 'user' && (() => {
-              // Buscar repos donde participa este usuario
-              const userRepos = universeData ? Object.entries(universeData.repoUsers)
-                .filter(([, users]) => users.some(u => u.id === selectedEntity.id))
-                .map(([repoId]) => universeData.repoNodes.find(r => r.id === repoId))
-                .filter(Boolean) : []
-              // Buscar orgs asociadas
-              const userOrgs = universeData ? userRepos.reduce((acc, repo) => {
-                const org = Object.entries(universeData.orgRepos)
-                  .find(([, repos]) => repos.some(r => r.id === repo.id))
-                if (org) {
-                  const orgNode = universeData.orgNodes.find(o => o.id === org[0])
-                  if (orgNode && !acc.find(a => a.id === orgNode.id)) acc.push(orgNode)
-                }
-                return acc
-              }, []) : []
-              return (
-                <>
-                  <p className={styles.detailMeta}>@{selectedEntity.login}</p>
-                  {selectedEntity.isBridge && (
-                    <p className={styles.detailBridge}><FiZap size={12} /> Partícula Entrelazada</p>
-                  )}
-                  <div className={styles.detailStats}>
-                    <div className={styles.detailStat}>
-                      <span className={styles.detailStatValue}>{userRepos.length}</span>
-                      <span className={styles.detailStatLabel}>Qubits</span>
-                    </div>
-                    {userOrgs.length > 0 && (
-                      <div className={styles.detailStat}>
-                        <span className={styles.detailStatValue}>{userOrgs.length}</span>
-                        <span className={styles.detailStatLabel}>Procesadores</span>
-                      </div>
-                    )}
-                  </div>
-                  {userRepos.length > 0 && (
-                    <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}>Contribuye a</p>
-                      <div className={styles.detailChips}>
-                        {userRepos.slice(0, 6).map(r => (
-                          <span key={r.id} className={styles.detailChip} style={{ borderColor: 'rgba(189,0,255,0.3)' }}>
-                            {r.name || r.full_name?.split('/')[1] || r.id}
-                          </span>
-                        ))}
-                        {userRepos.length > 6 && <span className={styles.detailChipMore}>+{userRepos.length - 6}</span>}
-                      </div>
-                    </div>
-                  )}
-                  {userOrgs.length > 0 && (
-                    <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}>Procesadores asociados</p>
-                      <div className={styles.detailChips}>
-                        {userOrgs.map(o => (
-                          <span key={o.id} className={styles.detailChip} style={{ borderColor: 'rgba(0,247,255,0.3)' }}>
-                            {o.name || o.login || o.id}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
+
+          {/* === HANDLE / LOGIN === */}
+          <div className={styles.detailHandle}>
+            <span>@{selectedEntity.login || selectedEntity.full_name || selectedEntity.id}</span>
+            {(selectedEntity.type === 'org' || selectedEntity.type === 'user') && selectedEntity.login && (
+              <a href={`https://github.com/${selectedEntity.login}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} title="Ver en GitHub">
+                <FiExternalLink size={11} />
+              </a>
+            )}
+            {selectedEntity.type === 'repo' && selectedEntity.full_name && (
+              <a href={`https://github.com/${selectedEntity.full_name}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} title="Ver en GitHub">
+                <FiExternalLink size={11} />
+              </a>
+            )}
           </div>
 
-          {/* === MÉTRICAS DE RED ENRIQUECIDAS === */}
-          {networkMetrics?.node_metrics?.[selectedEntity.id] && (() => {
-            const nm = networkMetrics.node_metrics[selectedEntity.id]
-            const community = networkMetrics.communities?.find(c => c.id === nm.community_id)
+          {/* === BADGE BRIDGE === */}
+          {selectedEntity.isBridge && (
+            <div className={styles.detailBridge}>
+              <FiZap size={12} />
+              <span>Partícula Entrelazada</span>
+              <span className={styles.detailBridgeHint}>Conecta {userOrgs.length} organizaciones</span>
+            </div>
+          )}
 
-            // collab_centrality y collab_connectivity vienen del backend como 0-100 (percentil por tipo)
-            const centrality = nm.collab_centrality ?? 0
-            const connectivity = nm.collab_connectivity ?? 0
+          {/* === NETWORK ROLE BADGE === */}
+          {networkRole && (
+            <div className={styles.detailRoleBadge} style={{ '--role-color': networkRole.color }}>
+              <span className={styles.detailRoleIcon}>{networkRole.icon}</span>
+              <div className={styles.detailRoleText}>
+                <span className={styles.detailRoleLabel}>{networkRole.label}</span>
+                <span className={styles.detailRoleDesc}>{networkRole.desc}</span>
+              </div>
+            </div>
+          )}
 
-            // Detalle raw visible bajo la barra
-            const centralityDetail = {
-              org: `${nm.collab_centrality_raw ?? 0} contributors compartidos con otras orgs`,
-              repo: `${nm.collab_centrality_raw ?? 0} organizaciones representadas`,
-              user: `${nm.collab_centrality_raw ?? 0} organizaciones distintas`,
-            }
-            const connectivityDetail = {
-              org: `${nm.collab_connectivity_raw ?? 0} organizaciones vecinas`,
-              repo: `${nm.collab_connectivity_raw ?? 0} contributors`,
-              user: `${nm.collab_connectivity_raw ?? 0} repositorios`,
-            }
-
-            return (
-              <div className={styles.detailNetworkMetrics}>
-                <p className={styles.detailSectionTitle}>Análisis de Red</p>
-                
-                {/* Centralidad */}
-                <div className={styles.metricRow}>
-                  <span className={styles.metricLabel}><FiActivity size={11} /> Centralidad</span>
-                  <div className={styles.metricBarWrap}>
-                    <div className={styles.metricBar} style={{ width: `${centrality}%`, background: 'linear-gradient(90deg, #0077b6, #00b4d8)' }} />
-                  </div>
-                  <span className={styles.metricValue}>{centrality}%</span>
-                </div>
-                <p className={styles.metricDetail}>{centralityDetail[selectedEntity.type] || ''}</p>
-                <div className={styles.metricRow}>
-                  <span className={styles.metricLabel}><FiUsers size={11} /> Conectividad</span>
-                  <div className={styles.metricBarWrap}>
-                    <div className={styles.metricBar} style={{ width: `${connectivity}%`, background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)' }} />
-                  </div>
-                  <span className={styles.metricValue}>{connectivity}%</span>
-                </div>
-                <p className={styles.metricDetail}>{connectivityDetail[selectedEntity.type] || ''}</p>
-
-                {/* Comunidad */}
-                {community && (
-                  <div className={styles.communityBadge} style={{ '--community-color': nm.community_color }}>
-                    <span className={styles.communityDot} style={{ background: nm.community_color }} />
-                    <span>{community.label}</span>
-                    <span className={styles.communitySize}>{community.size} nodos</span>
-                  </div>
-                )}
-
-                {/* Bus Factor (solo repos) */}
-                {nm.bus_factor_risk && (
-                  <div className={`${styles.busFactor} ${styles[`busFactor${nm.bus_factor_risk.charAt(0).toUpperCase() + nm.bus_factor_risk.slice(1)}`]}`}>
-                    <div className={styles.busFactorHeader}>
-                      <FiShield size={12} />
-                      <span>Bus Factor: {nm.bus_factor}</span>
-                      <span className={styles.busFactorRisk}>{nm.bus_factor_risk.toUpperCase()}</span>
+          {/* === PINNED COMPARE BAR === */}
+          {pinnedEntity && pinnedData && pinnedEntity.id !== selectedEntity.id && (
+            <div className={styles.detailCompareBar}>
+              <div className={styles.detailCompareHeader}>
+                <FiBookmark size={10} />
+                <span>vs {pinnedEntity.name || pinnedEntity.login || pinnedEntity.full_name?.split('/')[1]}</span>
+                <button className={styles.detailCompareClose} onClick={() => { setPinnedEntity(null); setPinnedData(null) }}><FiX size={10} /></button>
+              </div>
+              <div className={styles.detailCompareMetrics}>
+                <div className={styles.detailCompareRow}>
+                  <span className={styles.detailCompareLabel}>Centralidad</span>
+                  <div className={styles.detailCompareDual}>
+                    <div className={styles.detailCompareDualBar}>
+                      <div style={{ width: `${centrality}%`, background: entityColor }} />
                     </div>
-                    {nm.top_contributors && nm.top_contributors.length > 0 && (
-                      <div className={styles.busFactorContribs}>
-                        {nm.top_contributors.slice(0, 3).map((c, i) => (
-                          <div key={i} className={styles.busFactorContrib}>
-                            <span>@{c.login}</span>
-                            <div className={styles.busFactorContribBar}>
-                              <div style={{ width: `${c.percentage}%` }} />
+                    <span className={styles.detailCompareVal}>{centrality}%</span>
+                    <span className={styles.detailCompareDelta} style={{ color: centrality >= pinnedData.centrality ? '#00ff9f' : '#ff6b6b' }}>
+                      {centrality >= pinnedData.centrality ? <FiTrendingUp size={9} /> : <FiTrendingDown size={9} />}
+                      {Math.abs(centrality - pinnedData.centrality).toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.detailCompareRow}>
+                  <span className={styles.detailCompareLabel}>Conectividad</span>
+                  <div className={styles.detailCompareDual}>
+                    <div className={styles.detailCompareDualBar}>
+                      <div style={{ width: `${connectivity}%`, background: entityColor }} />
+                    </div>
+                    <span className={styles.detailCompareVal}>{connectivity}%</span>
+                    <span className={styles.detailCompareDelta} style={{ color: connectivity >= pinnedData.connectivity ? '#00ff9f' : '#ff6b6b' }}>
+                      {connectivity >= pinnedData.connectivity ? <FiTrendingUp size={9} /> : <FiTrendingDown size={9} />}
+                      {Math.abs(connectivity - pinnedData.connectivity).toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* === TABS === */}
+          <div className={styles.detailTabs}>
+            <button className={`${styles.detailTabBtn} ${detailTab === 'info' ? styles.detailTabActive : ''}`}
+              onClick={() => setDetailTab('info')} style={{ '--tab-color': entityColor }}>
+              <FiBarChart2 size={11} /> Info
+            </button>
+            <button className={`${styles.detailTabBtn} ${detailTab === 'red' ? styles.detailTabActive : ''}`}
+              onClick={() => setDetailTab('red')} style={{ '--tab-color': entityColor }}>
+              <FiActivity size={11} /> Red
+            </button>
+            <button className={`${styles.detailTabBtn} ${detailTab === 'explorer' ? styles.detailTabActive : ''}`}
+              onClick={() => setDetailTab('explorer')} style={{ '--tab-color': entityColor }}>
+              <FiSearch size={11} /> Explorar
+            </button>
+          </div>
+
+          {/* === TAB: INFO === */}
+          {detailTab === 'info' && (
+            <div className={styles.detailBody}>
+              {/* ─── ORG INFO ─── */}
+              {selectedEntity.type === 'org' && (
+                <>
+                  <div className={styles.detailStatsGrid}>
+                    <div className={styles.detailStatCard}>
+                      <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
+                      <span className={styles.detailStatValue}>{orgReposList.length}</span>
+                      <span className={styles.detailStatLabel}>Repositorios</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
+                      <span className={styles.detailStatValue}>{orgTotalUsers}</span>
+                      <span className={styles.detailStatLabel}>Contributors</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
+                      <span className={styles.detailStatValue}>{orgBridgeCount}</span>
+                      <span className={styles.detailStatLabel}>Bridge Users</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
+                      <span className={styles.detailStatValue}>{orgTotalStars}</span>
+                      <span className={styles.detailStatLabel}>Estrellas total</span>
+                    </div>
+                  </div>
+
+                  {/* Mini stats fila */}
+                  <div className={styles.detailMiniStats}>
+                    <span><FiCode size={10} /> {orgLangs.length} lenguajes</span>
+                    <span><FiStar size={10} /> ~{orgAvgStars} avg ★</span>
+                    <span><FiPercent size={10} /> {orgBridgePct}% bridge</span>
+                    <span><FiShare2 size={10} /> {orgCrossPollination}% cross</span>
+                  </div>
+
+                  {/* Language breakdown bars */}
+                  {orgLangBreakdown.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiCode size={10} /> Stack tecnológico</p>
+                      <div className={styles.detailLangBars}>
+                        {orgLangBreakdown.slice(0, detailExpanded ? 12 : 6).map(({ lang, count, pct }) => (
+                          <div key={lang} className={styles.detailLangBarRow}>
+                            <span className={styles.detailLangBarLabel}>{lang}</span>
+                            <div className={styles.detailLangBarTrack}>
+                              <div className={styles.detailLangBarFill} style={{ width: `${pct}%` }} />
                             </div>
-                            <span>{c.percentage}%</span>
+                            <span className={styles.detailLangBarPct}>{pct}%</span>
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {orgSortedRepos.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> Repositorios <span className={styles.detailCount}>{orgSortedRepos.length}</span></p>
+                      <div className={styles.detailRepoList}>
+                        {orgSortedRepos.slice(0, detailExpanded ? 20 : 6).map(r => {
+                          const uc = (universeData?.repoUsers[r.id] || []).length
+                          return (
+                            <div key={r.id} className={styles.detailRepoItem} onClick={() => navigateToEntity(r)} style={{ cursor: 'pointer' }}>
+                              <span className={styles.detailRepoName}>{r.name || r.full_name?.split('/')[1] || r.id}</span>
+                              <span className={styles.detailRepoMeta}>
+                                {r.language && <span className={styles.detailLangDot} style={{ background: '#bd00ff' }} />}
+                                {r.language && <span>{r.language}</span>}
+                                {r.stars > 0 && <><FiStar size={9} /> {r.stars}</>}
+                                <FiUsers size={9} /> {uc}
+                                <FiArrowRight size={8} className={styles.detailNavArrow} />
+                              </span>
+                            </div>
+                          )
+                        })}
+                        {orgSortedRepos.length > (detailExpanded ? 20 : 6) && <span className={styles.detailChipMore}>+{orgSortedRepos.length - (detailExpanded ? 20 : 6)} más</span>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── REPO INFO ─── */}
+              {selectedEntity.type === 'repo' && (
+                <>
+                  {repoOwnerOrg && (
+                    <div className={styles.detailOwnerBadge} onClick={() => navigateToEntity(repoOwnerOrg)} style={{ cursor: 'pointer' }}>
+                      <FiGrid size={11} style={{ color: '#00f7ff' }} />
+                      <span>{repoOwnerOrg.name || repoOwnerOrg.login}</span>
+                      <FiArrowRight size={9} className={styles.detailNavArrow} />
+                    </div>
+                  )}
+
+                  <div className={styles.detailStatsGrid}>
+                    {selectedEntity.stars > 0 && (
+                      <div className={styles.detailStatCard}>
+                        <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
+                        <span className={styles.detailStatValue}>{selectedEntity.stars}</span>
+                        <span className={styles.detailStatLabel}>Estrellas</span>
+                      </div>
+                    )}
+                    <div className={styles.detailStatCard}>
+                      <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
+                      <span className={styles.detailStatValue}>{repoUsers.length}</span>
+                      <span className={styles.detailStatLabel}>Contributors</span>
+                    </div>
+                    {repoBridgeUsers.length > 0 && (
+                      <div className={styles.detailStatCard}>
+                        <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
+                        <span className={styles.detailStatValue}>{repoBridgeUsers.length}</span>
+                        <span className={styles.detailStatLabel}>Bridge</span>
+                      </div>
+                    )}
+                    {selectedEntity.language && (
+                      <div className={styles.detailStatCard}>
+                        <FiCode size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
+                        <span className={styles.detailStatValue} style={{ fontSize: 12 }}>{selectedEntity.language}</span>
+                        <span className={styles.detailStatLabel}>Lenguaje</span>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            )
-          })()}
+
+                  {/* Diversidad de orgs */}
+                  {repoOrgDiversity.length > 1 && (
+                    <div className={styles.detailMiniStats}>
+                      <span><FiGlobe size={10} /> Contributors de {repoOrgDiversity.length} orgs</span>
+                      <span><FiPercent size={10} /> {repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}% bridge</span>
+                      {repoHubScore > 1 && <span><FiAward size={10} /> Hub score: {repoHubScore}</span>}
+                    </div>
+                  )}
+
+                  {repoBridgeUsers.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiZap size={10} /> Bridge Users <span className={styles.detailCount}>{repoBridgeUsers.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {repoBridgeUsers.slice(0, detailExpanded ? 20 : 8).map(u => (
+                          <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            <FiZap size={10} style={{ color: '#ffbd00' }} />
+                            <span>{u.login || u.id}</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                        {repoBridgeUsers.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{repoBridgeUsers.length - (detailExpanded ? 20 : 8)} más</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {repoNormalUsers.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiUser size={10} /> Contributors <span className={styles.detailCount}>{repoNormalUsers.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {repoNormalUsers.slice(0, detailExpanded ? 30 : 10).map(u => (
+                          <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />
+                            <span>{u.login || u.id}</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                        {repoNormalUsers.length > (detailExpanded ? 30 : 10) && <span className={styles.detailChipMore}>+{repoNormalUsers.length - (detailExpanded ? 30 : 10)} más</span>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── USER INFO ─── */}
+              {selectedEntity.type === 'user' && (
+                <>
+                  <div className={styles.detailStatsGrid}>
+                    <div className={styles.detailStatCard}>
+                      <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
+                      <span className={styles.detailStatValue}>{userRepos.length}</span>
+                      <span className={styles.detailStatLabel}>Repositorios</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiGlobe size={14} className={styles.detailStatIcon} style={{ color: '#00f7ff' }} />
+                      <span className={styles.detailStatValue}>{userOrgs.length}</span>
+                      <span className={styles.detailStatLabel}>Organizaciones</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
+                      <span className={styles.detailStatValue}>{userTotalStars}</span>
+                      <span className={styles.detailStatLabel}>★ en sus repos</span>
+                    </div>
+                    {expertise > 0 && (
+                      <div className={styles.detailStatCard}>
+                        <FiActivity size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
+                        <span className={styles.detailStatValue}>{expertise}</span>
+                        <span className={styles.detailStatLabel}>Expertise</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.detailMiniStats}>
+                    <span><FiCode size={10} /> {userLangs.length} lenguajes</span>
+                    <span><FiUsers size={10} /> {userCoContributors.length} co-contributors</span>
+                  </div>
+
+                  {userRepos.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> Contribuye a <span className={styles.detailCount}>{userRepos.length}</span></p>
+                      <div className={styles.detailRepoList}>
+                        {userRepos.slice(0, detailExpanded ? 20 : 8).map(r => (
+                          <div key={r.id} className={styles.detailRepoItem} onClick={() => navigateToEntity(r)} style={{ cursor: 'pointer' }}>
+                            <span className={styles.detailRepoName}>{r.name || r.full_name?.split('/')[1] || r.id}</span>
+                            <span className={styles.detailRepoMeta}>
+                              {r.language && <span className={styles.detailLangDot} style={{ background: '#bd00ff' }} />}
+                              {r.language && <span>{r.language}</span>}
+                              {r.stars > 0 && <><FiStar size={9} /> {r.stars}</>}
+                              <FiArrowRight size={8} className={styles.detailNavArrow} />
+                            </span>
+                          </div>
+                        ))}
+                        {userRepos.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{userRepos.length - (detailExpanded ? 20 : 8)} más</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {userOrgs.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Organizaciones <span className={styles.detailCount}>{userOrgs.length}</span></p>
+                      <div className={styles.detailChips}>
+                        {userOrgs.map(o => (
+                          <span key={o.id} className={`${styles.detailChip} ${styles.detailChipClickable}`}
+                            style={{ borderColor: 'rgba(0,247,255,0.3)', color: '#00f7ff' }}
+                            onClick={() => navigateToEntity(o)}>
+                            {o.name || o.login || o.id} <FiArrowRight size={8} />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── ANALYSIS SUMMARY (shared all types) ─── */}
+              {analysisText && (
+                <div className={styles.detailAnalysis}>
+                  <p className={styles.detailSectionTitle}><FiAward size={10} /> Resumen de análisis</p>
+                  <p className={styles.detailAnalysisText}>{analysisText}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === TAB: RED (métricas de red) === */}
+          {detailTab === 'red' && (
+            <div className={styles.detailBody}>
+              {nm ? (
+                <>
+                  <div className={styles.detailStatsGrid}>
+                    <div className={styles.detailStatCard}>
+                      <FiTarget size={14} className={styles.detailStatIcon} style={{ color: '#00b4d8' }} />
+                      <span className={styles.detailStatValue}>{centrality}%</span>
+                      <span className={styles.detailStatLabel}>Centralidad</span>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <FiShare2 size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
+                      <span className={styles.detailStatValue}>{connectivity}%</span>
+                      <span className={styles.detailStatLabel}>Conectividad</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailSection}>
+                    <p className={styles.detailSectionTitle}><FiTarget size={10} /> Centralidad colaborativa</p>
+                    <div className={styles.metricRow}>
+                      <div className={styles.metricBarWrap}>
+                        <div className={styles.metricBar} style={{ width: `${centrality}%`, background: 'linear-gradient(90deg, #0077b6, #00b4d8)' }} />
+                      </div>
+                      <span className={styles.metricValue}>{centrality}%</span>
+                    </div>
+                    <p className={styles.metricDetail}>
+                      {{
+                        org: `${nm.collab_centrality_raw ?? 0} contributors compartidos con otras orgs`,
+                        repo: `${nm.collab_centrality_raw ?? 0} organizaciones representadas`,
+                        user: `${nm.collab_centrality_raw ?? 0} organizaciones distintas`,
+                      }[selectedEntity.type] || ''}
+                    </p>
+                  </div>
+
+                  <div className={styles.detailSection}>
+                    <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Conectividad</p>
+                    <div className={styles.metricRow}>
+                      <div className={styles.metricBarWrap}>
+                        <div className={styles.metricBar} style={{ width: `${connectivity}%`, background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)' }} />
+                      </div>
+                      <span className={styles.metricValue}>{connectivity}%</span>
+                    </div>
+                    <p className={styles.metricDetail}>
+                      {{
+                        org: `${nm.collab_connectivity_raw ?? 0} organizaciones vecinas`,
+                        repo: `${nm.collab_connectivity_raw ?? 0} contributors`,
+                        user: `${nm.collab_connectivity_raw ?? 0} repositorios`,
+                      }[selectedEntity.type] || ''}
+                    </p>
+                  </div>
+
+                  {community && (
+                    <div className={styles.communityBadge} style={{ '--community-color': nm.community_color }}>
+                      <span className={styles.communityDot} style={{ background: nm.community_color }} />
+                      <span>{community.label}</span>
+                      <span className={styles.communitySize}>{community.size} nodos</span>
+                    </div>
+                  )}
+
+                  {nm.bus_factor_risk && (
+                    <div className={`${styles.busFactor} ${styles[`busFactor${nm.bus_factor_risk.charAt(0).toUpperCase() + nm.bus_factor_risk.slice(1)}`]}`}>
+                      <div className={styles.busFactorHeader}>
+                        <FiShield size={12} />
+                        <span>Bus Factor: {nm.bus_factor}</span>
+                        <span className={styles.busFactorRisk}>{nm.bus_factor_risk.toUpperCase()}</span>
+                      </div>
+                      {nm.top_contributors && nm.top_contributors.length > 0 && (
+                        <div className={styles.busFactorContribs}>
+                          {nm.top_contributors.slice(0, 5).map((c, i) => (
+                            <div key={i} className={styles.busFactorContrib}>
+                              <span>@{c.login}</span>
+                              <div className={styles.busFactorContribBar}>
+                                <div style={{ width: `${c.percentage}%` }} />
+                              </div>
+                              <span>{c.percentage}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className={styles.detailEmptyState}>
+                  <FiActivity size={20} style={{ opacity: 0.3 }} />
+                  <span>No hay métricas de red para esta entidad</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === TAB: EXPLORAR (relaciones navegables) === */}
+          {detailTab === 'explorer' && (
+            <div className={styles.detailBody}>
+              {/* ─── ORG EXPLORER ─── */}
+              {selectedEntity.type === 'org' && (
+                <>
+                  {/* Top contributors de la org */}
+                  {orgTopContributors.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Top Contributors <span className={styles.detailCount}>{orgTopContributors.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {orgTopContributors.slice(0, detailExpanded ? 25 : 10).map(u => (
+                          <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            {u.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />}
+                            <span>{u.login || u.id}</span>
+                            <span className={styles.detailUserMeta}>{u.repoCount} repos</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                        {orgTopContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{orgTopContributors.length - (detailExpanded ? 25 : 10)} más</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Orgs entrelazadas */}
+                  {orgEntangledOrgs.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Orgs entrelazadas <span className={styles.detailCount}>{orgEntangledOrgs.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {orgEntangledOrgs.slice(0, detailExpanded ? 20 : 8).map(o => (
+                          <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
+                            <FiGrid size={10} style={{ color: '#00f7ff' }} />
+                            <span>{o.name || o.login || o.id}</span>
+                            <span className={styles.detailUserMeta}>{o.sharedCount} compartidos</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── REPO EXPLORER ─── */}
+              {selectedEntity.type === 'repo' && (
+                <>
+                  {/* Orgs representadas */}
+                  {repoOrgDiversity.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Organizaciones representadas <span className={styles.detailCount}>{repoOrgDiversity.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {repoOrgDiversity.map(o => (
+                          <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
+                            <FiGrid size={10} style={{ color: '#00f7ff' }} />
+                            <span>{o.name || o.login || o.id}</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Todos los contributors con info */}
+                  {repoUsers.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Todos los contributors <span className={styles.detailCount}>{repoUsers.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {repoUsers.slice(0, detailExpanded ? 50 : 15).map(u => (
+                          <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            {u.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />}
+                            <span>{u.login || u.id}</span>
+                            {u.isBridge && <span className={styles.detailBridgeMini}>bridge</span>}
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                        {repoUsers.length > (detailExpanded ? 50 : 15) && <span className={styles.detailChipMore}>+{repoUsers.length - (detailExpanded ? 50 : 15)} más</span>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── USER EXPLORER ─── */}
+              {selectedEntity.type === 'user' && (
+                <>
+                  {/* Lenguajes */}
+                  {userLangs.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiCode size={10} /> Stack tecnológico</p>
+                      <div className={styles.detailChips}>
+                        {userLangs.map(lang => (
+                          <span key={lang} className={styles.detailChip} style={{ borderColor: 'rgba(162,155,254,0.3)' }}>{lang}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Co-contributors */}
+                  {userCoContributors.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Co-contributors <span className={styles.detailCount}>{userCoContributors.length}</span></p>
+                      <div className={styles.detailUserList}>
+                        {userCoContributors.slice(0, detailExpanded ? 25 : 10).map(u => (
+                          <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
+                            {u.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />}
+                            <span>{u.login || u.id}</span>
+                            <span className={styles.detailUserMeta}>{u.sharedRepos} repos</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                        {userCoContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{userCoContributors.length - (detailExpanded ? 25 : 10)} más</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Orgs navegables */}
+                  {userOrgs.length > 0 && (
+                    <div className={styles.detailSection}>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Saltar a organización</p>
+                      <div className={styles.detailUserList}>
+                        {userOrgs.map(o => (
+                          <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
+                            <FiGrid size={10} style={{ color: '#00f7ff' }} />
+                            <span>{o.name || o.login || o.id}</span>
+                            <FiArrowRight size={8} className={styles.detailNavArrow} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* === NAV BREADCRUMB === */}
+          {navHistory.length > 0 && (
+            <div className={styles.detailBreadcrumb}>
+              {navHistory.slice(-3).map((e, i) => (
+                <span key={i} className={styles.detailBreadcrumbItem}>
+                  {e.name || e.login || e.full_name?.split('/')[1]}
+                  <FiArrowRight size={8} />
+                </span>
+              ))}
+              <span className={styles.detailBreadcrumbCurrent}>
+                {selectedEntity.name || selectedEntity.login || selectedEntity.full_name?.split('/')[1]}
+              </span>
+            </div>
+          )}
         </aside>
-      )}
+        )
+      })()}
 
       {/* Botón de ayuda */}
       <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)} title="¿Qué estoy viendo?">

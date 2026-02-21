@@ -27,7 +27,7 @@ export default function CollaborationBanner() {
   const [inView, setInView] = useState(false)
   const wrapperRef = useRef(null)
   
-  /* IntersectionObserver — revela el banner al hacer scroll */
+  /* IntersectionObserver - revela el banner al hacer scroll */
   useEffect(() => {
     const el = wrapperRef.current
     if (!el) return
@@ -84,7 +84,7 @@ export default function CollaborationBanner() {
       {/* Línea brillante superior */}
       <div className={styles.topEdge} />
 
-      {/* Átomo orbital — icono del portal */}
+      {/* Átomo orbital - icono del portal */}
       <div className={styles.portalIcon}>
         <svg viewBox="0 0 120 120" width="56" height="56" className={styles.portalAtom}>
           <ellipse cx="60" cy="60" rx="48" ry="16" fill="none" stroke="rgba(0,212,228,0.25)" strokeWidth="1" className={styles.pOrbit1} />

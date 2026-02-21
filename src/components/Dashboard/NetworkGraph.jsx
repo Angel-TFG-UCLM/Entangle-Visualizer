@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NETWORK GRAPH - Visualización Circular Cyberpunk
  */
 
@@ -96,7 +96,7 @@ function generateCircularGraphData(data, selectedOrg, selectedLanguage) {
 }
 
 /**
- * FilterBadge — indicador de filtro activo con animaciones
+ * FilterBadge - indicador de filtro activo con animaciones
  */
 function FilterBadge({ value, onClear, label }) {
   const [state, setState] = useState('hidden')

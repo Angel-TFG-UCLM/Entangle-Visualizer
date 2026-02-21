@@ -672,7 +672,7 @@ export default function ChartsSection({ data }) {
     setShowOthersPanel(false)
   }
 
-  // Custom tooltip — estilo medición cuántica
+  // Custom tooltip - estilo medición cuántica
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (

@@ -389,13 +389,19 @@ Fecha: Febrero 2026
 
 | Archivo | Tipo de cambio |
 |---------|---------------|
-| `src/components/Universe/computeLayout.worker.js` | **Nuevo** — Web Worker |
-| `src/components/Universe/UniverseView.jsx` | Modificado — Worker, Canvas defer, loader SVG, montaje progresivo, shaders GPU, bridge reveal, efectos gating, optimizaciones |
+| `src/components/Universe/computeLayout.worker.js` | **Nuevo** — Web Worker: layout 5 fases, Jenks Natural Breaks, mapeo log continuo |
+| `src/components/Universe/computeDetailData.worker.js` | **Nuevo** — Web Worker: panel de detalle, radar, roles de red (7 niveles), carga progresiva |
+| `src/components/Universe/UniverseView.jsx` | Modificado — Worker, Canvas defer, loader SVG, montaje progresivo, shaders GPU, bridge reveal, efectos gating, optimizaciones, Jenks inline |
 | `src/components/Universe/UniverseView.module.css` | Modificado — Átomo SVG, mensajes CSS, pointer-events |
 | `src/App.jsx` | Modificado — Loading screen, posición del banner |
 | `src/App.module.css` | Modificado — Draw-on SVG, layout fijo, timing |
 | `src/components/Dashboard/CollaborationBanner.jsx` | **Reescrito** — Portal cuántico |
 | `src/components/Dashboard/CollaborationBanner.module.css` | **Reescrito** — Estilos del portal |
+| `Backend/src/analysis/network_metrics.py` | Proveedor de `collab_centrality_raw` y `collab_connectivity_raw` |
+| `Backend/src/api/routes.py` | Sirve `compact_node_metrics` con ambas métricas (raw + percentil) |
+| `Backend/scripts/_check_org_scores.py` | **Nuevo** — Verificación de distribución de scores |
+| `Backend/scripts/_zone_analysis.py` | **Nuevo** — Análisis de gaps y fronteras |
+| `Backend/scripts/_validate_jenks.py` | **Nuevo** — Validación de Jenks con GVF |
 
 ---
 
@@ -413,6 +419,7 @@ Fecha: Febrero 2026
 - **Montaje progresivo con yields**: Chunks pequeños + `yieldToMain()` para evitar "página no responde"
 - **Staggering per-elemento**: Seeds pseudo-aleatorios en shaders GLSL para materialización progresiva vs flash simultáneo
 - **Narrativa visual coherente**: Bridges se "descubren" durante entanglement, no aparecen pre-etiquetados
+- **Fronteras data-driven**: Algoritmo de Jenks Natural Breaks (Fisher 1958) para que las zonas emerjan de la distribución de los datos, no de constantes arbitrarias
 
 ---
 
@@ -791,16 +798,16 @@ El frontend propaga `forceRefresh` a `discoverCollaboration(true)` para recomput
 
 | Archivo | Tipo de cambio |
 |---------|---------------|
-| `src/components/Universe/computeLayout.worker.js` | **Nuevo** — Web Worker layout |
-| `src/components/Universe/computeDetailData.worker.js` | **Nuevo** — Web Worker panel (2 fases), índices globales, escala logarítmica, logMax calibrados con datos reales |
-| `src/components/Universe/UniverseView.jsx` | Modificado — Worker, Canvas defer, loader SVG, montaje progresivo, shaders GPU, bridge reveal, efectos gating, panel expandido, 4 features, tooltips, health gauge, Hawking, carga progresiva, viewBox radar |
-| `src/components/Universe/UniverseView.module.css` | Modificado — Panel layout, scrollbar, skeletons, tooltips, health SVG, DNA/matrix/impact/similar CSS |
-| `src/services/api.js` | Modificado — `discoverCollaboration(forceRefresh)` con `?force=true` y timeout 2min |
-| `src/store/dashboardStore.js` | Modificado — Propaga `forceRefresh` a `discoverCollaboration`, `refreshMetrics()` invalida cachés antes de recargar |
-| `src/App.jsx` | Modificado — Loading screen, posición del banner |
-| `src/App.module.css` | Modificado — Draw-on SVG, layout fijo, timing |
-| `src/components/Dashboard/CollaborationBanner.jsx` | **Reescrito** — Portal cuántico |
-| `src/components/Dashboard/CollaborationBanner.module.css` | **Reescrito** — Estilos del portal |
+| `src/components/Universe/computeLayout.worker.js` | **Nuevo** - Web Worker layout, Jenks Natural Breaks, mapeo log continuo, fronteras data-driven |
+| `src/components/Universe/computeDetailData.worker.js` | **Nuevo** - Web Worker panel (2 fases), índices globales, escala logarítmica, logMax calibrados, rol "Nodo Especializado", clasificación 7 niveles |
+| `src/components/Universe/UniverseView.jsx` | Modificado - Worker, Canvas defer, loader SVG, montaje progresivo, shaders GPU, bridge reveal, efectos gating, panel expandido, 4 features, tooltips, health gauge, Hawking, carga progresiva, viewBox radar, rediseño header/leyenda/métricas, help panel 5 tabs, drag vs click, guardedSelect, Jenks inline |
+| `src/components/Universe/UniverseView.module.css` | Modificado - Panel layout, scrollbar, skeletons, tooltips, health SVG, DNA/matrix/impact/similar CSS, headerTag, headerDividerV, legendCard, metricValue2, helpPanel/helpTabs/helpTabBtn, hintDivider |
+| `src/services/api.js` | Modificado - `discoverCollaboration(forceRefresh)` con `?force=true` y timeout 2min |
+| `src/store/dashboardStore.js` | Modificado - Propaga `forceRefresh` a `discoverCollaboration`, `refreshMetrics()` invalida cachés antes de recargar |
+| `src/App.jsx` | Modificado - Loading screen, posición del banner |
+| `src/App.module.css` | Modificado - Draw-on SVG, layout fijo, timing |
+| `src/components/Dashboard/CollaborationBanner.jsx` | **Reescrito** - Portal cuántico |
+| `src/components/Dashboard/CollaborationBanner.module.css` | **Reescrito** - Estilos del portal |
 
 ---
 
@@ -828,9 +835,19 @@ El frontend propaga `forceRefresh` a `discoverCollaboration(true)` para recomput
 - **Caché chunked para documentos grandes**: Dividir arrays en chunks de ≤1.5 MB permite cachear datos de cualquier tamaño en MongoDB/Cosmos DB vCore respetando el límite de 2 MB por documento
 - **GZip en API**: `GZipMiddleware` comprime respuestas JSON grandes (22 MB → ~2-3 MB) sin cambios en el frontend
 - **Caché multi-nivel**: Memoria (rápido, volátil) + MongoDB (persistente, sobrevive restarts) + recomputación (último recurso)
-- **Caché permanente sin TTL**: Los datos en `metrics` persisten hasta invalidación explícita — una app desplegada en la nube sirve siempre desde caché
+- **Caché permanente sin TTL**: Los datos en `metrics` persisten hasta invalidación explícita - una app desplegada en la nube sirve siempre desde caché
 - **Invalidación centralizada**: `invalidate_all_caches()` elimina todos los cachés (chunked, document, in-memory) con una sola llamada
-- **Invalidación automática post-ingesta**: Cada tarea de ingesta/enriquecimiento invalida cachés al completarse — la siguiente carga recalcula datos frescos
+- **Invalidación automática post-ingesta**: Cada tarea de ingesta/enriquecimiento invalida cachés al completarse - la siguiente carga recalcula datos frescos
+- **InstancedMesh para escenas masivas**: Consolidar miles de meshes idénticos en 1 draw call con matrices de transformación per-instance
+- **GLSL shaders para animación**: Mover toda animación repetitiva (jitter, orbitas, ondas, fade) a vertex/fragment shaders - CPU → GPU transfer
+- **Drag vs click con DOM nativo**: Trackear desplazamiento en `gl.domElement` (no en eventos R3F) para capturar movimiento sobre espacio vacío
+- **Semántica de rol vs posición**: Los roles de red (Hub, Bridge, Local, Specialist) deben reflejar métricas, no posición espacial en el layout
+- **Paneles con tabs para documentación extensa**: Organizar >30 items en tabs categorizadas con navegación por iconos, responsive
+- **Valores absolutos sobre percentiles**: Las métricas de posicionamiento usan valores raw (suma de contributors compartidos), no percentiles que comprimen distribuciones power-law a escalas uniformes
+- **Fronteras data-driven (Jenks Natural Breaks)**: Las zonas del universo (core/mid/peripheral) se determinan con el algoritmo Fisher-Jenks (1958) que minimiza varianza intra-clase (SDCM) — cero constantes arbitrarias, GVF=0.9050
+- **Validación con datos reales**: Cada decisión de clasificación se verifica contra la distribución real del dataset con scripts dedicados — nunca ajustar parámetros sin evidencia empírica
+- **Clasificación granular de roles de red**: 7 niveles con umbrales estrictos (pct ≥ 85 para Hub Central, top ~15%) en vez de umbrales laxos (>50) que clasificarían a la mitad como hubs
+- **Pre-cómputo antes de clasificación**: Calcular todos los targetR antes de ejecutar Jenks, no durante el placement — permite que el algoritmo vea la distribución completa
 
 ---
 
@@ -967,3 +984,807 @@ Resultado de invalidación completa verificado:
 | `/collaboration/analyze` | MongoDB doc por params | `invalidate_all_caches()` |
 | `/collaboration/user/{login}` | Hereda de analyze | `invalidate_all_caches()` |
 | `/collaboration/quantum-tunneling` | Memoria (analyzer) | `invalidate_all_caches()` |
+
+---
+
+## 35. Optimización 3D Integral - De 1.36M a ~700 iteraciones CPU/frame
+
+**Problema**: El render loop (`useFrame`) ejecutaba **1.36 millones de iteraciones CPU por frame**, resultando en ~3,500 draw calls y ~16 MB de GPU uploads continuos. Todo ello provocaba caídas de framerate severas incluso en hardware potente.
+
+**Solución**: 11 optimizaciones independientes aplicadas a todos los subsistemas 3D del universo:
+
+### 35.1 QuantumProcessors - InstancedMesh (700 orgs × 4 meshes = 2800 draw calls → 4)
+- 3 `<instancedMesh>` para torus1, torus2 y core (1 draw call cada uno)
+- 1 `<instancedMesh>` invisible para hitbox (interacción)
+- Matrices de transformación escritas una vez en `useEffect`, rotaciones por `useFrame` solo actualizan las matrices de los torus
+- Color individual vía `instanceColor`
+
+### 35.2 ProbabilityClouds - GPU orbital shader (11K iter/frame → 0)
+- Partículas orbitales alrededor de repos movidas 100% a vertex shader GLSL
+- `aAngle`, `aRadius`, `aSpeed`, `aPhaseY` como atributos por vértice
+- `useFrame` solo actualiza `uTime` (1 uniform)
+
+### 35.3 Qubits - InstancedMesh (1122 draw calls → 1)
+- Todas las esferas repo en un solo `<instancedMesh>`
+- Heisenberg jitter (micro-vibración) calculada en `useFrame` con escritura directa a matrices
+
+### 35.4 BlochAxes - Per-instance GPU (1122 LineSegments → 1 instanced)
+- Segmentos de línea para ejes |0⟩↔|1⟩ consolidados en un único `<lineSegments>` con buffer de posiciones
+
+### 35.5 QuantumParticles - 100% GPU ShaderMaterial (27K+ usuarios)
+- `ShaderMaterial` custom con vertex + fragment shaders GLSL
+- Jitter Heisenberg, bridge reveal (verde → dorado), lens coloración, density - todo en GPU
+- `useFrame` solo actualiza 2 uniforms: `uTime` y `uBridgeReveal`
+- Bridge reveal driven by `entanglement` progress con stagger individual por partícula
+
+### 35.6 QuantumBonds - Espiral animada 100% GPU
+- Conexiones `contributed_to` como espirales helicoidales
+- Geometría generada una vez (35 puntos × N conexiones), animación de rotación + opacidad en vertex shader
+- `useFrame` actualiza solo 3 uniforms
+
+### 35.7 EntanglementArcs - Curvas cuadráticas GPU
+- Arcos org↔org como `<line2>` con `LineMaterial`
+- Geometría estática, animación de opacidad y desplazamiento en shader
+
+### 35.8 EntanglementChannels - Ondas sinusoidales GPU
+- 38K conexiones × 35 puntos = 1.33M posiciones pre-computadas en `useMemo`
+- Animación de onda senoidal 100% en vertex shader con `sin()`
+- Early return: `if (progress < 0.01) return` salta 1.33M iteraciones los primeros 6.5s
+
+### 35.9 EnergyRings - InstancedMesh (700 draw calls → 1)
+- Anillos de energía alrededor de procesadores consolidados en 1 `<instancedMesh>`
+- Rotación y escala animadas en `useFrame` con escritura directa a matrices
+
+### 35.10 InterferencePattern - GPU shader (600 iter/frame → 0)
+- Patrón de interferencia ondulante con vertex shader que calcula desplazamiento sinusoidal
+- Solo 1 uniform `uTime` actualizado por frame
+
+### 35.11 HawkingRadiation - GPU shader (12.6K iter/frame → 0)
+- Partículas emanando de procesadores con vertex + fragment shaders
+- Posición, velocidad, fade-in/out, respawn - todo en GLSL
+- 1 uniform `uTime` por frame
+
+**Resultado total**:
+
+| Métrica | Antes | Después | Reducción |
+|---------|-------|---------|-----------|
+| CPU iter/frame | ~1,360,000 | ~700 | 99.95% |
+| Draw calls | ~3,500 | ~10 | 99.7% |
+| GPU upload/frame | ~16 MB | 0 (buffers estáticos) | 100% |
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx` - Todos los componentes 3D reescritos con InstancedMesh y GLSL shaders
+
+---
+
+## 36. Bloqueo de Interacciones Durante Animación + Fade del UI
+
+**Problema**: Durante la animación de Big Bang (8.5s), el usuario podía hacer click en entidades causando selecciones prematuras con datos parciales. Además, los controles del UI aparecían inmediatamente sobre la animación, compitiendo visualmente.
+
+### 36.1 Guard de selección durante animación
+
+**Solución**: `guardedSelect` wrapper que bloquea clicks mientras la animación no ha completado:
+
+```javascript
+const guardedSelect = useCallback((entity, pos) => {
+  if (bpRef.current.entanglement < 1.0) return  // animación no completada
+  onSelect(entity, pos)
+}, [onSelect])
+```
+
+Pasado como `onClick` a los 3 componentes interactivos: `QuantumProcessors`, `Qubits`, `QuantumParticles`.
+
+`handleHover` también incluye guard equivalente para evitar tooltips prematuros.
+
+### 36.2 Fade del UI tras animación completa
+
+- Delay de 8500ms (`setTimeout`) antes de activar `uiVisible = true`
+- Transición CSS de 1.8s con `opacity` y `translateY(8px)` → `translateY(0)`
+- Clase `.universeUIVisible` aplicada condicionalmente
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx` - `guardedSelect`, `handleHover` guard, `uiVisible` state + timeout
+- `src/components/Universe/UniverseView.module.css` - `.universeUI` con `opacity: 0` y `.universeUIVisible` con transición
+
+---
+
+## 37. Rediseño Visual Completo del UI del Universo
+
+**Problema**: El UI del universo tenía un estilo funcional pero genérico. Los controles, leyenda, métricas y encabezado necesitaban un rediseño más profesional acorde al tema cuántico.
+
+### 37.1 Header - Separación de marca con gradient
+
+- **Átomo** `⚛` como icono de marca
+- **"ENTANGLE"** como título principal con gradiente `linear-gradient(135deg, #00f7ff, #a855f7)` y `-webkit-background-clip: text`
+- **"Quantum Field"** como tag con borde sutil de glassmorphism, font-size 9px uppercase
+- **Divisor vertical** (`.headerDividerV`) de 1px con gradiente vertical cyan → transparente
+- **Subtítulo** "Grafo de colaboración cuántica" en gris neutro
+
+### 37.2 Leyenda - Glassmorphism card
+
+- Envuelta en `.legendCard` con `backdrop-filter: blur(16px)`, borde sutil `rgba(255,255,255,0.06)`, border-radius 14px
+- Cada item tiene un **type label** (`.legendType`) con el tipo de entidad (Org, Repo, User, Bridge, Collab) en uppercase 8px
+
+### 37.3 Métricas - Jerarquía valor/etiqueta
+
+- **Valor** (`.metricValue2`): font-family JetBrains Mono, font-weight 700, font-size 15px, color blanco
+- **Etiqueta** (`.metricLabel2`): uppercase, font-size 8px, letter-spacing 0.5px, color gris `rgba(255,255,255,0.35)`
+- Separación visual clara entre número y descripción
+
+### 37.4 Hint de interacción - Layout flex con divisores
+
+- Divisores estilizados (`.hintDivider`) con `|` en color `rgba(255,255,255,0.15)`
+- Layout flex con gap uniforme
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx` - JSX del header, leyenda, métricas, hint
+- `src/components/Universe/UniverseView.module.css` - `.headerBrand`, `.headerTag`, `.headerDividerV`, `.headerTitleGroup`, `.legendCard`, `.legendType`, `.metricValue2`, `.metricLabel2`, `.hintDivider`
+
+---
+
+## 38. Panel de Ayuda Completo con 5 Tabs
+
+**Problema**: El panel de ayuda era un simple bloque de texto sin estructura. Con las ~40 entidades, fenómenos, métricas y controles del universo, el usuario necesitaba una guía organizada y navegable.
+
+**Solución**: Panel expandido a 560px de ancho con 5 tabs de navegación y 38+ tarjetas descriptivas.
+
+### Estructura
+
+| Tab | Icon | Cards | Contenido |
+|-----|------|-------|-----------|
+| **Entidades** | ◉ | 5 | Procesadores (orgs), Qubits (repos), Partículas (users), Entrelazamiento (bridges), Canales (colaboraciones) |
+| **Fenómenos** | ∿ | 9 | Big Bang, Vacío cuántico, Nubes de probabilidad, Ejes de Bloch, Anillos de energía, Ondas de decoherencia, Radiación Hawking, Tunneling, Interferencia |
+| **Análisis** | ⬡ | 11 | Centralidad, Conectividad, Comunidades, Bus Factor, Radar de colaboración, Health Score, Network Role, Key Dependencies, Cross-pollination, Knowledge Flows, ADN de colaboración |
+| **Lentes** | ◎ | 5 | Default, Centralidad, Comunidades, Actividad, Bridge |
+| **Controles** | ⌘ | 8 | Rotación, Zoom, Click, Búsqueda, Tunneling, Ajustes, Filtros, Panel de detalle |
+
+### Diseño
+
+- **Header del panel**: icono `⚛` + título "Guía del Universo Cuántico" + subtítulo + botón cerrar
+- **Tabs**: botones con iconos, efecto active con borde inferior cyan, transiciones suaves
+- **Cards**: icono con fondo temático + título con tag de tipo + párrafo descriptivo
+- **Help body**: scroll con scrollbar custom, animación `fadeIn` al cambiar de tab
+- **Responsive**: en `<900px` se comprime a ancho completo, tabs muestran solo iconos
+
+**State**: `const [helpTab, setHelpTab] = useState('entities')` controla la tab activa.
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx` - ~400 líneas de JSX con las 5 tabs y 38+ cards
+- `src/components/Universe/UniverseView.module.css` - `.helpPanel` (560px), `.helpTabs`, `.helpTabBtn`, `.helpTabActive`, `.helpTabIcon`, `.helpSection`, `.helpCard`, `.helpCardTag`, `.helpControlGrid`, `.helpControlCard`, `.helpControlKey`, `.helpBody` con scrollbar, `@keyframes fadeIn`, responsive overrides
+
+---
+
+## 39. Detección Drag vs Click - Prevención de Selecciones Accidentales
+
+**Problema**: Al rotar el universo (click + arrastrar con OrbitControls), R3F disparaba eventos `onClick` en las entidades 3D incluso después de arrastrar, causando selecciones accidentales constantes al intentar simplemente rotar la cámara.
+
+**Causa raíz**: R3F ejecuta `onClick` tras `onPointerUp` sin distinguir si hubo desplazamiento. Un click-and-drag de 100px se registraba igual que un click puntual.
+
+**Solución**: Tracking nativo de desplazamiento del puntero en el canvas DOM:
+
+```javascript
+const pointerDownPos = useRef({ x: 0, y: 0, dragged: false })
+const { gl } = useThree()
+
+useEffect(() => {
+  const dom = gl.domElement
+  const onDown = (e) => {
+    pointerDownPos.current = { x: e.clientX, y: e.clientY, dragged: false }
+  }
+  const onMove = (e) => {
+    const dp = pointerDownPos.current
+    const dx = e.clientX - dp.x, dy = e.clientY - dp.y
+    if (dx * dx + dy * dy > 25) dp.dragged = true  // > 5px = drag
+  }
+  dom.addEventListener('pointerdown', onDown)
+  dom.addEventListener('pointermove', onMove)
+  return () => {
+    dom.removeEventListener('pointerdown', onDown)
+    dom.removeEventListener('pointermove', onMove)
+  }
+}, [gl])
+```
+
+**Guard actualizado**:
+```javascript
+const guardedSelect = useCallback((entity, pos) => {
+  if (bpRef.current.entanglement < 1.0) return  // animación
+  if (pointerDownPos.current.dragged) return       // drag (rotación)
+  onSelect(entity, pos)
+}, [onSelect])
+```
+
+**Detalles técnicos**:
+- **Threshold**: 5px (25 en distancia²) - lo suficientemente pequeño para no interferir con clicks intencionales, lo suficientemente grande para detectar cualquier gesto de rotación
+- **Por qué DOM nativo**: Los eventos R3F (`onPointerDown`, `onPointerMove`) solo se disparan sobre objetos 3D que interceptan el raycast. Arrastrando sobre espacio vacío no genera eventos R3F, así que no podríamos detectar el drag. Usando `gl.domElement` (canvas DOM vía `useThree()`), capturamos TODOS los movimientos del puntero
+- **Reset automático**: cada `pointerdown` resetea `dragged: false` - sin necesidad de limpiar en `pointerup`
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx`:
+  - `pointerDownPos` ref (línea ~2468)
+  - `useEffect` con listeners DOM en `gl.domElement` (líneas ~2472-2483)
+  - `guardedSelect` con check `dragged` (línea ~2560)
+
+---
+
+## 40. Limpieza de Caracteres Em Dash y Corrección de Rol de Red
+
+### 40.1 Eliminación de em dashes (`—` → `-`)
+
+**Problema**: El carácter Unicode em dash (U+2014, `—`) se usaba inconsistentemente en comentarios y textos de UI. Aunque no afecta funcionalidad, genera inconsistencia visual y potenciales problemas de encoding.
+
+**Solución**: Reemplazo masivo de `—` → `-` en los 23 archivos afectados:
+
+| Tipo | Archivos |
+|------|----------|
+| **Python** | `network_metrics.py`, `routes.py` |
+| **JSX** | `UniverseView.jsx`, `App.jsx`, `CollaborationBanner.jsx`, `BlochSphere.jsx`, `QuantumDivider.jsx`, `WavefunctionCollapse.jsx`, `EntanglementLines.jsx`, `QuantumBackground.jsx`, `ChartsSection.jsx`, `NetworkGraph.jsx` |
+| **JS** | `computeDetailData.worker.js`, `computeLayout.worker.js`, `api.js` |
+| **CSS** | `UniverseView.module.css`, `App.module.css`, `CollaborationBanner.module.css`, `WavefunctionCollapse.module.css`, `QuantumDivider.module.css`, `DetailTable.module.css`, `BlochSphere.module.css`, `ChartsSection.module.css` |
+
+Solo comentarios y strings de UI afectados. Ningún operador ni lógica modificada.
+
+### 40.2 Corrección del rol "Periférico" → "Nodo Especializado"
+
+**Problema**: La clasificación de red asignaba el label "Periférico - En la periferia de la red" a entidades con baja centralidad Y baja conectividad. Esto generaba confusión semántica: una organización en la **zona mid** (segundo anillo, colaboración moderada) podía mostrarse como "Periférico", dando a entender que estaba aislada cuando en realidad tiene actividad.
+
+"Periférico" implica posición espacial (zona aislada, tercer anillo). El rol de red mide **métricas de centralidad/conectividad**, no ubicación en el layout.
+
+**Solución**: Renombrado del rol para reflejar su significado real:
+
+| | Antes | Después |
+|---|-------|---------|
+| **Key** | `peripheral` | `specialist` |
+| **Label** | Periférico | Nodo Especializado |
+| **Icon** | `·` | `◇` |
+| **Descripción** | En la periferia de la red - potencial de integración | Actividad concentrada en su nicho - potencial de mayor integración |
+
+El color (`#a29bfe`) se mantiene.
+
+**Archivo modificado**:
+- `src/components/Universe/computeDetailData.worker.js` - Línea 349, clasificación `else` del NETWORK ROLE
+
+---
+
+## 41. Corrección de la Métrica de Posicionamiento de Organizaciones
+
+**Problema**: Las organizaciones se posicionaban en el universo 3D utilizando `collab_centrality` (percentil 0-100), en lugar de `collab_centrality_raw` (suma real de contributors compartidos entre organizaciones). El percentil comprime una distribución power-law a una escala uniforme, distorsionando gravemente la representación espacial.
+
+**Causa raíz**: El percentil rank se calcula como la posición relativa entre valores **únicos**. Si 1224 orgs tienen 127 valores distintos de raw>0, los percentiles se distribuyen uniformemente en [0,100]. Una org con raw=48 (rank 48/1224) obtiene percentil ~41, lo cual parece bajo, pero una org con raw=113 (rank 16/1224) obtiene percentil ~78. La diferencia real entre ambas (113 vs 48, ratio 2.35×) se comprime a un delta de percentil de 37 puntos.
+
+**Consecuencia directa**: Con el umbral anterior `>= 40` para clasificar como "core", el ~60% de las orgs con cualquier actividad entraban en el core. Organizaciones como `sebastienrousseau` (raw=48, actividad moderada) aparecían junto a `Qiskit` (raw=486, el hub más grande del ecosistema).
+
+**Solución**: Cambio de `collab_centrality` (percentil) a `collab_centrality_raw` (valor absoluto). Este valor representa la suma real de contributors compartidos con otras organizaciones, preservando la distribución power-law natural del ecosistema de software cuántico.
+
+**Datos reales verificados con MongoDB**:
+| Organización | `collab_centrality_raw` | Percentil | Rank |
+|---|---|---|---|
+| Qiskit | 486 | 100 | 1/1224 |
+| qiskit-community | 354 | 98 | 2/1224 |
+| PennyLaneAI | 312 | 97 | 3/1224 |
+| Microsoft | 113 | 78 | 16/1224 |
+| NVIDIA | 115 | 80 | 15/1224 |
+| sebastienrousseau | 48 | 41 | 48/1224 |
+
+**Distribución del dataset** (n=127 orgs con raw>0 de 1224 totales):
+- min=1, max=486, mediana=16, media=48.6, p75=53, p90=131
+
+**Archivos modificados**:
+- `src/components/Universe/computeLayout.worker.js` — Fase 2: `orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality_raw`
+- `src/components/Universe/UniverseView.jsx` — Copia inline del layout idéntica
+
+---
+
+## 42. Mapeo Continuo Logarítmico - Eliminación de Zonas Discretas
+
+**Problema**: El layout original asignaba cada org a una de 3 zonas discretas (core, mid, isolated) con umbrales fijos, y luego posicionaba aleatoriamente dentro de cada zona. Esto creaba artefactos:
+1. Dos orgs con scores casi idénticos podían quedar en zonas diferentes si caían a cada lado del umbral.
+2. Dentro de una zona, no había diferenciación: la org #2 y la #14 tenían la misma distribución radial.
+3. Los umbrales eran constantes arbitrarias sin base en la distribución de los datos.
+
+**Solución**: Mapeo continuo logarítmico — cada organización recibe un radio target proporcional a su score, sin discretización.
+
+**Fórmula matemática**:
+```
+normalized = log(1 + score) / log(1 + maxScore)    // [0, 1] comprimido log
+curved     = normalized^0.7                         // más resolución en el top
+targetR    = PERIPHERY_MAX × (1 - curved)           // curved≈1 → centro, curved→0 → periferia
+band       = max(MIN_SEP, targetR × 0.15)           // tolerancia de placement
+```
+
+**Justificación de la escala logarítmica**: Los datos de colaboración siguen una distribución power-law (Qiskit=486, mediana=16, ratio 30×). Una escala lineal colapsaría el 90% de las orgs en una franja estrecha de la periferia. La transformación logarítmica comprime el rango dinámico preservando las diferencias relativas: una org con raw=486 queda en el centro (targetR≈0), una con raw=48 a ~591 del centro, y una con raw=5 a ~1236.
+
+**Curva de potencia 0.7**: Sin ella, la transformación log pura ya es bastante compresiva. El exponente 0.7 (sublineal) da más resolución espacial a las orgs top, separando mejor Qiskit de PennyLaneAI de Microsoft, mientras comprime ligeramente el rango medio-bajo donde las diferencias son menos significativas.
+
+**Monte Carlo placement (80 intentos)**: Cada org busca la mejor posición dentro de su banda `[targetR - band, targetR + band]` maximizando separación con vecinos ya colocados y minimizando distancia al centroide de sus colaboradores (neighbor attraction). El org #1 se fija en el origen (0,0,0).
+
+**Archivos modificados**:
+- `src/components/Universe/computeLayout.worker.js` — Fase 3 completamente reescrita
+- `src/components/Universe/UniverseView.jsx` — Copia inline idéntica
+
+---
+
+## 43. Rediseño del Sistema de Clasificación de Roles de Red
+
+**Problema**: La clasificación de Network Role usaba umbrales de percentil > 50, lo que significaba que aproximadamente la mitad de las entidades activas se clasificaban como "Hub Central". Microsoft (percentil 78 centralidad, 63 conectividad) recibía el label "Hub Central" a pesar de estar posicionado en la zona mid — una contradicción entre el rol mostrado y la posición espacial.
+
+**Análisis del fallo**: Un percentil > 50 no es selectivo. En una distribución de 127 orgs activas, el percentil 50 marca exactamente la mediana. Cualquier org con actividad por encima de la media se etiquetaba como "Hub".
+
+**Solución**: Sistema granular de 7 niveles con umbrales estrictos basados en percentiles ≥ 85 (top ~15%) para los roles principales.
+
+| Rol | Condición | Entidades típicas |
+|------|----------|--------------------|
+| **Hub Central** | pct_centrality ≥ 85 AND pct_connectivity ≥ 85 | Qiskit, PennyLaneAI, unitaryfoundation |
+| **Hub Colaborativo** | pct_centrality ≥ 85 AND pct_connectivity ≥ 60 | qiskit-community, qosf |
+| **Nodo Activo** | pct_centrality ≥ 60 AND pct_connectivity ≥ 60 | Microsoft, NVIDIA |
+| **Puente Estratégico** | pct_centrality ≥ 60 AND pct_connectivity < 60 | Orgs con pocas pero estratégicas conexiones |
+| **Conector Local** | pct_centrality < 60 AND pct_connectivity ≥ 60 | Bien conectado localmente, no central |
+| **Nodo Emergente** | raw_centrality > 0 AND raw_connectivity > 0 | Actividad incipiente |
+| **Nodo Especializado** | Default | Nicho especializado, bajo inter-org |
+
+**Coherencia con el layout**: Microsoft (raw=113, pct_centrality=78, pct_connectivity=63) → **Nodo Activo** (pct ambos ≥ 60 pero ninguno ≥ 85). Posición espacial: zona core (radio ~364, dentro del cluster de alta colaboración). El rol y la posición son ahora coherentes: es activo y está en el core, pero no es un Hub como Qiskit.
+
+**Archivo modificado**:
+- `src/components/Universe/computeDetailData.worker.js` — Bloque `NETWORK ROLE CLASSIFICATION` (líneas 342-379)
+
+---
+
+## 44. Fronteras de Zona con Jenks Natural Breaks - Data-Driven Boundaries
+
+### 44.1 Problema fundamental: constantes arbitrarias como frontera analítica
+
+Las secciones anteriores (§41-§42) eliminaron el percentil y añadieron mapeo continuo, pero mantenían constantes arbitrarias para definir las **fronteras de zona** (los anillos visuales que separan core, mid y periferia):
+
+```javascript
+// ANTES: constantes elegidas a mano
+const CORE_RADIUS   = 150 * scaleFactor  // → luego 200 (igual de arbitrario)
+const PERIPHERY_MIN = 500 * scaleFactor
+```
+
+Un análisis exhaustivo con datos reales demostró que estas constantes eran artefactos:
+
+| CORE_RADIUS | Orgs en core | ¿Hay ruptura natural en ese punto? |
+|---|---|---|
+| 150 | 14 | NO - gap entre rank 14→15 = 6.5% (insignificante) |
+| 200 | 26 | NO - ajustado para "incluir a Microsoft", no por los datos |
+
+La **única ruptura natural significativa** en la distribución de scores estaba entre rank 6→7 (gap = 22.4%). Las fronteras no correspondían a ninguna estructura real de los datos; eran decisiones nuestras impuestas sobre la visualización.
+
+**Implicación para el TFG**: Una visualización científica no puede presentar clusters como "descubrimientos" cuando en realidad son artefactos de parámetros elegidos por el desarrollador. Las fronteras deben emerger de los datos.
+
+### 44.2 Algoritmo de Jenks Natural Breaks (Fisher-Jenks)
+
+**Referencia**: Fisher, W.D. (1958). "On Grouping for Maximum Homogeneity". *Journal of the American Statistical Association*, 53(284), 789-798.
+
+El algoritmo de Jenks (también conocido como Fisher-Jenks) es un método de clasificación óptima que divide un conjunto de datos 1D en *k* clases minimizando la **Sum of Squared Deviations from Class Means** (SDCM), equivalente a minimizar la varianza intra-grupo. Es el estándar en cartografía y GIS para clasificaciones coropletas, y es exactamente el problema que necesitamos resolver: dado un vector de radios target (derivados del mapeo logarítmico), ¿dónde están las fronteras naturales?
+
+**Formulación matemática**:
+
+Dado un vector ordenado $x_1 \leq x_2 \leq \cdots \leq x_n$ y $k$ clases, minimizar:
+
+$$\text{SDCM} = \sum_{c=1}^{k} \sum_{i \in C_c} (x_i - \bar{x}_c)^2$$
+
+donde $C_c$ es el conjunto de elementos en la clase $c$ y $\bar{x}_c$ su media.
+
+**Solución por programación dinámica** $O(n^2 \cdot k)$:
+- `vari[i][j]` = SDCM mínima para clasificar los primeros `i` elementos en `j` clases
+- `lower[i][j]` = índice de inicio óptimo de la clase `j`-ésima
+- Recurrencia: $\text{vari}[l][j] = \min_{i_3 \geq 2} \left( v(i_3, l) + \text{vari}[i_3-1][j-1] \right)$
+- donde $v(i_3, l)$ es la varianza del segmento $[i_3, l]$
+
+La complejidad $O(n^2 \cdot k)$ es trivial para nuestro caso (n=127, k=3 → ~48.000 operaciones).
+
+**Frontera entre clases**: Punto medio entre el último elemento de la clase $c$ y el primero de la clase $c+1$:
+$$b_c = \frac{x_{\text{end}(c)} + x_{\text{start}(c+1)}}{2}$$
+
+### 44.3 Pipeline completo del posicionamiento
+
+El pipeline de layout opera ahora en 4 etapas completamente data-driven:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                 ETAPA 1: Obtener scores                            │
+│  orgScore[id] = collab_centrality_raw  (suma de contributors      │
+│                 compartidos con otras orgs - valor absoluto)       │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │ scores raw (distribución power-law)
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              ETAPA 2: Mapeo logarítmico a radios                   │
+│  normalized = log(1+score) / log(1+maxScore)                       │
+│  curved = normalized^0.7                                           │
+│  targetR = PERIPHERY_MAX × (1 - curved)                            │
+│                                                                     │
+│  PERIPHERY_MAX es el ÚNICO parámetro (escala visual del lienzo).   │
+│  NO define fronteras — solo el tamaño del universo.                 │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │ vector de radios target [r₁, r₂, ..., rₙ]
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│            ETAPA 3: Jenks Natural Breaks (k=3)                     │
+│  jenksNaturalBreaks(allTargetRadii, 3)                             │
+│   → CORE_BOUNDARY  (frontera core/mid)                             │
+│   → MID_BOUNDARY   (frontera mid/peripheral)                       │
+│                                                                     │
+│  Ambas fronteras emergen de la distribución.                        │
+│  Con datos diferentes, las fronteras serían diferentes.             │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │ fronteras + targetR por org
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│            ETAPA 4: Placement Monte Carlo (80 intentos)            │
+│  Org #1: origin (0,0,0)                                            │
+│  Orgs con score>0: placeOrg(targetR ± band)                        │
+│  Orgs con score=0: placeOrg(MID_BOUNDARY, PERIPHERY_MAX)           │
+│  Optimiza: separación mínima + atracción a vecinos colaboradores   │
+│                                                                     │
+│  Zonas (core/mid/isolated) se derivan POST-PLACEMENT               │
+│  comparando radio final vs CORE_BOUNDARY y MID_BOUNDARY.           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 44.4 Resultados con datos reales
+
+Ejecutado contra el dataset real (1224 orgs, 127 con raw>0, maxRaw=486):
+
+**Goodness of Variance Fit (GVF) = 0.9050** — la clasificación en 3 grupos explica el 90.5% de la varianza total. Un GVF > 0.8 se considera excelente en la literatura de clasificación geoespacial.
+
+| Zona | Orgs | Radio frontera (Jenks) | Descripción |
+|------|------|------------------------|-------------|
+| **Core** | 53 | < 717 | Cluster denso de alta colaboración |
+| **Mid** | 33 | 717 - 1269 | Colaboración moderada |
+| **Peripheral** | 41 | > 1269 | Actividad incipiente o aislada |
+
+**Comparación con las constantes anteriores**:
+| | Constante arbitraria (anterior) | Jenks Natural Breaks (actual) |
+|---|---|---|
+| Core boundary | 474 (~CORE_RADIUS=200 × scaleFactor) | **717** (data-driven) |
+| Mid boundary | 1184 (~PERIPHERY_MIN=500 × scaleFactor) | **1269** (data-driven) |
+
+**Verificación de orgs clave**:
+| Organización | raw | targetR | Zona (Jenks) | Zona (anterior con CORE=200) |
+|---|---|---|---|---|
+| Qiskit | 486 | 0 | CORE | CORE |
+| Microsoft | 113 | 364 | CORE | CORE (antes MID con CORE=150) |
+| NVIDIA | 115 | 359 | CORE | CORE (antes MID con CORE=150) |
+| sebastienrousseau | 48 | 591 | CORE | CORE |
+| dwavesystems | 34 | 685 | CORE | MID |
+| USCqserver | 28 | 739 | MID | MID |
+| cduck | 4 | 1301 | PERIPHERAL | PERIPHERAL |
+
+### 44.5 Propiedad de adaptabilidad
+
+La ventaja fundamental sobre constantes es la **adaptabilidad a datos futuros**. Si mañana:
+- Se añaden 500 orgs con raw ∈ [100, 300] → las fronteras migrarán automáticamente.
+- El ecosistema se polariza (pocas orgs muy activas, muchas inactivas) → Jenks detectará 2 clusters en vez de 3 distribuciones uniformes.
+- Se añade un nuevo actor dominante con raw=1000 → toda la distribución de radios se reescala por el mapeo log, y Jenks recalcula las fronteras para reflejarlo.
+
+Con constantes, cada cambio en el dataset requeriría re-sintonizar a mano. Con Jenks, el algoritmo siempre encuentra las fronteras óptimas para esos datos.
+
+### 44.6 Fallback para datasets pequeños
+
+Si el número de orgs con colaboración es < 6 (insuficiente para Jenks con k=3), se aplica un fallback proporcional:
+```javascript
+CORE_BOUNDARY = PERIPHERY_MAX * 0.25   // 25% interior
+MID_BOUNDARY  = PERIPHERY_MAX * 0.6    // 60% interior
+```
+
+### 44.7 Implementación técnica
+
+**Función `jenksNaturalBreaks(data, nClasses)`** añadida a:
+- `src/components/Universe/computeLayout.worker.js` — Líneas 27-92
+- `src/components/Universe/UniverseView.jsx` — Copia inline (función standalone antes de `computeLayout`)
+
+**Flujo en la Fase 3 del layout**:
+1. Pre-computation: `orgTargetR[id] = PERIPHERY_MAX × (1 - (log(1+score)/log(1+maxScore))^0.7)`
+2. Collect: `allTargetRadii = Object.values(orgTargetR)`
+3. Classify: `{ boundaries, classStarts } = jenksNaturalBreaks(allTargetRadii, 3)`
+4. Assign: `CORE_BOUNDARY = boundaries[0]`, `MID_BOUNDARY = boundaries[1]`
+5. Place: Monte Carlo con `targetR` pre-computado (no re-calcula log)
+6. Derive zones: post-placement, `r <= CORE_BOUNDARY → core`, `r <= MID_BOUNDARY → mid`, else `isolated`
+
+**Zona metadata** (para toggle de fronteras visuales):
+```javascript
+zoneMeta = { coreRadius: CORE_BOUNDARY, peripheryMin: MID_BOUNDARY, peripheryMax: PERIPHERY_MAX, ... }
+```
+
+### 44.8 Scripts de verificación
+
+Se crearon 3 scripts de análisis en `Backend/scripts/` para verificar cada decisión con datos reales:
+
+| Script | Propósito |
+|--------|-----------|
+| `_check_org_scores.py` | Consulta MongoDB para obtener distribución real de `collab_centrality_raw` |
+| `_zone_analysis.py` | Simula diferentes `CORE_RADIUS` y encuentra gaps naturales entre orgs consecutivas |
+| `_validate_jenks.py` | Replica el pipeline completo (log mapping + Jenks) con datos reales y calcula GVF |
+
+Estos scripts no forman parte de la aplicación; son herramientas de validación analítica.
+
+**Archivos modificados/creados**:
+- `src/components/Universe/computeLayout.worker.js` — Función `jenksNaturalBreaks()`, pre-cómputo de `orgTargetR`, eliminación de `CORE_RADIUS` y `PERIPHERY_MIN` como constantes
+- `src/components/Universe/UniverseView.jsx` — Copia inline idéntica de todos los cambios
+- `Backend/scripts/_check_org_scores.py` — **Nuevo** (verificación)
+- `Backend/scripts/_zone_analysis.py` — **Nuevo** (análisis de gaps)
+- `Backend/scripts/_validate_jenks.py` — **Nuevo** (validación GVF)
+
+---
+
+## §45. Clasificación 100% data-driven de todas las métricas del panel de detalle
+
+**Fecha**: 20/02/2026
+**Problema**: Todas las métricas del panel de detalle usaban umbrales arbitrarios, constantes mágicas y factores de escala inventados. Se identificaron **28 grupos de thresholds hardcoded** distribuidos en `computeDetailData.worker.js` y `UniverseView.jsx`. Esto generaba incoherencias (e.g., una org en la Zona Core clasificada como "Nodo Activo" en vez de Hub) y valores que no reflejaban la posición real de la entidad en su población.
+
+**Filosofía**: "Todas las métricas deberían ser data-driven, no inventarnos nosotros las clasificaciones" — las fronteras deben emerger de los datos, no de constantes arbitrarias.
+
+### 45.1 Auditoría completa de umbrales
+
+Se realizó una auditoría exhaustiva que identificó:
+
+| Categoría | Cantidad | Tipo de umbral |
+|-----------|----------|----------------|
+| logScale max values | 7 | `logScale(val, 80/500/2000/15/20000/12)` |
+| Health Score factores | 5 | `crossPol*1.5`, `bridge*2`, `langs/5`, `spread*50`, `BF*25` |
+| Health Score pesos | 5 | `0.25, 0.25, 0.20, 0.15, 0.15` |
+| Texto clasificatorio | 2 | `>50 "Alta"`, `>2 "Hub"` |
+| Key Dependencies pesos | 2 | `repoCount*2 + soleConns*10` |
+| Impact severity | 2 | `reposAffected > 2`, `isBridge ? 8 : 3` |
+| Display colors | 2 | `healthScore >= 70/40`, `similarity > 80/60` |
+| **Total** | **25** | **umbrales analíticos arbitrarios eliminados** |
+
+Se conservaron sin cambios las constantes de diseño visual (SVG viewBox, font sizes, radii de pentágono, truncamiento de listas, DNA helix) porque son decisiones de UX, no métricas analíticas.
+
+### 45.2 Nuevas funciones: `percentileRank` y `computePopulationStats`
+
+#### `percentileRank(sorted, value)` — O(log n)
+
+Búsqueda binaria que computa la fracción de la población con valor inferior. Usa mid-rank CDF para manejar empates:
+
+```javascript
+function percentileRank(sorted, value) {
+  // bisectLeft: count below
+  // bisectRight: count below + equal
+  // resultado: (countBelow + 0.5 * countEqual) / n
+}
+```
+
+#### `computePopulationStats(entityType, universeData, networkMetrics, idx)`
+
+Recorre **toda la población** del mismo tipo una sola vez y genera arrays ORDENADOS (listos para `percentileRank`) de cada métrica:
+
+| Tipo | Métricas computadas | n típico |
+|------|---------------------|----------|
+| **org** | crossPollinations, bridgePcts, influences, langCounts, busFacts, spreadCoeffs | ~127 |
+| **repo** | orgDiversities, userCounts, bridgeRatios | ~866 |
+| **user** | orgSpans, langCounts, collabExposures | ~12641 |
+
+Se llama una vez por invocación del worker (al abrir panel de detalle) y se pasa via `_pop` a Phase 2 y Phase 3.
+
+### 45.3 Radar pentagonal — de logScale a percentileRank
+
+**Antes**: Cada eje usaba `logScale(value, MAX_ARBITRARIO)` donde MAX era un número inventado (e.g., `logScale(userCoContributors.length, 20000)`). Problemas:
+- El máximo no se adaptaba si la población cambiaba
+- Valores distorsionados: un repo con 3 orgs en un ecosistema de max 5 no se distinguía de uno con 3 en un ecosistema de 500
+- Las escalas eran inconsistentes entre ejes
+
+**Ahora**: Cada eje = `percentileRank(distribución_del_tipo, valor)`:
+
+| Eje | Org | Repo | User |
+|-----|-----|------|------|
+| Centralidad | pct backend (ya era %) | pct backend | pct backend |
+| Conectividad | pct backend (ya era %) | pct backend | pct backend |
+| Eje 3 | `percentileRank(crossPollinations)` | `percentileRank(orgDiversities)` | `percentileRank(orgSpans)` |
+| Eje 4 | `percentileRank(bridgePcts)` | `percentileRank(bridgeRatios)` | `percentileRank(collabExposures)` |
+| Eje 5 | `percentileRank(influences)` | `percentileRank(userCounts)` | `percentileRank(langCounts)` |
+
+Los tooltips ahora muestran "Percentil X" con contexto: *"Percentil 82 - proporción de bridge users vs. población"*.
+
+### 45.4 Health Score — de factores arbitrarios a percentil puro
+
+**Antes**: Factores de escala inventados multiplicaban raw values para "normalizar" a 0-100:
+```
+diversityScore = min(crossPollination * 1.5, 100)   // 67% → satura
+bridgeNetworkScore = min(bridgePct * 2, 100)         // 50% → satura
+langVarietyScore = min(langs / 5 * 100, 100)         // 5 = "perfecto"
+spreadScore = max(0, 100 - spreadDev/avg * 50)       // 50 = arbitrario
+resilienceScore = min(avgBF * 25, 100)               // BF 4 = "perfecto"
+// Pesos: 25% div + 25% res + 20% bridge + 15% tech + 15% spread
+```
+
+**Ahora**: Cada componente = `percentileRank × 100`:
+```
+diversityScore = percentileRank(pop.crossPollinations, orgCrossPollination) * 100
+bridgeNetworkScore = percentileRank(pop.bridgePcts, orgBridgePct) * 100
+langVarietyScore = percentileRank(pop.langCounts, orgLangs.length) * 100
+spreadScore = (1 - percentileRank(pop.spreadCoeffs, spreadCoeff)) * 100  // invertido
+resilienceScore = percentileRank(pop.busFacts, avgBF) * 100
+// Score final = media aritmética (contribución igualitaria)
+```
+
+El score ahora significa: "en qué percentil medio se encuentra esta org entre todas las orgs activas". Un 72 significa que la org supera al 72% de las orgs en el promedio de las 5 dimensiones.
+
+El arco SVG usa terciles naturales (67/33) para colores en vez de los anteriores 70/40.
+
+### 45.5 Key Dependencies — criticidad proporcional al scope
+
+**Antes (orgs)**: `criticality = repoCount * 2 + soleConnections * 10`, filtro `> 2` — un usuario con 2 repos en una org de 200 tenía la misma criticidad que uno con 2 repos en una org de 3.
+
+**Ahora**: Proporcional al scope de la entidad:
+```javascript
+const repoPct = repoCount / totalRepos               // ¿Qué fracción de repos toca?
+const solePct = soleConnections / totalExtOrgs        // ¿Qué fracción de conexiones externas dependen solo de él?
+const criticality = repoPct * 0.4 + solePct * 0.6    // Peso mayor a conexiones únicas
+```
+
+**Antes (repos)**: `criticality = (isBridge ? 5 : 0) + soleConnections * 10`
+
+**Ahora**: `criticality = (isBridge ? 0.3 : 0) + (soleConnections / totalExtOrgs) * 0.7`
+
+### 45.6 Impact Simulation — severidad y healthDelta proporcionales
+
+**Antes**: `severity = orgConnectionsLost > 0 ? 'critical' : reposAffected > 2 ? 'high' : 'moderate'`. El `healthDelta = -(isBridge ? 8 : 3) + orgConnectionsLost * 5`.
+
+**Ahora**: Severidad proporcional: `repoImpactRatio > 0.3` (30% del total) = high. HealthDelta proporcional al scope real:
+```javascript
+healthDelta = -healthScore * (orgConnPct * 0.6 + repoPct * 0.4)
+// donde orgConnPct = orgConnectionsLost / totalConnectableOrgs
+//       repoPct = reposAffected / totalRepos
+```
+
+### 45.7 Similar Entities — consistencia con radar
+
+**Antes**: `computeRadar` en Phase 3 usaba los mismos `logScale(val, MAX)` hardcoded. Problema: la distancia euclidiana entre vectores radar era inconsistente con los valores del radar de la entidad seleccionada.
+
+**Ahora**: Usa `percentileRank(pop.*, val)` — exactamente las mismas distribuciones que el radar del entity seleccionado. La similaridad refleja posición poblacional real, no escalas arbitrarias.
+
+### 45.8 Texto de análisis — clasificación por cuartiles
+
+**Antes**: `orgCrossPollination > 50 → "Alta"`, `> 20 → "Moderada"`, `repoHubScore > 2 → "Hub"`.
+
+**Ahora**: Todos los textos clasificatorios usan percentileRank contra la población:
+- Cross-pollination: `≥ p75` = "Alta", `≥ p25` = "Moderada", `< p25` = "Baja"
+- Hub score: `≥ p75` = "Hub inter-org", `≥ p25` = "Diversidad moderada", `< p25` = "Diversidad baja"
+- Incluyen el percentil en el texto: *"Alta cross-pollination (34%, p78)"*
+
+### 45.9 Network Role — Jenks bidimensional (sesión anterior, completado)
+
+Los roles se clasifican con Jenks Natural Breaks (k=3) sobre `collab_centrality_raw` Y `collab_connectivity_raw` por tipo de entidad:
+
+```
+  cent\conn  │ high        │ mid         │ low
+  ───────────┼─────────────┼─────────────┼─────────────
+  high       │ Hub Central │ Hub Colab.  │ Puente Estr.
+  mid        │ Conect.Denso│ Nodo Activo │ Nodo Focal.
+  low        │ Conect.Soc. │ Nodo Emerg. │ Nodo Incip.
+  none       │             │             │ Nodo Aislado
+```
+
+Las fronteras entre high/mid/low emergen de los datos (Jenks minimiza varianza intra-clase). Cero umbrales arbitrarios.
+
+### 45.10 Resumen de umbrales eliminados vs. conservados
+
+**ELIMINADOS** (25 analíticos):
+- 7× logScale max values → percentileRank
+- 5× health score multiplicadores → percentileRank
+- 5× health score pesos → media aritmética
+- 2× texto clasificatorio → cuartiles
+- 2× key dependencies pesos → proporcional al scope
+- 2× impact severity thresholds → ratio proporcional
+- 2× display color thresholds → terciles
+
+**CONSERVADOS** (13 visuales/UX):
+- SVG viewBox, radii, font sizes (geometría visual)
+- Truncamiento de listas (6/12, 8/20, etc.)
+- DNA helix segmentos, amplitudes (diseño generativo)
+- Collab matrix range (2-15 repos)
+- Radar `radarAxes.length === 5` (forma pentagonal)
+
+**Archivos modificados**:
+- `src/components/Universe/computeDetailData.worker.js` — `percentileRank()`, `computePopulationStats()`, radar, health, key deps, impact, analysis text, similar entities
+- `src/components/Universe/UniverseView.jsx` — Color del arco de salud (70/40 → 67/33)
+
+---
+
+## 46. Sistema de Lentes Analíticas - Overhaul Completo
+
+**Problema**: Las 4 lentes analíticas (Centralidad, Intensidad, Bus Factor, Comunidades) no producían cambios visuales perceptibles. Al activar cualquiera, el universo se veía prácticamente igual.
+
+### 46.1 Diagnóstico: 4 problemas fundamentales
+
+1. **Distribución aplastada**: `betweenness` y `degree` tienen distribuciones power-law extremas (~95% de nodos cerca de 0.001). Los valores raw producían brillo uniforme.
+
+2. **Multiplicación por material púrpura**: El color final = `instanceColor × materialColor`. El material de los repos es `#bd00ff × 1.8` = RGB(1.334, **0**, 1.8). Como **G=0**, cualquier componente verde del instanceColor se destruía:
+```
+Bus Factor high  (1.8, 0.9, 0.1) × (1.33, 0, 1.8) = (2.4, 0, 0.18) → ROJO, no naranja
+Bus Factor low   (0.2, 1.6, 0.4) × (1.33, 0, 1.8) = (0.27, 0, 0.72) → AZUL, no verde
+```
+Resultado: solo se veían rojo y azul, nunca naranja/amarillo/verde.
+
+3. **Percentile rank mezclado**: Se calculaba sobre los ~30K nodos mezclados (26K users + 1.6K repos + 1.2K orgs). Los repos quedaban comprimidos en percentiles 93-99% → brillo casi idéntico.
+
+4. **Sin reducción de ruido**: Bonds, channels, arcos, efectos ambientales competían visualmente con los nodos coloreados por la lente.
+
+### 46.2 Solución A: Material lerp a blanco
+
+Cuando una lente está activa, el `useFrame` de Qubits hace `qubitMat.color.copy(baseQubitCol).lerp(whiteMat, blend)`. Con material blanco, `instanceColor × (1,1,1)` = instanceColor → los colores se renderizan tal cual.
+
+```javascript
+// En Qubits useFrame:
+if (blend > 0.01) {
+  qubitMat.color.copy(baseQubitCol).lerp(whiteMat, blend)
+} else {
+  qubitMat.color.copy(baseQubitCol)
+}
+```
+
+### 46.3 Solución B: Percentile rank por tipo de entidad
+
+Repos se comparan solo contra repos, orgs/users contra su propia población:
+```javascript
+const repoEntries = [], otherEntries = []
+Object.entries(nm).forEach(([id, m]) => {
+  if (id.startsWith('repo_')) repoEntries.push([id, m])
+  else otherEntries.push([id, m])
+})
+const repoVals = repoEntries.map(([, m]) => m.degree || 0).sort((a, b) => a - b)
+// percentileRank against repo-only distribution
+```
+
+### 46.4 Solución C: Repos amplificados, no-repos atenuados
+
+Repos reciben brillo `0.05 + t² × 1.8` (rango 0.05→1.85), orgs/users reciben `0.03 + t² × 0.35` (rango 0.03→0.38). Los repos dominan visualmente.
+
+### 46.5 Solución D: Bus Factor con colores reales
+
+```javascript
+const riskBrightness = {
+  critical: { r: 1.8, g: 0.2, b: 0.15 },   // rojo brillante
+  high:     { r: 1.8, g: 0.9, b: 0.1 },     // naranja
+  medium:   { r: 1.6, g: 1.5, b: 0.15 },    // amarillo
+  low:      { r: 0.2, g: 1.6, b: 0.4 },     // verde
+}
+```
+
+### 46.6 Solución E: Reducción de ruido con dimmed
+
+La condición `dimmed` ahora incluye `lensData !== null`:
+```javascript
+const dimmed = selectedEntity !== null || searchHighlightSet !== null
+  || entityFilter.size > 0 || lensData !== null
+```
+
+Se propaga `dimmed` a 9 componentes visuales, cada uno con su multiplicador:
+
+| Componente | Opacidad con lente activa |
+|---|---|
+| ProbabilityClouds | × 0.008 |
+| QuantumBonds (channels) | × 0.008 |
+| EntanglementChannels | × 0.015 |
+| OrgEntanglementArcs | × 0.05 |
+| EnergyRings | × 0.03 |
+| BlochAxes | × 0.04 |
+| TunnelingPulses | × 0.04 |
+| DecoherenceWaves | × 0.04 |
+| HawkingRadiation | target 0.03 (vs 0.7 normal) |
+
+### 46.7 Validación con datos reales
+
+Script `scripts/_lens_analysis.py` verifica distribuciones contra el endpoint `/collaboration/network-metrics`:
+
+| Lente | Brillo min→max repos | Unique values | Estado |
+|---|---|---|---|
+| Intensidad | 0.050 → 1.850 (delta=1.8) | 104/1646 | ✅ |
+| Centralidad | 0.050 → 1.850 (delta=1.8) | 453/1646 | ✅ |
+| Bus Factor | 4/4 niveles presentes (82.8% critical, 12.2% high, 3.9% medium, 1.0% low) | 4 | ✅ |
+
+### 46.8 Escalado por lente
+
+Los repos también cambian de tamaño según el valor de la lente. `lensScaleFactor = 0.5 + avg_brightness × 1.0`. Repos brillantes crecen, tenues encogen. Mismo principio para orgs. Users usan el shader GLSL: `lensScale = mix(1.0, 0.5 + lensBrightness * 0.8, uLensActive)`.
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx`:
+  - `lensData` useMemo: percentileRank por tipo, repos amplificados, non-repos atenuados
+  - `Qubits`: material lerp a blanco, prop `activeLens` removido (usa `blend` de `lensData`)
+  - `dimmed` condition: `|| lensData !== null`
+  - Props `dimmed` pasados a EnergyRings, BlochAxes, HawkingRadiation, DecoherenceWaves, TunnelingPulses
+  - Cada componente de efecto: firma actualizada, opacidad reducida cuando `dimmed`
+- `scripts/_lens_analysis.py` — Script de validación de distribuciones

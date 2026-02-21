@@ -1,9 +1,9 @@
 /**
  * CollaborationBanner Styles
- * Portal cuántico inmersivo — punto de acceso al universo de colaboración
+ * Portal cuántico inmersivo - punto de acceso al universo de colaboración
  */
 
-/* === WRAPPER — expansión suave sin salto de layout === */
+/* === WRAPPER - expansión suave sin salto de layout === */
 .wrapper {
   max-height: 0;
   overflow: hidden;
@@ -43,7 +43,7 @@
 }
 
 .bannerVisible {
-  /* visible — controlado por wrapper */
+  /* visible - controlado por wrapper */
 }
 
 .banner:hover {
@@ -97,7 +97,7 @@
   50% { opacity: 0.7; transform: scale(1.2); }
 }
 
-/* === ICONO PORTAL — Átomo orbital === */
+/* === ICONO PORTAL - Átomo orbital === */
 .portalIcon {
   position: relative;
   flex-shrink: 0;

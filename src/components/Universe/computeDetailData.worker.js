@@ -1,31 +1,219 @@
 /**
- * Web Worker — Compute Detail Data del panel de entidad
+ * Web Worker - Compute Detail Data del panel de entidad
  * =====================================================
  * Carga progresiva en 3 fases:
  *   Phase 1: datos básicos, radar, health, análisis, DNA (instantáneo)
  *   Phase 2: simulaciones de impacto, matriz de colaboración (medio)
- *   Phase 3: entidades similares (pesado — itera todos los nodos del tipo)
+ *   Phase 3: entidades similares (pesado - itera todos los nodos del tipo)
  */
+
+// ============================================================================
+// JENKS NATURAL BREAKS - clasificación data-driven (Fisher 1958)
+// ============================================================================
+// Misma implementación que computeLayout.worker.js.
+// Encuentra k fronteras naturales minimizando la varianza intra-clase (SDCM).
+function jenksNaturalBreaks(data, nClasses) {
+  const sorted = [...data].sort((a, b) => a - b)
+  const n = sorted.length
+  if (n <= nClasses) {
+    const step = n > 1 ? (sorted[n - 1] - sorted[0]) / nClasses : sorted[0]
+    return {
+      boundaries: Array.from({length: nClasses - 1}, (_, i) => sorted[0] + step * (i + 1)),
+      sorted
+    }
+  }
+  const lower = Array.from({length: n + 1}, () => new Int32Array(nClasses + 1))
+  const vari = Array.from({length: n + 1}, () => {
+    const r = new Float64Array(nClasses + 1); r.fill(Infinity); return r
+  })
+  for (let j = 1; j <= nClasses; j++) { lower[1][j] = 1; vari[1][j] = 0 }
+  for (let l = 2; l <= n; l++) {
+    let sum = 0, sumSq = 0, w = 0
+    for (let m = 1; m <= l; m++) {
+      const i3 = l - m + 1
+      const val = sorted[i3 - 1]
+      w++; sum += val; sumSq += val * val
+      const v = sumSq - (sum * sum) / w
+      if (i3 > 1) {
+        for (let j = 2; j <= nClasses; j++) {
+          const cost = v + vari[i3 - 1][j - 1]
+          if (cost < vari[l][j]) { lower[l][j] = i3; vari[l][j] = cost }
+        }
+      }
+    }
+    lower[l][1] = 1
+    vari[l][1] = sumSq - (sum * sum) / w
+  }
+  const classStarts = new Array(nClasses)
+  classStarts[0] = 0
+  let k = n
+  for (let j = nClasses; j >= 2; j--) {
+    classStarts[j - 1] = lower[k][j] - 1
+    k = lower[k][j] - 1
+  }
+  const boundaries = []
+  for (let c = 1; c < nClasses; c++) {
+    boundaries.push((sorted[classStarts[c] - 1] + sorted[classStarts[c]]) / 2)
+  }
+  return { boundaries, sorted }
+}
+
+// ============================================================================
+// PERCENTILE RANK - posición relativa en la distribución (0-1)
+// ============================================================================
+// Binary search: fracción de la población con valor inferior al dado.
+// Incluye medio punto por empates (CDF mid-rank).
+function percentileRank(sorted, value) {
+  if (!sorted || sorted.length === 0) return 0
+  const n = sorted.length
+  // bisectLeft: primer índice donde sorted[i] >= value
+  let lo = 0, hi = n
+  while (lo < hi) { const m = (lo + hi) >> 1; sorted[m] < value ? lo = m + 1 : hi = m }
+  // bisectRight: primer índice donde sorted[i] > value
+  let lo2 = lo, hi2 = n
+  while (lo2 < hi2) { const m = (lo2 + hi2) >> 1; sorted[m] <= value ? lo2 = m + 1 : hi2 = m }
+  // lo = count below, lo2-lo = count equal
+  return (lo + 0.5 * (lo2 - lo)) / n
+}
+
+// ============================================================================
+// POPULATION STATS - distribuciones por tipo para normalización data-driven
+// ============================================================================
+// Computa arrays ORDENADOS de cada métrica para toda la población del mismo tipo.
+// Orgs (n≈127): exhaustivo. Repos (n≈866): exhaustivo. Users (n≈12641): eficiente.
+function computePopulationStats(entityType, universeData, networkMetrics, idx) {
+  if (!universeData) return {}
+
+  if (entityType === 'org') {
+    const crossPols = [], bridgePcts = [], influences = []
+    const langCounts = [], busFacts = [], spreadCoeffs = []
+
+    for (const org of (universeData.orgNodes || [])) {
+      const repos = universeData.orgRepos?.[org.id] || []
+      if (repos.length === 0) continue
+      const users = new Map()
+      repos.forEach(r => (universeData.repoUsers?.[r.id] || []).forEach(u => users.set(u.id, u)))
+      const total = users.size
+      if (total === 0) continue
+
+      // Bridge %
+      const bridges = Array.from(users.values()).filter(u => u.isBridge).length
+      bridgePcts.push((bridges / total) * 100)
+
+      // Influence (usuarios × repos)
+      influences.push(total * repos.length)
+
+      // Cross pollination
+      let cross = 0
+      users.forEach(user => {
+        const uRepos = idx.userToRepos.get(user.id) || []
+        for (const rid of uRepos) {
+          if (idx.repoToOrg[rid] && idx.repoToOrg[rid] !== org.id) { cross++; break }
+        }
+      })
+      crossPols.push((cross / total) * 100)
+
+      // Language variety
+      langCounts.push(new Set(repos.map(r => r.language).filter(Boolean)).size)
+
+      // Bus factor promedio
+      const repoNMs = repos.map(r => networkMetrics?.node_metrics?.[r.id]).filter(Boolean)
+      busFacts.push(repoNMs.length > 0
+        ? repoNMs.reduce((s, m) => s + (m.bus_factor || 1), 0) / repoNMs.length : 1)
+
+      // Spread (coeficiente de variación)
+      const counts = repos.map(r => (universeData.repoUsers?.[r.id] || []).length)
+      const avg = counts.reduce((a, b) => a + b, 0) / (counts.length || 1)
+      const dev = counts.reduce((s, c) => s + Math.abs(c - avg), 0) / (counts.length || 1)
+      spreadCoeffs.push(dev / (avg || 1))
+    }
+
+    return {
+      crossPollinations: [...crossPols].sort((a, b) => a - b),
+      bridgePcts:        [...bridgePcts].sort((a, b) => a - b),
+      influences:        [...influences].sort((a, b) => a - b),
+      langCounts:        [...langCounts].sort((a, b) => a - b),
+      busFacts:          [...busFacts].sort((a, b) => a - b),
+      spreadCoeffs:      [...spreadCoeffs].sort((a, b) => a - b),
+    }
+  }
+
+  if (entityType === 'repo') {
+    const orgDiversities = [], userCounts = [], bridgeRatios = []
+
+    for (const repo of (universeData.repoNodes || [])) {
+      const users = universeData.repoUsers?.[repo.id] || []
+      userCounts.push(users.length)
+      const bridges = users.filter(u => u.isBridge).length
+      bridgeRatios.push(users.length > 0 ? bridges / users.length : 0)
+
+      const orgSet = new Set()
+      users.forEach(u => {
+        const uRepos = idx.userToRepos.get(u.id) || []
+        for (const rid of uRepos) {
+          const oid = idx.repoToOrg[rid]
+          if (oid) orgSet.add(oid)
+        }
+      })
+      orgDiversities.push(orgSet.size)
+    }
+
+    return {
+      orgDiversities: [...orgDiversities].sort((a, b) => a - b),
+      userCounts:     [...userCounts].sort((a, b) => a - b),
+      bridgeRatios:   [...bridgeRatios].sort((a, b) => a - b),
+    }
+  }
+
+  if (entityType === 'user') {
+    const orgSpans = [], langCounts = [], collabExposures = []
+
+    for (const [uid, repoIds] of idx.userToRepos) {
+      const orgs = new Set()
+      const langs = new Set()
+      let exposure = 0 // suma de (tamaño_repo - 1) como proxy de co-contributors
+      for (const rid of repoIds) {
+        const oid = idx.repoToOrg[rid]
+        if (oid) orgs.add(oid)
+        const repo = idx.repoNodeMap.get(rid)
+        if (repo?.language) langs.add(repo.language)
+        const s = idx.repoUserIdSets[rid]
+        if (s) exposure += s.size - 1
+      }
+      orgSpans.push(orgs.size)
+      langCounts.push(langs.size)
+      collabExposures.push(exposure)
+    }
+
+    return {
+      orgSpans:         [...orgSpans].sort((a, b) => a - b),
+      langCounts:       [...langCounts].sort((a, b) => a - b),
+      collabExposures:  [...collabExposures].sort((a, b) => a - b),
+    }
+  }
+
+  return {}
+}
 
 self.onmessage = function (e) {
   const { selectedEntity, universeData, networkMetrics } = e.data
   if (!selectedEntity) { self.postMessage({ phase: 1, data: null }); return }
 
-  // Phase 1 — core data + DNA (fast, <50ms)
+  // Phase 1 - core data + DNA (fast, <50ms)
   const core = computeCoreData(selectedEntity, universeData, networkMetrics)
   self.postMessage({ phase: 1, data: core })
 
-  // Phase 2 — impact simulations + collab matrix (medium)
+  // Phase 2 - impact simulations + collab matrix (medium)
   const medium = computeMediumData(selectedEntity, universeData, networkMetrics, core)
   self.postMessage({ phase: 2, data: medium })
 
-  // Phase 3 — similar entities (heavy — O(N) over all same-type nodes)
+  // Phase 3 - similar entities (heavy - O(N) over all same-type nodes)
   const heavy = computeHeavyData(selectedEntity, universeData, networkMetrics, core)
   self.postMessage({ phase: 3, data: heavy })
 }
 
 // ============================================================================
-// BUILD GLOBAL INDICES — O(n) una sola vez, reutilizados en todas partes
+// BUILD GLOBAL INDICES - O(n) una sola vez, reutilizados en todas partes
 // ============================================================================
 function buildIndices(universeData) {
   if (!universeData) return { repoToOrg: {}, userToRepos: new Map(), repoUserIdSets: {}, repoNodeMap: new Map(), orgNodeMap: new Map() }
@@ -72,6 +260,9 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
   // ── Indices globales (O(n) una vez) ──
   const idx = buildIndices(universeData)
 
+  // ── Distribuciones de población para normalización data-driven ──
+  const pop = computePopulationStats(selectedEntity.type, universeData, networkMetrics, idx)
+
   // ORG data
   let orgReposList = [], orgTotalUsers = 0, orgBridgeCount = 0, orgSortedRepos = []
   let orgLangs = [], orgTotalStars = 0, orgAvgStars = 0, orgBridgePct = 0
@@ -105,7 +296,7 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
       .map(u => ({ ...u, repoCount: orgUserRepoCounts.get(u.id) || 0 }))
       .sort((a, b) => b.repoCount - a.repoCount)
 
-    // Orgs entrelazadas — usando índices globales O(U × repos_per_user)
+    // Orgs entrelazadas - usando índices globales O(U × repos_per_user)
     if (universeData) {
       const sharedMap = new Map()
       orgAllUsers.forEach((user) => {
@@ -179,47 +370,56 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
           }
         }
       })
+      // Criticidad proporcional: repoCount normalizado por repos de la org,
+      // soleConnections normalizado por total de conexiones externas.
+      const totalExtOrgs = extOrgConnectors.size || 1
+      const totalRepos = orgReposList.length || 1
       keyDependencies = Array.from(orgAllUsers.values()).map(user => {
         const repoCount = orgUserRepoCounts.get(user.id) || 0
         let soleConnections = 0
         extOrgConnectors.forEach((connectors) => {
           if (connectors.has(user.id) && connectors.size === 1) soleConnections++
         })
-        const criticality = repoCount * 2 + soleConnections * 10
+        // Criticidad proporcional: impacto relativo al scope de la org
+        const repoPct = repoCount / totalRepos
+        const solePct = soleConnections / totalExtOrgs
+        const criticality = repoPct * 0.4 + solePct * 0.6 // peso mayor a conexiones únicas
         return { ...user, repoCount, soleConnections, criticality }
       })
-      .filter(u => u.criticality > 2)
+      .filter(u => u.criticality > 0)
       .sort((a, b) => b.criticality - a.criticality)
       .slice(0, 5)
     }
 
-    // ─── HEALTH SCORE: puntuación de salud colaborativa ───
-    if (orgReposList.length > 0) {
-      const diversityScore = Math.min(Number(orgCrossPollination) * 1.5, 100)
-      const bridgeNetworkScore = Math.min(Number(orgBridgePct) * 2, 100)
-      const langVarietyScore = Math.min((orgLangs.length / 5) * 100, 100)
+    // ─── HEALTH SCORE: 100% data-driven (percentile rank) ───
+    // Cada componente = percentile rank de esta org en la distribución de todas las orgs.
+    // Score final = media de percentiles (todas las dimensiones pesan igual).
+    if (orgReposList.length > 0 && pop.crossPollinations) {
+      const diversityScore = percentileRank(pop.crossPollinations, Number(orgCrossPollination)) * 100
+      const bridgeNetworkScore = percentileRank(pop.bridgePcts, Number(orgBridgePct)) * 100
+      const langVarietyScore = percentileRank(pop.langCounts, orgLangs.length) * 100
       // Distribución de contributors entre repos
       const repoUserCounts = orgReposList.map(r => (universeData?.repoUsers[r.id] || []).length)
       const avgContrib = repoUserCounts.reduce((a, b) => a + b, 0) / (repoUserCounts.length || 1)
       const spreadDev = repoUserCounts.reduce((s, c) => s + Math.abs(c - avgContrib), 0) / (repoUserCounts.length || 1)
-      const spreadScore = Math.max(0, 100 - (spreadDev / (avgContrib || 1)) * 50)
+      const spreadCoeff = spreadDev / (avgContrib || 1)
+      // Para spread, menor coeficiente = mejor distribución → invertir percentil
+      const spreadScore = (1 - percentileRank(pop.spreadCoeffs, spreadCoeff)) * 100
       // Resiliencia basada en bus factor promedio
       const repoNMs = orgReposList.map(r => networkMetrics?.node_metrics?.[r.id]).filter(Boolean)
       const avgBF = repoNMs.length > 0
         ? repoNMs.reduce((s, m) => s + (m.bus_factor || 1), 0) / repoNMs.length
         : 1
-      const resilienceScore = Math.min(avgBF * 25, 100)
+      const resilienceScore = percentileRank(pop.busFacts, avgBF) * 100
       healthBreakdown = [
-        { label: 'Diversidad', value: Math.round(diversityScore), color: '#00ff9f', tip: 'Polinización cruzada: cuántos usuarios se comparten con otras organizaciones. Mayor diversidad = ecosistema más rico.' },
-        { label: 'Resiliencia', value: Math.round(resilienceScore), color: '#ff6b6b', tip: 'Bus factor promedio: cuántas personas necesitan irse para que un repo quede sin mantenedores. Más alto = menos riesgo.' },
-        { label: 'Red Bridge', value: Math.round(bridgeNetworkScore), color: '#ffbd00', tip: 'Proporción de usuarios puente que conectan esta org con otras. Más bridges = mejor integración en la red.' },
-        { label: 'Tech Stack', value: Math.round(langVarietyScore), color: '#bd00ff', tip: 'Variedad de lenguajes de programación usados. Mayor diversidad tecnológica = equipo más versátil.' },
-        { label: 'Distribución', value: Math.round(spreadScore), color: '#00b4d8', tip: 'Uniformidad en la distribución de contribuidores entre repos. Más uniforme = menos repos abandonados.' },
+        { label: 'Diversidad', value: Math.round(diversityScore), color: '#00ff9f', tip: `Polinización cruzada - percentil ${Math.round(diversityScore)} entre todas las organizaciones. Mayor diversidad = ecosistema más rico.` },
+        { label: 'Resiliencia', value: Math.round(resilienceScore), color: '#ff6b6b', tip: `Bus factor promedio - percentil ${Math.round(resilienceScore)}. Más alto = menor riesgo de perder mantenedores clave.` },
+        { label: 'Red Bridge', value: Math.round(bridgeNetworkScore), color: '#ffbd00', tip: `Proporción de usuarios puente - percentil ${Math.round(bridgeNetworkScore)}. Más bridges = mejor integración en la red.` },
+        { label: 'Tech Stack', value: Math.round(langVarietyScore), color: '#bd00ff', tip: `Variedad de lenguajes - percentil ${Math.round(langVarietyScore)}. Mayor diversidad tecnológica = equipo más versátil.` },
+        { label: 'Distribución', value: Math.round(spreadScore), color: '#00b4d8', tip: `Uniformidad de contribuidores - percentil ${Math.round(spreadScore)}. Más uniforme = menos repos abandonados.` },
       ]
-      healthScore = Math.round(
-        diversityScore * 0.25 + resilienceScore * 0.25 + bridgeNetworkScore * 0.2 +
-        langVarietyScore * 0.15 + spreadScore * 0.15
-      )
+      // Media aritmética de percentiles (todas las dimensiones contribuyen por igual)
+      healthScore = Math.round((diversityScore + resilienceScore + bridgeNetworkScore + langVarietyScore + spreadScore) / 5)
     }
   }
 
@@ -232,7 +432,7 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     repoNormalUsers = repoUsers.filter(u => !u.isBridge)
     repoOwnerOrg = idx.orgNodeMap.get(idx.repoToOrg[selectedEntity.id]) || null
 
-    // Diversidad de orgs — usando índices globales O(users × repos_per_user)
+    // Diversidad de orgs - usando índices globales O(users × repos_per_user)
     if (universeData) {
       const orgMap = new Map()
       repoUsers.forEach(u => {
@@ -259,12 +459,16 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
           }
         }
       })
+      const totalExtOrgsRepo = repOrgReps.size || 1
       keyDependencies = repoUsers.map(u => {
         let soleConnections = 0
         repOrgReps.forEach((reps) => {
           if (reps.has(u.id) && reps.size === 1) soleConnections++
         })
-        const criticality = (u.isBridge ? 5 : 0) + soleConnections * 10
+        // Criticidad proporcional: bridge flag + fracción de org connections que dependen solo de este usuario
+        const bridgeFactor = u.isBridge ? 0.3 : 0
+        const solePct = soleConnections / totalExtOrgsRepo
+        const criticality = bridgeFactor + solePct * 0.7
         return { ...u, soleConnections, criticality }
       })
       .filter(u => u.criticality > 0)
@@ -295,7 +499,7 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     userLangs = [...new Set(userRepos.map(r => r.language).filter(Boolean))]
     userTotalStars = userRepos.reduce((s, r) => s + (r.stars || 0), 0)
 
-    // Co-contributors — usando repoUserIdSets para lookup O(1)
+    // Co-contributors - usando repoUserIdSets para lookup O(1)
     const coMap = new Map()
     userRepos.forEach(r => {
       (universeData.repoUsers[r.id] || []).forEach(u => {
@@ -307,46 +511,136 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     userCoContributors = Array.from(coMap.values()).sort((a, b) => b.sharedRepos - a.sharedRepos)
   }
 
-  // ─── COLLABORATION RADAR: perfil de 5 ejes ───
-  // Escala logarítmica para evitar saturación trivial: logScale(value, max)
-  // Da resolución en valores bajos, comprime valores altos sin saturar al 100% fácilmente
-  const logScale = (val, max) => Math.min(Math.log(1 + val) / Math.log(1 + max), 1)
-
+  // ─── COLLABORATION RADAR: perfil de 5 ejes (100% data-driven) ───
+  // Cada eje = percentile rank de esta entidad en la distribución de su tipo.
+  // Centralidad y Conectividad ya son percentiles del backend.
+  // Los demás ejes usan percentileRank contra pop (distribuciones calculadas).
   const radarAxes = []
   if (selectedEntity.type === 'org') {
+    const cpPctl = percentileRank(pop.crossPollinations || [], Number(orgCrossPollination))
+    const bpPctl = percentileRank(pop.bridgePcts || [], Number(orgBridgePct))
+    const infPctl = percentileRank(pop.influences || [], orgTotalUsers * orgReposList.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: 'Importancia de esta organización en toda la red de colaboración' },
-      { label: 'Conectividad', value: connectivity / 100, tip: 'Cantidad y fuerza de conexiones con otras entidades' },
-      { label: 'Diversidad', value: Math.min(Number(orgCrossPollination) / 100, 1), tip: 'Polinización cruzada: usuarios compartidos con otras orgs' },
-      { label: 'Puente', value: logScale(Number(orgBridgePct), 80), tip: 'Porcentaje de usuarios puente que conectan múltiples organizaciones' },
-      { label: 'Influencia', value: logScale(orgTotalUsers * orgReposList.length, 2000), tip: 'Impacto basado en la cantidad de contribuidores y repositorios' },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones con otras entidades` },
+      { label: 'Diversidad', value: cpPctl, tip: `Percentil ${Math.round(cpPctl * 100)} - polinización cruzada relativa a todas las orgs` },
+      { label: 'Puente', value: bpPctl, tip: `Percentil ${Math.round(bpPctl * 100)} - proporción de bridge users vs. población` },
+      { label: 'Influencia', value: infPctl, tip: `Percentil ${Math.round(infPctl * 100)} - impacto (contributors × repos) relativo` },
     )
   } else if (selectedEntity.type === 'repo') {
+    const divPctl = percentileRank(pop.orgDiversities || [], repoOrgDiversity.length)
+    const brPctl = percentileRank(pop.bridgeRatios || [], repoUsers.length > 0 ? repoBridgeUsers.length / repoUsers.length : 0)
+    const alcPctl = percentileRank(pop.userCounts || [], repoUsers.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: 'Importancia de este repositorio en la red de colaboración' },
-      { label: 'Conectividad', value: connectivity / 100, tip: 'Fuerza de las conexiones con otros repositorios y usuarios' },
-      { label: 'Diversidad', value: logScale(repoOrgDiversity.length, 500), tip: 'Cantidad de organizaciones distintas cuyos miembros contribuyen' },
-      { label: 'Puente', value: repoUsers.length > 0 ? repoBridgeUsers.length / repoUsers.length : 0, tip: 'Proporción de contribuidores que conectan múltiples organizaciones' },
-      { label: 'Alcance', value: logScale(repoUsers.length, 80), tip: 'Número total de contribuidores únicos' },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones` },
+      { label: 'Diversidad', value: divPctl, tip: `Percentil ${Math.round(divPctl * 100)} - organizaciones distintas que contribuyen` },
+      { label: 'Puente', value: brPctl, tip: `Percentil ${Math.round(brPctl * 100)} - ratio de bridge users vs. población` },
+      { label: 'Alcance', value: alcPctl, tip: `Percentil ${Math.round(alcPctl * 100)} - contribuidores únicos relativo` },
     )
   } else {
+    // Para co-contributors, usar collaboration exposure como proxy eficiente
+    let userCollabExposure = 0
+    userRepos.forEach(r => {
+      const s = idx.repoUserIdSets[r.id]
+      if (s) userCollabExposure += s.size - 1
+    })
+    const osPctl = percentileRank(pop.orgSpans || [], userOrgs.length)
+    const cePctl = percentileRank(pop.collabExposures || [], userCollabExposure)
+    const vlPctl = percentileRank(pop.langCounts || [], userLangs.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: 'Importancia de este usuario en la red de colaboración' },
-      { label: 'Conectividad', value: connectivity / 100, tip: 'Fuerza de conexiones con otros colaboradores' },
-      { label: 'Org Span', value: logScale(userOrgs.length, 15), tip: 'Número de organizaciones en las que participa' },
-      { label: 'Colaboración', value: logScale(userCoContributors.length, 20000), tip: 'Cantidad de co-contribuidores con los que trabaja' },
-      { label: 'Versatilidad', value: logScale(userLangs.length, 12), tip: 'Diversidad de lenguajes de programación utilizados' },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones` },
+      { label: 'Org Span', value: osPctl, tip: `Percentil ${Math.round(osPctl * 100)} - organizaciones en las que participa vs. población` },
+      { label: 'Colaboración', value: cePctl, tip: `Percentil ${Math.round(cePctl * 100)} - exposición colaborativa (repos compartidos)` },
+      { label: 'Versatilidad', value: vlPctl, tip: `Percentil ${Math.round(vlPctl * 100)} - diversidad de lenguajes vs. población` },
     )
   }
 
-  // ─── NETWORK ROLE CLASSIFICATION ───
+  // ─── ZONE CLASSIFICATION (from position & Jenks boundaries) ───
+  let zoneInfo = null
+  const pos = universeData?.positions?.[selectedEntity.id]
+  const zm = universeData?.zoneMeta
+  if (pos && zm) {
+    const dist = Math.sqrt((pos.x || 0) ** 2 + (pos.y || 0) ** 2 + (pos.z || 0) ** 2)
+    if (dist <= zm.coreRadius) {
+      zoneInfo = { key: 'core', label: 'Zona Core', icon: '⬡', color: '#00ff9f', desc: `Radio ${Math.round(dist)} - Núcleo de alta colaboración` }
+    } else if (dist <= zm.peripheryMin) {
+      zoneInfo = { key: 'mid', label: 'Zona Intermedia', icon: '⬢', color: '#4488ff', desc: `Radio ${Math.round(dist)} - Actividad moderada` }
+    } else {
+      zoneInfo = { key: 'isolated', label: 'Zona Periférica', icon: '◯', color: '#aa44ff', desc: `Radio ${Math.round(dist)} - Órbita exterior` }
+    }
+  }
+
+  // ─── NETWORK ROLE CLASSIFICATION (100% DATA-DRIVEN) ───
+  // Aplica Jenks Natural Breaks (k=3) sobre collab_centrality_raw y
+  // collab_connectivity_raw por separado, filtrando por tipo de entidad.
+  // Resultado: 3 clusters por dimensión (high/mid/low) → matriz 3×3 → rol.
+  // CERO umbrales arbitrarios. Las fronteras emergen de la distribución real.
   let networkRole = null
   if (nm) {
-    const highC = centrality > 50, highConn = connectivity > 50
-    if (highC && highConn) networkRole = { key: 'hub', label: 'Hub Central', icon: '⊛', color: '#ffd166', desc: 'Altamente conectado y central — núcleo de colaboración' }
-    else if (highC && !highConn) networkRole = { key: 'bridge', label: 'Puente Estratégico', icon: '⚡', color: '#ff6b6b', desc: 'Pocas conexiones pero muy estratégicas — une clusters' }
-    else if (!highC && highConn) networkRole = { key: 'local', label: 'Conector Local', icon: '◉', color: '#00b4d8', desc: 'Bien conectado en su zona pero no central globalmente' }
-    else networkRole = { key: 'peripheral', label: 'Periférico', icon: '·', color: '#a29bfe', desc: 'En la periferia de la red — potencial de integración' }
+    const rawC = nm.collab_centrality_raw ?? 0
+    const rawConn = nm.collab_connectivity_raw ?? 0
+
+    // Recoger todos los raw values de entidades activas del mismo tipo
+    const typePrefix = selectedEntity.type + '_'
+    const allCent = []
+    const allConn = []
+    const allMetrics = networkMetrics?.node_metrics || {}
+    for (const nid in allMetrics) {
+      if (!nid.startsWith(typePrefix)) continue
+      const nv = allMetrics[nid]
+      const c = nv.collab_centrality_raw ?? 0
+      const cn = nv.collab_connectivity_raw ?? 0
+      if (c > 0 || cn > 0) {
+        allCent.push(c)
+        allConn.push(cn)
+      }
+    }
+
+    // Clasificar con Jenks si hay suficientes datos, sino tertiles simples
+    let centClass = 'none', connClass = 'none'
+
+    if (rawC === 0 && rawConn === 0) {
+      // Sin actividad colaborativa medible
+      centClass = 'none'
+      connClass = 'none'
+    } else if (allCent.length >= 6) {
+      const centBreaks = jenksNaturalBreaks(allCent, 3)
+      const connBreaks = jenksNaturalBreaks(allConn, 3)
+      centClass = rawC >= centBreaks.boundaries[1] ? 'high'
+                : rawC >= centBreaks.boundaries[0] ? 'mid' : 'low'
+      connClass = rawConn >= connBreaks.boundaries[1] ? 'high'
+                : rawConn >= connBreaks.boundaries[0] ? 'mid' : 'low'
+    } else {
+      // Fallback: tertiles simples para n < 6
+      const sortedC = [...allCent].sort((a, b) => a - b)
+      const sortedCn = [...allConn].sort((a, b) => a - b)
+      const t1c = sortedC[Math.floor(sortedC.length / 3)] || 0
+      const t2c = sortedC[Math.floor(2 * sortedC.length / 3)] || 0
+      const t1cn = sortedCn[Math.floor(sortedCn.length / 3)] || 0
+      const t2cn = sortedCn[Math.floor(2 * sortedCn.length / 3)] || 0
+      centClass = rawC >= t2c ? 'high' : rawC >= t1c ? 'mid' : 'low'
+      connClass = rawConn >= t2cn ? 'high' : rawConn >= t1cn ? 'mid' : 'low'
+    }
+
+    // Matriz de roles: (centClass × connClass) → rol
+    // Los nombres son creativos pero las FRONTERAS son 100% data-driven.
+    const ROLE_MATRIX = {
+      'high_high': { key: 'hub',      label: 'Hub Central',        icon: '⊛', color: '#ffd166', desc: 'Máxima centralidad y conectividad - núcleo de la red' },
+      'high_mid':  { key: 'hub_minor', label: 'Hub Colaborativo',   icon: '⊛', color: '#ffd166', desc: 'Alta centralidad con conectividad significativa' },
+      'high_low':  { key: 'bridge',   label: 'Puente Estratégico',  icon: '⚡', color: '#ff6b6b', desc: 'Alta centralidad con conexiones selectivas - une clusters' },
+      'mid_high':  { key: 'connector', label: 'Conector Denso',     icon: '◉', color: '#00b4d8', desc: 'Red densa de colaboración - muchas conexiones activas' },
+      'mid_mid':   { key: 'active',   label: 'Nodo Activo',         icon: '◈', color: '#06d6a0', desc: 'Participación equilibrada en la red de colaboración' },
+      'mid_low':   { key: 'focused',  label: 'Nodo Focalizado',     icon: '◈', color: '#06d6a0', desc: 'Centralidad notable con conexiones concentradas' },
+      'low_high':  { key: 'social',   label: 'Conector Social',     icon: '◉', color: '#00b4d8', desc: 'Muchas conexiones pero centralidad baja - red local amplia' },
+      'low_mid':   { key: 'emerging', label: 'Nodo Emergente',      icon: '◇', color: '#a29bfe', desc: 'Actividad incipiente con conectividad creciente' },
+      'low_low':   { key: 'nascent',  label: 'Nodo Incipiente',     icon: '◇', color: '#a29bfe', desc: 'Primeras interacciones en la red de colaboración' },
+      'none_none': { key: 'isolated', label: 'Nodo Aislado',        icon: '○', color: '#666',    desc: 'Sin actividad colaborativa medible' },
+    }
+
+    const roleKey = `${centClass}_${connClass}`
+    networkRole = ROLE_MATRIX[roleKey] || ROLE_MATRIX['none_none']
   }
 
   // ─── REPO HUB SCORE ───
@@ -357,15 +651,19 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
   const name = selectedEntity.name || selectedEntity.login || selectedEntity.full_name?.split('/')[1] || selectedEntity.id
   if (selectedEntity.type === 'org') {
     const roleLabel = networkRole?.label || 'entidad'
-    const crossNote = orgCrossPollination > 50
-      ? `Alta cross-pollination (${orgCrossPollination}%): sus contributors participan activamente en otras organizaciones.`
-      : orgCrossPollination > 20
-      ? `Cross-pollination moderada (${orgCrossPollination}%): cierto intercambio de talento con el ecosistema.`
-      : `Baja cross-pollination (${orgCrossPollination}%): ecosistema relativamente cerrado.`
+    // Cross-pollination clasificada por percentil en la población
+    const cpPctl = percentileRank(pop.crossPollinations || [], Number(orgCrossPollination))
+    const crossNote = cpPctl >= 0.75
+      ? `Alta cross-pollination (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): sus contributors participan activamente en otras organizaciones.`
+      : cpPctl >= 0.25
+      ? `Cross-pollination moderada (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): cierto intercambio de talento con el ecosistema.`
+      : `Baja cross-pollination (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): ecosistema relativamente cerrado.`
     const bridgeNote = orgBridgeCount > 0 ? ` ${orgBridgeCount} bridge users conectan con ${orgEntangledOrgs.length} org${orgEntangledOrgs.length !== 1 ? 's' : ''} externas.` : ''
     analysisText = `${name} es un ${roleLabel} con ${orgTotalUsers} contributors en ${orgReposList.length} repos. ${crossNote}${bridgeNote}`
   } else if (selectedEntity.type === 'repo') {
-    const hubNote = repoHubScore > 2 ? `Hub de colaboración inter-org con contributors de ${repoHubScore} organizaciones.` : repoHubScore === 2 ? `Atrae contributors de 2 organizaciones.` : 'Actividad concentrada en una organización.'
+    // Hub score clasificado por percentil en la población de repos
+    const hubPctl = percentileRank(pop.orgDiversities || [], repoHubScore)
+    const hubNote = hubPctl >= 0.75 ? `Hub de colaboración inter-org (p${Math.round(hubPctl * 100)}) con contributors de ${repoHubScore} organizaciones.` : hubPctl >= 0.25 ? `Diversidad moderada (p${Math.round(hubPctl * 100)}): contributors de ${repoHubScore} organizaciones.` : `Diversidad baja (p${Math.round(hubPctl * 100)}): actividad concentrada.`
     const bridgeNote = repoBridgeUsers.length > 0 ? ` ${repoBridgeUsers.length} bridge users (${repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}%) amplifican su alcance.` : ''
     analysisText = `${name}: ${repoUsers.length} contributors. ${hubNote}${bridgeNote}`
   } else if (selectedEntity.type === 'user') {
@@ -393,19 +691,18 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     orgCrossPollination, orgLangBreakdown,
     repoUsers, repoBridgeUsers, repoNormalUsers, repoOwnerOrg, repoOrgDiversity, repoHubScore,
     userRepos, userOrgs, userLangs, userTotalStars, expertise, userCoContributors,
-    networkRole, analysisText, radarAxes, collabDNA,
+    networkRole, zoneInfo, analysisText, radarAxes, collabDNA,
     knowledgeFlows, keyDependencies, healthScore, healthBreakdown,
-    _idx: idx, // pass indices to Phases 2-3 to avoid rebuilding
+    _idx: idx, _pop: pop, // pass indices and population stats to Phases 2-3
   }
 }
 
 // ============================================================================
-// PHASE 2 — Medium features (impact sims + collab matrix)
+// PHASE 2 - Medium features (impact sims + collab matrix)
 // ============================================================================
 
 function computeMediumData(selectedEntity, universeData, networkMetrics, core) {
   const { keyDependencies, healthScore, orgSortedRepos, orgReposList, radarAxes, centrality, connectivity, _idx: idx } = core
-  const logScale = (val, max) => Math.min(Math.log(1 + val) / Math.log(1 + max), 1)
 
   // ─── IMPACT SIMULATION: ¿Qué pasaría si un usuario clave se va? ───
   let impactSimulations = []
@@ -463,20 +760,36 @@ function computeMediumData(selectedEntity, universeData, networkMetrics, core) {
 
       bridgeConnectionsLost = connectedOrgsViaUser.size
 
-      // Impacto en health score (solo orgs)
+      // Impacto en health score proporcional al scope
       let healthDelta = 0
       if (healthScore !== null && selectedEntity.type === 'org') {
-        const factor = user.isBridge ? 8 : 3
-        healthDelta = -Math.min(factor + orgConnectionsLost * 5, healthScore)
+        // Impacto proporcional: pérdida de org connections + bridge status
+        const totalConnectableOrgs = new Set()
+        const allOrgUsers = (universeData.orgRepos[selectedEntity.id] || []).reduce((acc, r) => {
+          (universeData.repoUsers?.[r.id] || []).forEach(u => acc.set(u.id, u)); return acc
+        }, new Map())
+        allOrgUsers.forEach(u => {
+          const uRepos = idx.userToRepos.get(u.id) || []
+          for (const rid of uRepos) {
+            const oid = idx.repoToOrg[rid]
+            if (oid && oid !== selectedEntity.id) totalConnectableOrgs.add(oid)
+          }
+        })
+        const orgConnPct = totalConnectableOrgs.size > 0 ? orgConnectionsLost / totalConnectableOrgs.size : 0
+        const repoPct = orgReposList.length > 0 ? reposAffected / orgReposList.length : 0
+        healthDelta = -Math.round(healthScore * (orgConnPct * 0.6 + repoPct * 0.4))
       }
 
+      // Severidad proporcional al scope de la entidad
+      const totalReposForSeverity = selectedEntity.type === 'org' ? orgReposList.length : (core.repoUsers?.length || 1)
+      const repoImpactRatio = reposAffected / (totalReposForSeverity || 1)
       return {
         user: { id: user.id, login: user.login || user.id, isBridge: user.isBridge },
         reposAffected,
         bridgeConnectionsLost,
         orgConnectionsLost,
         healthDelta,
-        severity: orgConnectionsLost > 0 ? 'critical' : reposAffected > 2 ? 'high' : 'moderate'
+        severity: orgConnectionsLost > 0 ? 'critical' : repoImpactRatio > 0.3 ? 'high' : 'moderate'
       }
     })
   }
@@ -514,16 +827,17 @@ function computeMediumData(selectedEntity, universeData, networkMetrics, core) {
 }
 
 // ============================================================================
-// PHASE 3 — Heavy features (similar entities — O(N) all same-type nodes)
+// PHASE 3 - Heavy features (similar entities - O(N) all same-type nodes)
 // ============================================================================
 
 function computeHeavyData(selectedEntity, universeData, networkMetrics, core) {
-  const { radarAxes, centrality, connectivity, _idx: idx } = core
-  const logScale = (val, max) => Math.min(Math.log(1 + val) / Math.log(1 + max), 1)
+  const { radarAxes, centrality, connectivity, _idx: idx, _pop: pop } = core
 
   // ─── SIMILAR ENTITIES: buscar entidades con perfil radar parecido ───
+  // Usa el MISMO percentileRank que el radar del entity seleccionado,
+  // garantizando consistencia en la comparación euclídea.
   let similarEntities = []
-  if (radarAxes.length >= 3 && universeData && networkMetrics?.node_metrics && idx) {
+  if (radarAxes.length >= 3 && universeData && networkMetrics?.node_metrics && idx && pop) {
     const myVector = radarAxes.map(a => a.value)
     const candidates = []
 
@@ -550,7 +864,12 @@ function computeHeavyData(selectedEntity, universeData, networkMetrics, core) {
           }
         })
         const eCross = eTotal > 0 ? (crossCount / eTotal) * 100 : 0
-        return [ec / 100, econn / 100, Math.min(eCross / 100, 1), logScale(eBridgePct, 80), logScale(eTotal * eRepos.length, 2000)]
+        return [
+          ec / 100, econn / 100,
+          percentileRank(pop.crossPollinations || [], eCross),
+          percentileRank(pop.bridgePcts || [], eBridgePct),
+          percentileRank(pop.influences || [], eTotal * eRepos.length)
+        ]
       } else if (entity.type === 'repo' && selectedEntity.type === 'repo') {
         const eUsers = universeData.repoUsers[entity.id] || []
         const eBridges = eUsers.filter(u => u.isBridge)
@@ -562,26 +881,30 @@ function computeHeavyData(selectedEntity, universeData, networkMetrics, core) {
             if (oid) orgSet.add(oid)
           }
         })
-        return [ec / 100, econn / 100, logScale(orgSet.size, 500), eUsers.length > 0 ? eBridges.length / eUsers.length : 0, logScale(eUsers.length, 80)]
+        return [
+          ec / 100, econn / 100,
+          percentileRank(pop.orgDiversities || [], orgSet.size),
+          percentileRank(pop.bridgeRatios || [], eUsers.length > 0 ? eBridges.length / eUsers.length : 0),
+          percentileRank(pop.userCounts || [], eUsers.length)
+        ]
       } else if (entity.type === 'user' && selectedEntity.type === 'user') {
-        // O(repos_per_user) en vez de O(R × U_per_repo)
         const eRepoIds = idx.userToRepos.get(entity.id) || []
         const eRepos = eRepoIds.map(rid => idx.repoNodeMap.get(rid)).filter(Boolean)
         const eOrgs = new Set()
+        let eExposure = 0
         for (const repo of eRepos) {
           const oid = idx.repoToOrg[repo.id]
           if (oid) eOrgs.add(oid)
+          const s = idx.repoUserIdSets[repo.id]
+          if (s) eExposure += s.size - 1
         }
         const eLangs = new Set(eRepos.map(r => r.language).filter(Boolean))
-        const counted = new Set()
-        let eCoCount = 0
-        for (const r of eRepos) {
-          const s = idx.repoUserIdSets[r.id]
-          if (s) s.forEach(uid => {
-            if (uid !== entity.id && !counted.has(uid)) { counted.add(uid); eCoCount++ }
-          })
-        }
-        return [ec / 100, econn / 100, logScale(eOrgs.size, 15), logScale(eCoCount, 20000), logScale(eLangs.size, 12)]
+        return [
+          ec / 100, econn / 100,
+          percentileRank(pop.orgSpans || [], eOrgs.size),
+          percentileRank(pop.collabExposures || [], eExposure),
+          percentileRank(pop.langCounts || [], eLangs.size)
+        ]
       }
       return null
     }
@@ -592,7 +915,7 @@ function computeHeavyData(selectedEntity, universeData, networkMetrics, core) {
       : selectedEntity.type === 'repo'
       ? (universeData.repoNodes || [])
       : Array.from(idx.userToRepos.keys()).map(uid => {
-          // Find user object from any repo — O(1) per user
+          // Find user object from any repo - O(1) per user
           for (const rid of (idx.userToRepos.get(uid) || [])) {
             const users = universeData.repoUsers[rid]
             if (users) { const u = users.find(u => u.id === uid); if (u) return { ...u, type: 'user' } }

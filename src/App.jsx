@@ -24,7 +24,7 @@ import DetailTable from './components/Dashboard/DetailTable'
 import DashboardNav from './components/Dashboard/DashboardNav'
 import CollaborationBanner from './components/Dashboard/CollaborationBanner'
 
-// Lazy-load del universo 3D (Three.js ~600KB) — solo se carga al abrir
+// Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
 const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
 import QuantumBackground from './components/QuantumBackground'
 import QuantumDivider from './components/QuantumDivider'
@@ -129,9 +129,9 @@ function App() {
             }
           }, 2000)
         } else {
-          // Backend offline — reintentar con backoff incremental
+          // Backend offline - reintentar con backoff incremental
           if (attempt < MAX_RETRIES) {
-            console.warn(`⚠️ Backend offline — reintento ${attempt}/${MAX_RETRIES} en ${RETRY_DELAY / 1000}s...`)
+            console.warn(`⚠️ Backend offline - reintento ${attempt}/${MAX_RETRIES} en ${RETRY_DELAY / 1000}s...`)
             setRetryCount(attempt)
             retryTimeout = setTimeout(() => {
               loadData(attempt + 1)
@@ -213,7 +213,7 @@ function App() {
           <div className={styles.loadingSpinner}>
             {/* Átomo SVG que se transforma en resultado */}
             <div className={`${styles.atomContainer} ${loadingResult ? styles.atomDone : ''}`}>
-              {/* Átomo orbital — se desvanece al completar */}
+              {/* Átomo orbital - se desvanece al completar */}
               <svg
                 className={`${styles.atomSpinner} ${loadingResult ? styles.atomFadeOut : ''}`}
                 viewBox="0 0 120 120" width="80" height="80"
@@ -239,7 +239,7 @@ function App() {
                   </filter>
                 </defs>
               </svg>
-              {/* Indicador de resultado — aparece encima del átomo */}
+              {/* Indicador de resultado - aparece encima del átomo */}
               {loadingResult === 'success' && (
                 <div className={styles.resultIndicator}>
                   <svg viewBox="0 0 52 52" width="52" height="52" className={styles.resultSvg}>
@@ -272,7 +272,7 @@ function App() {
               <span className={styles.resultText}>Coherencia cuántica establecida</span>
             )}
             {loadingResult === 'error' && (
-              <span className={`${styles.resultText} ${styles.resultTextError}`}>Decoherencia detectada — modo simulación</span>
+              <span className={`${styles.resultText} ${styles.resultTextError}`}>Decoherencia detectada - modo simulación</span>
             )}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
@@ -374,7 +374,7 @@ function App() {
               </button>
             )}
 
-            {/* Indicador de estado del backend — notación cuántica */}
+            {/* Indicador de estado del backend - notación cuántica */}
             <div className={styles.statusBadge} data-status={apiStatus.status}>
               <span className={styles.statusQubit}>
                 {apiStatus.status === 'online' && '|1⟩'}
@@ -393,7 +393,7 @@ function App() {
         </div>
       </header>
 
-      {/* Banner offline — efecto decoherencia */}
+      {/* Banner offline - efecto decoherencia */}
       {apiStatus.status === 'offline' && (
         <div className={styles.offlineBanner}>
           <span className={styles.offlinePulse} />
@@ -442,7 +442,7 @@ function App() {
 
           <QuantumDivider variant="large" />
 
-          {/* Banner portal al universo — justo antes de la sección de red */}
+          {/* Banner portal al universo - justo antes de la sección de red */}
           <CollaborationBanner />
 
           {/* Grafo de redes de colaboración */}
@@ -475,7 +475,7 @@ function App() {
         </div>
       </main>
 
-      {/* Universo 3D de Colaboración — lazy loaded */}
+      {/* Universo 3D de Colaboración - lazy loaded */}
       {store.showCollaborationGraph && (
         <Suspense fallback={
           <div style={{
@@ -550,7 +550,7 @@ function App() {
               {/* Estado final Bell */}
               <text x="570" y="32" fill="rgba(0, 212, 228, 0.4)" fontSize="9" fontFamily="var(--font-family-mono)" textAnchor="start">|Φ⁺⟩</text>
             </svg>
-            <p className={styles.circuitLabel}>Circuito de Par de Bell — Estado máximamente entrelazado</p>
+            <p className={styles.circuitLabel}>Circuito de Par de Bell - Estado máximamente entrelazado</p>
           </div>
 
           {/* Info del proyecto */}

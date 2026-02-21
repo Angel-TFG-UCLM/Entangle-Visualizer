@@ -22,7 +22,7 @@
   overflow: hidden;
 }
 
-/* Scanlines CRT — efecto terminal cuántico */
+/* Scanlines CRT - efecto terminal cuántico */
 .loadingScreen::before {
   content: '';
   position: absolute;
@@ -125,7 +125,7 @@
   align-items: center;
 }
 
-/* Contenedor del átomo + resultado — tamaño fijo, posición estable */
+/* Contenedor del átomo + resultado - tamaño fijo, posición estable */
 .atomContainer {
   position: relative;
   width: 80px;
@@ -185,7 +185,7 @@
   to { opacity: 1; transform: scale(1); }
 }
 
-/* === INDICADORES DE RESULTADO — SVG animado tipo draw-on === */
+/* === INDICADORES DE RESULTADO - SVG animado tipo draw-on === */
 .resultIndicator {
   position: absolute;
   inset: 0;
@@ -203,7 +203,7 @@
   filter: drop-shadow(0 0 8px currentColor);
 }
 
-/* Círculo exterior — se dibuja */
+/* Círculo exterior - se dibuja */
 .resultCircle {
   animation: drawCircle 0.5s ease-out 0.1s forwards;
 }
@@ -211,7 +211,7 @@
   to { stroke-dashoffset: 0; }
 }
 
-/* Check mark — se dibuja tras el círculo */
+/* Check mark - se dibuja tras el círculo */
 .resultCheck {
   animation: drawCheck 0.35s ease-out 0.45s forwards;
 }
@@ -219,7 +219,7 @@
   to { stroke-dashoffset: 0; }
 }
 
-/* Cruz (error) — dos trazos con delay escalonado */
+/* Cruz (error) - dos trazos con delay escalonado */
 .resultCrossA {
   animation: drawCross 0.25s ease-out 0.45s forwards;
 }
@@ -238,7 +238,7 @@
   min-height: 1.8em;
 }
 .loadingTextResult {
-  /* sin shift — el min-height ya estaba */
+  /* sin shift - el min-height ya estaba */
 }
 .resultText {
   display: inline-block;
@@ -538,7 +538,7 @@
   margin-top: var(--spacing-xs);
 }
 
-/* Punto orbital animado — orbita en elipse */
+/* Punto orbital animado - orbita en elipse */
 .orbitalDot {
   width: 4px;
   height: 4px;

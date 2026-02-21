@@ -1,5 +1,5 @@
 /**
- * ENTANGLE Quantum Field — Visualización 3D Cuántica
+ * ENTANGLE Quantum Field - Visualización 3D Cuántica
  * ====================================================
  *
  * Metáfora cuántica coherente con el proyecto ENTANGLE:
@@ -37,6 +37,56 @@ const USER_MAX_ORBIT = 10 // órbita máxima partícula→qubit
 function seededRandom(seed) {
   let s = seed
   return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646 }
+}
+
+// Algoritmo de Jenks Natural Breaks (Fisher-Jenks)
+// Clasifica datos 1D en k grupos minimizando la varianza intra-grupo.
+// Ref: Fisher, W.D. (1958) "On Grouping for Maximum Homogeneity"
+function jenksNaturalBreaks(data, nClasses) {
+  const sorted = [...data].sort((a, b) => a - b)
+  const n = sorted.length
+  if (n <= nClasses) {
+    const step = n > 1 ? (sorted[n - 1] - sorted[0]) / nClasses : sorted[0]
+    return {
+      boundaries: Array.from({length: nClasses - 1}, (_, i) => sorted[0] + step * (i + 1)),
+      classStarts: Array.from({length: nClasses}, (_, i) => Math.min(i, n - 1)),
+      sorted
+    }
+  }
+  const lower = Array.from({length: n + 1}, () => new Int32Array(nClasses + 1))
+  const vari = Array.from({length: n + 1}, () => {
+    const r = new Float64Array(nClasses + 1); r.fill(Infinity); return r
+  })
+  for (let j = 1; j <= nClasses; j++) { lower[1][j] = 1; vari[1][j] = 0 }
+  for (let l = 2; l <= n; l++) {
+    let sum = 0, sumSq = 0, w = 0
+    for (let m = 1; m <= l; m++) {
+      const i3 = l - m + 1
+      const val = sorted[i3 - 1]
+      w++; sum += val; sumSq += val * val
+      const v = sumSq - (sum * sum) / w
+      if (i3 > 1) {
+        for (let j = 2; j <= nClasses; j++) {
+          const cost = v + vari[i3 - 1][j - 1]
+          if (cost < vari[l][j]) { lower[l][j] = i3; vari[l][j] = cost }
+        }
+      }
+    }
+    lower[l][1] = 1
+    vari[l][1] = sumSq - (sum * sum) / w
+  }
+  const classStarts = new Array(nClasses)
+  classStarts[0] = 0
+  let k = n
+  for (let j = nClasses; j >= 2; j--) {
+    classStarts[j - 1] = lower[k][j] - 1
+    k = lower[k][j] - 1
+  }
+  const boundaries = []
+  for (let c = 1; c < nClasses; c++) {
+    boundaries.push((sorted[classStarts[c] - 1] + sorted[classStarts[c]]) / 2)
+  }
+  return { boundaries, classStarts, sorted }
 }
 
 // ============================================================================
@@ -118,19 +168,19 @@ function computeLayout(graph, nodeMetrics) {
   // ================================================================
   // FASE 2: Score de centralidad por org
   // ================================================================
-  // Usar collab_centrality del backend (percentil 0-100) si está disponible,
-  // sino calcular localmente desde el grafo
+  // Usar collab_centrality_raw (suma de contributors compartidos) del backend,
+  // NO collab_centrality (percentil 0-100 que distorsiona la clasificación zonal)
   const orgScore = {}
   let useBackendMetrics = false
 
   if (nodeMetrics) {
     const anyOrgHasMetrics = orgNodes.some(org =>
-      nodeMetrics[org.id]?.collab_centrality !== undefined
+      nodeMetrics[org.id]?.collab_centrality_raw !== undefined
     )
     if (anyOrgHasMetrics) {
       useBackendMetrics = true
       orgNodes.forEach(org => {
-        orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality ?? 0
+        orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality_raw ?? 0
       })
     }
   }
@@ -153,63 +203,60 @@ function computeLayout(graph, nodeMetrics) {
 
   // Debug: verificar distribución de zonas
   if (sortedByScore.length > 0) {
-    console.log(`[Layout] Modo: ${useBackendMetrics ? 'BACKEND collab_centrality' : 'LOCAL orgScore'}`)
-    console.log(`[Layout] Top 5 orgs:`, sortedByScore.slice(0, 5).map(o => `${o.id}=${orgScore[o.id]}`))
+    console.log(`[Layout] Modo: ${useBackendMetrics ? 'BACKEND collab_centrality_raw' : 'LOCAL orgScore'}`)
+    console.log(`[Layout] Top 10 orgs:`, sortedByScore.slice(0, 10).map(o => `${o.id}=${orgScore[o.id]}`))
+    console.log(`[Layout] Bottom 5 orgs:`, sortedByScore.slice(-5).map(o => `${o.id}=${orgScore[o.id]}`))
   }
 
   // ================================================================
-  // FASE 3: Posicionar orgs — colaborativas al centro, aisladas fuera
+  // FASE 3: Posicionar orgs - MAPEO CONTINUO LOGARÍTMICO
   // ================================================================
+  // Cada org recibe un radio proporcional a log(score).
+  // Score alto → radio pequeño (centro), score bajo → radio grande (periferia).
+  // Las zonas visuales (core/mid/isolated) se derivan de la posición final.
   const repoCount = repoNodes.length
   const scaleFactor = repoCount > 200 ? Math.sqrt(repoCount / 200) : 1
   const positions = {}
   const rng = seededRandom(42)
 
-  // Rangos de distancia al centro (ampliados para acomodar órbitas de repos)
-  const CORE_RADIUS = 150 * scaleFactor     // orgs top → dentro de este radio
-  const PERIPHERY_MIN = 500 * scaleFactor   // orgs aisladas → desde aquí
-  const PERIPHERY_MAX = 900 * scaleFactor   // hasta aquí
+  // PERIPHERY_MAX: parametro de escala visual (tamano del universo). No define zonas.
+  const PERIPHERY_MAX = 900 * scaleFactor
 
-  // Separar orgs en 3 zonas según el score
-  const coreOrgs = []      // alta colaboración → centro
-  const midOrgs = []       // colaboración moderada → zona media
-  const isolatedOrgs = []  // sin colaboración → periferia
+  const orgPositions = []
+  const MIN_SEP = 55 * scaleFactor
 
-  if (useBackendMetrics) {
-    // Backend: percentil 0-100 → umbrales fijos
-    sortedByScore.forEach(org => {
-      const s = orgScore[org.id]
-      if (s >= 40) coreOrgs.push(org)
-      else if (s > 0) midOrgs.push(org)
-      else isolatedOrgs.push(org)
-    })
-  } else {
-    // Local: umbrales relativos al máximo
-    const maxScore = Math.max(...Object.values(orgScore), 1)
-    sortedByScore.forEach(org => {
-      const s = orgScore[org.id]
-      if (s >= maxScore * 0.15) coreOrgs.push(org)
-      else if (s > 0) midOrgs.push(org)
-      else isolatedOrgs.push(org)
-    })
+  const nonZeroOrgs = sortedByScore.filter(o => orgScore[o.id] > 0)
+  const maxScore = nonZeroOrgs.length > 0 ? orgScore[nonZeroOrgs[0].id] : 1
+
+  // Pre-computar targetR para todas las orgs con colaboracion
+  const orgTargetR = {}
+  const allTargetRadii = []
+  for (const org of nonZeroOrgs) {
+    const score = orgScore[org.id]
+    const normalized = Math.log(1 + score) / Math.log(1 + maxScore)
+    const curved = Math.pow(normalized, 0.7)
+    const tr = PERIPHERY_MAX * (1 - curved)
+    orgTargetR[org.id] = tr
+    allTargetRadii.push(tr)
   }
 
-  console.log(`[Layout] Zonas: core=${coreOrgs.length}, mid=${midOrgs.length}, isolated=${isolatedOrgs.length}`)
-
-  // Colocar la org más importante en el centro
-  const orgPositions = []
-  const MIN_SEP = 80 * scaleFactor // separación mínima entre orgs
+  // Jenks Natural Breaks: fronteras derivadas de la distribucion real
+  let CORE_BOUNDARY, MID_BOUNDARY
+  if (allTargetRadii.length >= 6) {
+    const { boundaries, classStarts } = jenksNaturalBreaks(allTargetRadii, 3)
+    CORE_BOUNDARY = boundaries[0]
+    MID_BOUNDARY = boundaries[1]
+    const c1 = classStarts[1]
+    const c2 = classStarts[2] - classStarts[1]
+    const c3 = allTargetRadii.length - classStarts[2]
+    console.log(`[Layout] Jenks Natural Breaks -> core<${CORE_BOUNDARY.toFixed(0)} (${c1} orgs), mid<${MID_BOUNDARY.toFixed(0)} (${c2} orgs), peripheral (${c3} orgs)`)
+  } else {
+    CORE_BOUNDARY = PERIPHERY_MAX * 0.25
+    MID_BOUNDARY = PERIPHERY_MAX * 0.6
+    console.log(`[Layout] Fallback (n<6): core<${CORE_BOUNDARY.toFixed(0)}, mid<${MID_BOUNDARY.toFixed(0)}`)
+  }
 
   function placeOrg(org, rMin, rMax) {
-    // La primera org en coreOrgs (mayor centralidad) → centro exacto
-    if (coreOrgs.length > 0 && coreOrgs[0] === org && !positions[org.id]) {
-      const pos = new THREE.Vector3(0, 0, 0)
-      positions[org.id] = pos
-      orgPositions.push(pos)
-      return
-    }
-
-    // Intentar colocar cerca de orgs con las que colabora (atracción)
     const neighbors = orgNeighbors[org.id]
     let attractCenter = null
     if (neighbors && neighbors.size > 0) {
@@ -243,19 +290,16 @@ function computeLayout(graph, nodeMetrics) {
         r * Math.sin(ψ) * Math.sin(θ)
       )
 
-      // Separación mínima de orgs ya colocadas
       let minDist = Infinity
       for (const prev of orgPositions) {
         const d = candidate.distanceTo(prev)
         if (d < minDist) minDist = d
       }
-      if (minDist < MIN_SEP * 0.5) continue // demasiado cerca
+      if (minDist < MIN_SEP * 0.5) continue
 
-      // Puntuación: balance entre separación y atracción a vecinos
-      let score = Math.min(minDist, MIN_SEP * 2) // bonificar separación hasta cierto punto
+      let score = Math.min(minDist, MIN_SEP * 2)
 
       if (attractCenter) {
-        // Penalizar distancia al centroide de vecinos colaborativos
         const distToNeighbors = candidate.distanceTo(attractCenter)
         score -= distToNeighbors * 0.3
       }
@@ -267,7 +311,6 @@ function computeLayout(graph, nodeMetrics) {
     }
 
     if (!best) {
-      // Fallback: posición aleatoria en el rango
       const r = rMin + rng() * (rMax - rMin)
       const θ = rng() * Math.PI * 2
       best = new THREE.Vector3(r * Math.cos(θ), (rng() - 0.5) * r * 0.4, r * Math.sin(θ))
@@ -277,13 +320,45 @@ function computeLayout(graph, nodeMetrics) {
     orgPositions.push(best)
   }
 
-  // Colocar: core → mid → isolated
-  coreOrgs.forEach(org => placeOrg(org, 0, CORE_RADIUS))
-  midOrgs.forEach(org => placeOrg(org, CORE_RADIUS * 0.5, PERIPHERY_MIN))
-  isolatedOrgs.forEach(org => placeOrg(org, PERIPHERY_MIN, PERIPHERY_MAX))
+  // Org #1 (mayor score): centro absoluto
+  if (sortedByScore.length > 0 && orgScore[sortedByScore[0].id] > 0) {
+    positions[sortedByScore[0].id] = new THREE.Vector3(0, 0, 0)
+    orgPositions.push(positions[sortedByScore[0].id])
+  }
+
+  // Resto: usar targetR pre-computado
+  const startIdx = (sortedByScore.length > 0 && orgScore[sortedByScore[0].id] > 0) ? 1 : 0
+  for (let i = startIdx; i < sortedByScore.length; i++) {
+    const org = sortedByScore[i]
+    const score = orgScore[org.id]
+
+    if (score > 0) {
+      const targetR = orgTargetR[org.id]
+      const band = Math.max(MIN_SEP, targetR * 0.15)
+      placeOrg(org, Math.max(0, targetR - band), targetR + band)
+    } else {
+      placeOrg(org, MID_BOUNDARY, PERIPHERY_MAX)
+    }
+  }
+
+  // Derivar zonas desde posiciones reales (para metadatos visuales)
+  const coreOrgs = []
+  const midOrgs = []
+  const isolatedOrgs = []
+  sortedByScore.forEach(org => {
+    const p = positions[org.id]
+    if (!p) { isolatedOrgs.push(org); return }
+    const r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+    if (r <= CORE_BOUNDARY) coreOrgs.push(org)
+    else if (r <= MID_BOUNDARY) midOrgs.push(org)
+    else isolatedOrgs.push(org)
+  })
+
+  console.log(`[Layout] Distribución continua: core=${coreOrgs.length}, mid=${midOrgs.length}, isolated=${isolatedOrgs.length}`)
+  console.log(`[Layout] Score: max=${maxScore}, nonZero=${nonZeroOrgs.length}/${sortedByScore.length}`)
 
   // ================================================================
-  // FASE 4: Repos — órbita escalada por cantidad de repos
+  // FASE 4: Repos - órbita escalada por cantidad de repos
   // ================================================================
   const assignedRepos = new Set()
   const baseRepoMin = REPO_MIN_ORBIT * Math.max(1, scaleFactor * 0.7)
@@ -314,12 +389,12 @@ function computeLayout(graph, nodeMetrics) {
     })
   })
 
-  // Repos huérfanos (sin org) — dispersados en zona media-exterior
+  // Repos huérfanos (sin org) - dispersados en zona media-exterior
   const orphanRepos = repoNodes.filter(r => !assignedRepos.has(r.id))
   orphanRepos.forEach((repo, i) => {
     const a = (i / Math.max(orphanRepos.length, 1)) * Math.PI * 2 + rng() * 0.5
-    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.4
-    const yOff = (rng() - 0.5) * PERIPHERY_MIN * 0.25
+    const r2 = MID_BOUNDARY * 0.5 + rng() * MID_BOUNDARY * 0.4
+    const yOff = (rng() - 0.5) * MID_BOUNDARY * 0.25
     positions[repo.id] = new THREE.Vector3(
       r2 * Math.cos(a) + (rng() - 0.5) * 30,
       yOff,
@@ -328,7 +403,7 @@ function computeLayout(graph, nodeMetrics) {
   })
 
   // ================================================================
-  // FASE 5: Users — bridge al centroide, non-bridge en órbita
+  // FASE 5: Users - bridge al centroide, non-bridge en órbita
   // ================================================================
   const assignedUsers = new Set()
   const userRepoLinks = {}
@@ -365,13 +440,13 @@ function computeLayout(graph, nodeMetrics) {
     assignedUsers.add(user.id)
   })
 
-  // Users sin repos — zona exterior
+  // Users sin repos - zona exterior
   userNodes.filter(u => !assignedUsers.has(u.id)).forEach((user, i) => {
     const a = rng() * Math.PI * 2
-    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.3
+    const r2 = MID_BOUNDARY * 0.5 + rng() * MID_BOUNDARY * 0.3
     positions[user.id] = new THREE.Vector3(
       r2 * Math.cos(a) + (rng() - 0.5) * 50,
-      (rng() - 0.5) * PERIPHERY_MIN * 0.25,
+      (rng() - 0.5) * MID_BOUNDARY * 0.25,
       r2 * Math.sin(a) + (rng() - 0.5) * 50
     )
   })
@@ -400,7 +475,7 @@ function computeLayout(graph, nodeMetrics) {
 }
 
 // ============================================================================
-// RELATED IDS — entidades relacionadas con la seleccionada
+// RELATED IDS - entidades relacionadas con la seleccionada
 // ============================================================================
 
 function computeRelatedIds(entity, data) {
@@ -448,7 +523,7 @@ function QuantumVacuum({ progressRef, progressKey }) {
     return g
   }, [])
 
-  // Fluctuaciones del vacío — partículas virtuales apareciendo/desapareciendo
+  // Fluctuaciones del vacío - partículas virtuales apareciendo/desapareciendo
   const fluctCount = 400
   const fluctPositions = useMemo(() => {
     const arr = new Float32Array(fluctCount * 3)
@@ -460,30 +535,57 @@ function QuantumVacuum({ progressRef, progressKey }) {
     return arr
   }, [])
 
-  const fluctSizes = useMemo(() => {
+  const fluctPhases = useMemo(() => {
     const arr = new Float32Array(fluctCount)
     for (let i = 0; i < fluctCount; i++) arr[i] = Math.random()
     return arr
   }, [])
 
-  // Animación de fluctuaciones — parpadeo aleatorio + fade-in con progress
+  // Material GPU - per-vertex twinkling sin CPU iterations
+  const fluctMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uProgress: { value: 0 },
+      uOpacity: { value: 0 },
+    },
+    vertexShader: `
+      attribute float aPhase;
+      uniform float uTime;
+      uniform float uProgress;
+      varying float vAlpha;
+      void main() {
+        float phase = aPhase * 6.28318;
+        float life = sin(uTime * (0.5 + aPhase * 2.0) + phase);
+        float sz = max(0.0, life) * 0.5 * uProgress;
+        vAlpha = sz;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = max(sz * 0.2 * (200.0 / max(-mv.z, 1.0)), 0.0);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      uniform float uOpacity;
+      varying float vAlpha;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        gl_FragColor = vec4(0.2, 0.4, 0.67, uOpacity * vAlpha * (1.0 - d));
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+  }), [])
+
+  // Animación: solo 3 uniform writes por frame (vs 400 iter antes)
   useFrame(({ clock }) => {
-    if (!fluctRef.current) return
     const t = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
-    const sizes = fluctRef.current.geometry.attributes.size
-    for (let i = 0; i < fluctCount; i++) {
-      const phase = fluctSizes[i] * Math.PI * 2
-      const life = Math.sin(t * (0.5 + fluctSizes[i] * 2) + phase)
-      sizes.array[i] = Math.max(0, life) * 0.5 * p
-    }
-    sizes.needsUpdate = true
+    fluctMat.uniforms.uTime.value = t
+    fluctMat.uniforms.uProgress.value = p
+    fluctMat.uniforms.uOpacity.value = p > 0.01 ? 0.15 * p : 0
 
     // Lattice fade-in
     if (latticeRef.current) latticeRef.current.material.opacity = 0.025 * p
-
-    // Fluctuaciones: fade-in MUY suave — son fondo sutil, no protagonistas
-    if (fluctRef.current?.material) fluctRef.current.material.opacity = p > 0.01 ? 0.15 * p : 0
   })
 
   return (
@@ -493,61 +595,55 @@ function QuantumVacuum({ progressRef, progressKey }) {
         <lineBasicMaterial color="#00f7ff" transparent opacity={0} depthWrite={false} />
       </lineSegments>
 
-      {/* Fluctuaciones del vacío — partículas muy tenues de fondo */}
-      <points ref={fluctRef}>
+      {/* Fluctuaciones del vacío - GPU twinkling */}
+      <points ref={fluctRef} material={fluctMat} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" array={fluctPositions} itemSize={3} count={fluctCount} />
-          <bufferAttribute attach="attributes-size" array={new Float32Array(fluctCount)} itemSize={1} count={fluctCount} />
+          <bufferAttribute attach="attributes-aPhase" array={fluctPhases} itemSize={1} count={fluctCount} />
         </bufferGeometry>
-        <pointsMaterial
-          size={0.2}
-          color="#3366aa"
-          transparent
-          opacity={0}
-          sizeAttenuation
-          depthWrite={false}
-          toneMapped={false}
-        />
       </points>
     </>
   )
 }
 
 // ============================================================================
-// PROCESADORES CUÁNTICOS (Orgs) — Toros de energía rotando
+// PROCESADORES CUÁNTICOS (Orgs) - InstancedMesh: 4 draw calls en vez de 2800
 // ============================================================================
 
 function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
-  const groupRef = useRef()
+  const torus1Ref = useRef()
+  const torus2Ref = useRef()
+  const coreRef = useRef()
+  const hitRef = useRef()
+  const n = orgNodes.length
 
   const torusGeo = useMemo(() => new THREE.TorusGeometry(2.8, 0.25, 12, 48), [])
   const torusGeo2 = useMemo(() => new THREE.TorusGeometry(4, 0.12, 8, 48), [])
   const coreGeo = useMemo(() => new THREE.SphereGeometry(0.9, 16, 16), [])
   const hitGeo = useMemo(() => new THREE.SphereGeometry(6, 8, 8), [])
+
+  const t1Mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.7 }), [])
+  const t2Mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.25 }), [])
+  const coreMat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.6 }), [])
   const hitMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), [])
 
-  // Materiales individuales por org (necesarios para dimming selectivo)
-  const orgMats = useMemo(() => orgNodes.map(() => ({
-    t1: new THREE.MeshBasicMaterial({ color: new THREE.Color('#00f7ff').multiplyScalar(2), toneMapped: false, transparent: true, opacity: 0.7 }),
-    t2: new THREE.MeshBasicMaterial({ color: new THREE.Color('#00f7ff').multiplyScalar(1.2), toneMapped: false, transparent: true, opacity: 0.25 }),
-    core: new THREE.MeshBasicMaterial({ color: new THREE.Color('#00f7ff').multiplyScalar(3), toneMapped: false, transparent: true, opacity: 0.6 }),
-  })), [orgNodes])
-
+  const tmpObj = useMemo(() => new THREE.Object3D(), [])
+  const tmpColor = useMemo(() => new THREE.Color(), [])
+  const tmpColor2 = useMemo(() => new THREE.Color(), [])
   const orgBaseColor = useMemo(() => new THREE.Color('#00f7ff'), [])
+  const orgTargetColor = useMemo(() => new THREE.Color(), [])
   const orgLensBlend = useRef(0)
   const lastOrgLens = useRef(null)
-  const orgTmpColor = useMemo(() => new THREE.Color(), [])
-  const orgTargetColor = useMemo(() => new THREE.Color(), [])
   const orgRevealTime = useRef(0)
   const ORG_BLEND_SPEED = 0.04
 
   useFrame(({ clock }) => {
-    if (!groupRef.current) return
+    if (!torus1Ref.current || !torus2Ref.current || !coreRef.current || !hitRef.current) return
     const t = clock.getElapsedTime()
-    const n = orgNodes.length
     const hasSel = highlightSet !== null
+    const progress = progressRef.current[progressKey]
 
-    // Smooth lens blend for processors — delayed until canvas visible
+    // Smooth lens blend
     if (lensData !== lastOrgLens.current) {
       lastOrgLens.current = lensData
       orgLensBlend.current = lensData ? 0.0 : 1.0
@@ -560,145 +656,187 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
     }
     const blend = orgLensBlend.current
 
-    const progress = progressRef.current[progressKey]
-    groupRef.current.children.forEach((group, i) => {
+    for (let i = 0; i < n; i++) {
+      const pos = positions[orgNodes[i].id]
+      if (!pos) continue
+
       const stagger = n > 1 ? i / (n - 1) : 0
       const localP = easeOutElastic(Math.min(Math.max((progress - stagger * 0.6) / 0.5, 0), 1))
-      group.scale.setScalar(localP)
-
+      const isHighlighted = hasSel && highlightSet.has(orgNodes[i]?.id)
+      // Lens-driven scale: brighter lens color → bigger entity
+      const ld = lensData?.[orgNodes[i]?.id]
+      const lensScaleFactor = (ld && blend > 0.01)
+        ? 0.5 + ((ld.r + ld.g + ld.b) / 3) * 0.8
+        : 1.0
+      const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
+      const scale = (isHighlighted ? localP * 1.25 : localP) * appliedLensScale
       const speed = 0.3 + i * 0.05
-      if (group.children[0]) group.children[0].rotation.x = t * speed
-      if (group.children[0]) group.children[0].rotation.y = t * speed * 0.7
-      if (group.children[1]) group.children[1].rotation.x = t * speed * -0.5
-      if (group.children[1]) group.children[1].rotation.z = t * speed * 0.3
 
-      const m = orgMats[i]
-      if (m) {
-        const isHighlighted = hasSel && highlightSet.has(orgNodes[i]?.id)
-        const dim = hasSel && !isHighlighted ? 0.02 : 1
-        const boost = hasSel && isHighlighted ? 1.6 : 1
-        // Lens-aware coloring with smooth blend for processors
-        const ld = lensData?.[orgNodes[i]?.id]
-        if (ld && blend > 0.01) {
-          orgTargetColor.setRGB(ld.r, ld.g, ld.b)
-          orgTmpColor.copy(orgBaseColor).lerp(orgTargetColor, blend)
-          m.t1.color.copy(orgTmpColor).multiplyScalar(2 * boost)
-          m.t2.color.copy(orgTmpColor).multiplyScalar(1.2 * boost)
-          m.core.color.copy(orgTmpColor).multiplyScalar(3 * boost)
-        } else {
-          m.t1.color.copy(orgBaseColor).multiplyScalar(2 * boost)
-          m.t2.color.copy(orgBaseColor).multiplyScalar(1.2 * boost)
-          m.core.color.copy(orgBaseColor).multiplyScalar(3 * boost)
-        }
-        m.t1.opacity = 0.7 * dim
-        m.t2.opacity = 0.25 * dim
-        m.core.opacity = 0.6 * dim
+      // Torus 1 - rotación X,Y
+      tmpObj.position.copy(pos)
+      tmpObj.rotation.set(t * speed, t * speed * 0.7, 0)
+      tmpObj.scale.setScalar(scale)
+      tmpObj.updateMatrix()
+      torus1Ref.current.setMatrixAt(i, tmpObj.matrix)
 
-        // Escalar procesadores seleccionados ligeramente
-        if (hasSel && isHighlighted) {
-          group.scale.setScalar(localP * 1.25)
-        }
+      // Torus 2 - rotación X,Z inversa
+      tmpObj.rotation.set(t * speed * -0.5, 0, t * speed * 0.3)
+      tmpObj.updateMatrix()
+      torus2Ref.current.setMatrixAt(i, tmpObj.matrix)
+
+      // Core - sin rotación
+      tmpObj.rotation.set(0, 0, 0)
+      tmpObj.updateMatrix()
+      coreRef.current.setMatrixAt(i, tmpObj.matrix)
+
+      // Hitbox - misma posición/escala que core
+      hitRef.current.setMatrixAt(i, tmpObj.matrix)
+
+      // Color con dimming via brillo (instanceColor × material.color = color final)
+      const dim = hasSel && !isHighlighted ? 0.02 : 1
+      const boost = hasSel && isHighlighted ? 1.6 : 1
+      if (ld && blend > 0.01) {
+        orgTargetColor.setRGB(ld.r, ld.g, ld.b)
+        tmpColor.copy(orgBaseColor).lerp(orgTargetColor, blend)
+      } else {
+        tmpColor.copy(orgBaseColor)
       }
-    })
+      const factor = dim * boost
+      tmpColor2.copy(tmpColor).multiplyScalar(2 * factor)
+      torus1Ref.current.setColorAt(i, tmpColor2)
+      tmpColor2.copy(tmpColor).multiplyScalar(1.2 * factor)
+      torus2Ref.current.setColorAt(i, tmpColor2)
+      tmpColor2.copy(tmpColor).multiplyScalar(3 * factor)
+      coreRef.current.setColorAt(i, tmpColor2)
+    }
+
+    torus1Ref.current.instanceMatrix.needsUpdate = true
+    torus2Ref.current.instanceMatrix.needsUpdate = true
+    coreRef.current.instanceMatrix.needsUpdate = true
+    hitRef.current.instanceMatrix.needsUpdate = true
+    if (torus1Ref.current.instanceColor) torus1Ref.current.instanceColor.needsUpdate = true
+    if (torus2Ref.current.instanceColor) torus2Ref.current.instanceColor.needsUpdate = true
+    if (coreRef.current.instanceColor) coreRef.current.instanceColor.needsUpdate = true
   })
 
+  if (n === 0) return null
+
   return (
-    <group ref={groupRef}>
-      {orgNodes.map((org, idx) => {
-        const pos = positions[org.id]; if (!pos) return null
-        const m = orgMats[idx]
-        return (
-          <group key={org.id} position={pos}>
-            <mesh geometry={torusGeo} material={m?.t1} />
-            <mesh geometry={torusGeo2} material={m?.t2} />
-            <mesh geometry={coreGeo} material={m?.core} />
-            {/* Hitbox invisible — área de click ampliada */}
-            <mesh geometry={hitGeo} material={hitMat}
-              onPointerEnter={(e) => { e.stopPropagation(); onHover(org, pos) }}
-              onPointerLeave={(e) => { e.stopPropagation(); onHover(null, null) }}
-              onClick={(e) => { e.stopPropagation(); onClick(org, pos) }}
-            />
-          </group>
-        )
-      })}
-    </group>
+    <>
+      <instancedMesh ref={torus1Ref} args={[torusGeo, t1Mat, n]} frustumCulled={false} />
+      <instancedMesh ref={torus2Ref} args={[torusGeo2, t2Mat, n]} frustumCulled={false} />
+      <instancedMesh ref={coreRef} args={[coreGeo, coreMat, n]} frustumCulled={false} />
+      <instancedMesh ref={hitRef} args={[hitGeo, hitMat, n]} frustumCulled={false}
+        onPointerOver={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i]) onHover(orgNodes[i], positions[orgNodes[i].id]) }}
+        onPointerOut={(e) => { e.stopPropagation(); onHover(null, null) }}
+        onClick={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i]) onClick(orgNodes[i], positions[orgNodes[i].id]) }}
+      />
+    </>
   )
 }
 
 // ============================================================================
-// NUBES DE PROBABILIDAD (partículas alrededor de cada qubit/repo)
+// NUBES DE PROBABILIDAD - GPU orbital shader (11K iter/frame → 0)
 // ============================================================================
+
+const CLOUD_VERTEX = `
+  attribute float aRadius;
+  attribute float aTheta;
+  attribute float aPhi;
+  attribute float aSpeed;
+  uniform float uTime;
+  uniform float uProgress;
+  void main() {
+    float theta = aTheta + uTime * aSpeed;
+    float phi = aPhi + uTime * 0.15;
+    float r = aRadius * uProgress;
+    vec3 offset = vec3(
+      r * sin(phi) * cos(theta),
+      r * sin(phi) * sin(theta),
+      r * cos(phi)
+    );
+    vec4 mv = modelViewMatrix * vec4(position + offset, 1.0);
+    gl_PointSize = 0.15 * (200.0 / max(-mv.z, 1.0));
+    gl_Position = projectionMatrix * mv;
+  }
+`
+const CLOUD_FRAGMENT = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    gl_FragColor = vec4(uColor, uOpacity * (1.0 - d * d));
+  }
+`
 
 function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dimmed }) {
   const ref = useRef()
   const PER_QUBIT = 10
 
-  const { posArr, basePositions } = useMemo(() => {
+  const { centerArr, radiusArr, thetaArr, phiArr, speedArr, count } = useMemo(() => {
     const total = repoNodes.length * PER_QUBIT
-    const arr = new Float32Array(total * 3)
-    const bases = [] // para animación orbital
-    let idx = 0
+    const centers = new Float32Array(total * 3)
+    const radii = new Float32Array(total)
+    const thetas = new Float32Array(total)
+    const phis = new Float32Array(total)
+    const speeds = new Float32Array(total)
+    let vIdx = 0, sIdx = 0
     repoNodes.forEach(repo => {
       const c = positions[repo.id]; if (!c) return
       for (let i = 0; i < PER_QUBIT; i++) {
-        // Distribución gaussiana esférica
         const r = 1.2 + Math.random() * 1.8
         const θ = Math.random() * Math.PI * 2
         const φ = Math.acos(2 * Math.random() - 1)
-        const px = c.x + r * Math.sin(φ) * Math.cos(θ)
-        const py = c.y + r * Math.sin(φ) * Math.sin(θ)
-        const pz = c.z + r * Math.cos(φ)
-        arr[idx] = px; arr[idx + 1] = py; arr[idx + 2] = pz
-        bases.push({ cx: c.x, cy: c.y, cz: c.z, r, θ, φ })
-        idx += 3
+        centers[vIdx] = c.x; centers[vIdx + 1] = c.y; centers[vIdx + 2] = c.z
+        vIdx += 3
+        radii[sIdx] = r; thetas[sIdx] = θ; phis[sIdx] = φ
+        speeds[sIdx] = 0.3 + (i % 5) * 0.1
+        sIdx++
       }
     })
-    return { posArr: arr, basePositions: bases }
+    return { centerArr: centers, radiusArr: radii, thetaArr: thetas, phiArr: phis, speedArr: speeds, count: total }
   }, [repoNodes, positions])
 
-  // Animación orbital + materialización progresiva
+  const shaderMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color('#bd00ff').multiplyScalar(2) },
+      uOpacity: { value: 0 },
+      uTime: { value: 0 },
+      uProgress: { value: 0 },
+    },
+    vertexShader: CLOUD_VERTEX,
+    fragmentShader: CLOUD_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [])
+
   useFrame(({ clock }) => {
     if (!ref.current) return
-    const t = clock.getElapsedTime() * 0.4
     const p = easeOutCubic(progressRef.current[progressKey])
-    const pos = ref.current.geometry.attributes.position
-    basePositions.forEach((bp, i) => {
-      const θ = bp.θ + t * (0.3 + (i % 5) * 0.1)
-      const φ = bp.φ + t * 0.15
-      // Las partículas parten del centro del qubit y se expanden
-      const r = bp.r * p
-      pos.array[i * 3]     = bp.cx + r * Math.sin(φ) * Math.cos(θ)
-      pos.array[i * 3 + 1] = bp.cy + r * Math.sin(φ) * Math.sin(θ)
-      pos.array[i * 3 + 2] = bp.cz + r * Math.cos(φ)
-    })
-    pos.needsUpdate = true
-    // Fade opacidad con progress
-    if (ref.current.material) ref.current.material.opacity = (dimmed ? 0.02 : 0.5) * p
+    shaderMat.uniforms.uTime.value = clock.getElapsedTime() * 0.4
+    shaderMat.uniforms.uProgress.value = p
+    shaderMat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.5) * p
   })
 
   if (repoNodes.length === 0) return null
 
   return (
-    <points ref={ref}>
+    <points ref={ref} material={shaderMat} frustumCulled={false}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={posArr} itemSize={3} count={repoNodes.length * PER_QUBIT} />
+        <bufferAttribute attach="attributes-position" array={centerArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aRadius" array={radiusArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aTheta" array={thetaArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aPhi" array={phiArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aSpeed" array={speedArr} itemSize={1} count={count} />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.15}
-        color={new THREE.Color('#bd00ff').multiplyScalar(2)}
-        toneMapped={false}
-        transparent
-        opacity={0}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
     </points>
   )
 }
 
 // ============================================================================
-// QUBITS (Repos) — Esferas con ejes de Bloch
+// QUBITS (Repos) - Esferas con ejes de Bloch
 // ============================================================================
 
 function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
@@ -717,6 +855,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
   const dimCol = useMemo(() => new THREE.Color(0.02, 0.02, 0.03), [])
   const lensCol = useMemo(() => new THREE.Color(), [])
   const baseQubitCol = useMemo(() => new THREE.Color('#bd00ff').multiplyScalar(1.8), [])
+  const whiteMat = useMemo(() => new THREE.Color(1, 1, 1), [])
   const qubitLensBlend = useRef(0)
   const lastQubitLens = useRef(null)
   const qubitRevealTime = useRef(0)
@@ -728,7 +867,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
     const n = repoNodes.length
     const hasSel = highlightSet !== null
 
-    // Smooth lens blend for qubits — delayed until canvas visible
+    // Smooth lens blend for qubits - delayed until canvas visible
     if (lensData !== lastQubitLens.current) {
       lastQubitLens.current = lensData
       qubitLensBlend.current = lensData ? 0.0 : 1.0
@@ -741,6 +880,14 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
     }
     const blend = qubitLensBlend.current
 
+    // Lerp material towards white when lens active so instanceColor hues
+    // survive (purple mat has G=0, killing orange/yellow/green)
+    if (blend > 0.01) {
+      qubitMat.color.copy(baseQubitCol).lerp(whiteMat, blend)
+    } else {
+      qubitMat.color.copy(baseQubitCol)
+    }
+
     repoNodes.forEach((repo, i) => {
       const pos = positions[repo.id]; if (!pos) return
       const baseScale = Math.min(Math.max((repo.stars || 0) / 800, 0.7), 1.5)
@@ -750,12 +897,18 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
       const isHighlighted = hasSel && highlightSet.has(repo.id)
       // Boost de escala para qubits seleccionados
       const selScale = hasSel && isHighlighted ? 1.4 : 1.0
+      // Lens-driven scale: brighter lens color → bigger entity
+      const ld = lensData?.[repo.id]
+      const lensScaleFactor = (ld && blend > 0.01)
+        ? 0.5 + ((ld.r + ld.g + ld.b) / 3) * 1.0
+        : 1.0
+      const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
       dummy.position.copy(pos)
-      // Heisenberg uncertainty — micro-vibración cuántica
+      // Heisenberg uncertainty - micro-vibración cuántica
       dummy.position.x += Math.sin(t * 1.7 + i * 3.14) * 0.04
       dummy.position.y += Math.cos(t * 2.3 + i * 2.71) * 0.04
       dummy.position.z += Math.sin(t * 1.9 + i * 1.62) * 0.04
-      dummy.scale.setScalar(baseScale * localP * selScale)
+      dummy.scale.setScalar(baseScale * localP * selScale * appliedLensScale)
       dummy.updateMatrix()
       ref.current.setMatrixAt(i, dummy.matrix)
       if (hitRef.current) {
@@ -764,7 +917,6 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
         hitRef.current.setMatrixAt(i, dummy.matrix)
       }
       // Lens-aware coloring with smooth blend
-      const ld = lensData?.[repo.id]
       if (ld && blend > 0.01) {
         lensCol.setRGB(ld.r, ld.g, ld.b)
         // Lerp from base/selection color towards lens color
@@ -805,10 +957,10 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
 }
 
 // ============================================================================
-// EJES DE BLOCH — líneas |0⟩↔|1⟩ por cada qubit
+// EJES DE BLOCH - líneas |0⟩↔|1⟩ por cada qubit
 // ============================================================================
 
-function BlochAxes({ repoNodes, positions, progressRef, progressKey }) {
+function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed }) {
   const matRef = useRef()
   const geometry = useMemo(() => {
     const pts = []
@@ -825,7 +977,7 @@ function BlochAxes({ repoNodes, positions, progressRef, progressKey }) {
   }, [repoNodes, positions])
 
   useFrame(() => {
-    if (matRef.current) matRef.current.opacity = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0)
+    if (matRef.current) matRef.current.opacity = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0) * (dimmed ? 0.04 : 1)
   })
 
   if (repoNodes.length === 0) return null
@@ -845,7 +997,7 @@ function BlochAxes({ repoNodes, positions, progressRef, progressKey }) {
 }
 
 // ============================================================================
-// Textura de glow para partículas (Points) — genera halo circular soft
+// Textura de glow para partículas (Points) - genera halo circular soft
 // ============================================================================
 
 function createGlowTexture() {
@@ -915,7 +1067,7 @@ const PARTICLE_VERTEX = /* glsl */`
       : 0.0;
     vBridgeBlend = bridgeBlend;
 
-    // === Heisenberg jitter — incertidumbre cuántica ===
+    // === Heisenberg jitter - incertidumbre cuántica ===
     float jx = sin(uTime * 3.14 + aSeed * 17.3) * 0.04;
     float jy = sin(uTime * 2.71 + aSeed * 31.7) * 0.04;
     float jz = sin(uTime * 1.62 + aSeed * 47.1) * 0.04;
@@ -930,8 +1082,9 @@ const PARTICLE_VERTEX = /* glsl */`
       : localP;
     float normalPulse = localP * (1.0 + sin(uTime * 1.5 + aSeed) * 0.05);
 
-    // === Lens mode: centrality enlarges important nodes ===
-    float lensScale = mix(1.0, 0.6 + aBrightness * 1.4, uLensActive);
+    // === Lens mode: brighter lens color → bigger particles ===
+    float lensBrightness = (aLensColor.r + aLensColor.g + aLensColor.b) / 3.0;
+    float lensScale = mix(1.0, 0.5 + lensBrightness * 0.8, uLensActive);
 
     // Tamaño: blend suave de normal → bridge según bridgeBlend
     float normalSize = uBaseSize * normalPulse * lensScale;
@@ -942,7 +1095,7 @@ const PARTICLE_VERTEX = /* glsl */`
     float densitySize = mix(aDensity, max(aDensity, 0.5), bridgeBlend);
     size *= (0.4 + densitySize * 0.6);
 
-    // === Glow intensity — crece con la revelación del bridge ===
+    // === Glow intensity - crece con la revelación del bridge ===
     vGlow = mix(1.0, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
@@ -980,7 +1133,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 `
 
 // ============================================================================
-// PARTÍCULAS CUÁNTICAS (Users) — 100% GPU via GLSL ShaderMaterial
+// PARTÍCULAS CUÁNTICAS (Users) - 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
 function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity }) {
@@ -1026,7 +1179,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     return g
   }, [allUsers, positions, userDensity])
 
-  // ShaderMaterial — toda animación en GPU
+  // ShaderMaterial - toda animación en GPU
   const mat = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: PARTICLE_VERTEX,
     fragmentShader: PARTICLE_FRAGMENT,
@@ -1047,7 +1200,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     toneMapped: false,
   }), [glowMap])
 
-  // Solo actualizar 2 uniforms por frame — 0% CPU para partículas
+  // Solo actualizar 2 uniforms por frame - 0% CPU para partículas
   const lastHighlight = useRef(undefined)
   const lastLens = useRef(null)
   const lensBlendCurrent = useRef(0)
@@ -1056,7 +1209,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progressRef.current[progressKey]
-    // Bridge reveal driven by entanglement progress — bridges "se descubren" con las conexiones
+    // Bridge reveal driven by entanglement progress - bridges "se descubren" con las conexiones
     mat.uniforms.uBridgeReveal.value = easeOutCubic(progressRef.current.entanglement || 0)
 
     // Lens colors: update when lens data changes
@@ -1130,7 +1283,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
 }
 
 // ============================================================================
-// QUANTUM BONDS — espiral animada 100% GPU via GLSL
+// QUANTUM BONDS - espiral animada 100% GPU via GLSL
 // ============================================================================
 
 const BOND_VERTEX = /* glsl */`
@@ -1263,13 +1416,13 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
     return { geo: g, mat: m }
   }, [bonds])
 
-  // Solo 3 uniforms por frame — CPU ≈ 0%
+  // Solo 3 uniforms por frame - CPU ≈ 0%
   useFrame(({ clock }) => {
     if (!mat) return
     const progress = progressRef.current[progressKey]
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
-    mat.uniforms.uOpacity.value = (dimmed ? 0.02 : 0.35) * easeOutCubic(progress)
+    mat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.35) * easeOutCubic(progress)
   })
 
   if (!geo || bonds.length === 0) return null
@@ -1278,7 +1431,7 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
 }
 
 // ============================================================================
-// ARCOS DE ENTRELAZAMIENTO ORG↔ORG — curvas cuadráticas entre procesadores
+// ARCOS DE ENTRELAZAMIENTO ORG↔ORG - curvas cuadráticas entre procesadores
 // ============================================================================
 
 const ARC_VERTEX = `
@@ -1403,7 +1556,7 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     mat.uniforms.uTime.value = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
     mat.uniforms.uProgress.value = p
-    mat.uniforms.uOpacity.value = p < 0.01 ? 0 : (collabHighlight ? 1.0 : (dimmed ? 0.04 : 0.7))
+    mat.uniforms.uOpacity.value = p < 0.01 ? 0 : (collabHighlight ? 1.0 : (dimmed ? 0.015 : 0.7))
     // Smooth boost transition
     const targetBoost = collabHighlight ? 1.0 : 0.0
     mat.uniforms.uBoost.value += (targetBoost - mat.uniforms.uBoost.value) * 0.08
@@ -1414,28 +1567,42 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
 }
 
 // ============================================================================
-// CANALES DE ENTRELAZAMIENTO — ondas sinusoidales entre entidades
+// CANALES DE ENTRELAZAMIENTO - ondas sinusoidales entre entidades
 // ============================================================================
 
-// Shader para canales con intensidad variable por punto
+// Shader para canales con intensidad variable por punto - TODO en GPU
+// position = start del canal; aEnd, aPerp, aFraction, aStagger, aWaveAmp = atributos precalculados
+// La onda sinusoidal que antes requería 1.33M iteraciones CPU/frame ahora corre en el vertex shader
 const CHANNEL_VERTEX = `
+  attribute vec3 aEnd;
+  attribute vec3 aPerp;
+  attribute float aFraction;
+  attribute float aStagger;
+  attribute float aWaveAmp;
   attribute float aIntensity;
   uniform float uOpacity;
+  uniform float uTime;
+  uniform float uDrawProgress;
   varying float vIntensity;
   varying float vDist;
   void main() {
     vIntensity = aIntensity;
-    // Mover fuera del clip space cuando invisible para evitar 1px GPU clamp
     if (uOpacity < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
     }
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float connP = clamp((uDrawProgress - aStagger * 0.5) / 0.6, 0.0, 1.0);
+    vec3 dir = aEnd - position;
+    float drawn = step(aFraction, connP);
+    float actualProg = aFraction * connP;
+    float wave = sin(actualProg * 3.14159265 * 3.0 + uTime * 3.0) * aWaveAmp * connP;
+    vec3 drawnPos = position + dir * actualProg + aPerp * wave;
+    vec3 tipPos = position + dir * connP;
+    vec3 finalPos = mix(tipPos, drawnPos, drawn);
+    vec4 mv = modelViewMatrix * vec4(finalPos, 1.0);
     float dist = -mv.z;
     vDist = dist;
-    // Tamaño base en píxeles — escala con intensidad Y distancia a cámara
-    // Reducido para evitar líneas gruesas de lejos; de cerca se mantiene bien
     float basePx = mix(1.2, 3.0, aIntensity);
     float distScale = 200.0 / max(dist, 1.0);
     gl_PointSize = basePx * clamp(distScale, 0.2, 5.0);
@@ -1461,20 +1628,31 @@ const CHANNEL_FRAGMENT = `
 
 function EntanglementChannels({ connections, progressRef, progressKey, dimmed, highlightSet, starRepos, collabHighlight }) {
   const ref = useRef()
-  const matRef = useRef()
+  const lastHighlightRef = useRef(null)
+  const lastDimmedRef = useRef(null)
+  const lastCollabRef = useRef(null)
 
   const POINTS_PER_CONN = 35
-  // ===== useMemo LIGERO: solo meta + geom (38K iters) =====
-  // Posiciones se inicializan a cero y useFrame las llena al activarse entanglement
-  // Antes: 1.33M iteraciones síncronas bloqueaban main thread 200-500ms
-  const { posArr, intensityArr, count, connMeta, connGeom } = useMemo(() => {
-    const total = connections.length * POINTS_PER_CONN
-    const arr = new Float32Array(total * 3)   // zeros — useFrame llenará
-    const intens = new Float32Array(total)     // zeros — useFrame llenará
-    const meta = []
-    const geom = []
 
-    connections.forEach(conn => {
+  // ===== useMemo: precalcular TODOS los atributos UNA sola vez =====
+  // position = start, aEnd, aPerp, aFraction, aStagger, aWaveAmp → inmutables
+  // aIntensity → se actualiza solo cuando cambia highlightSet (no cada frame)
+  const { startArr, endArr, perpArr, fractionArr, staggerArr, waveAmpArr, intensityArr, count, connMeta } = useMemo(() => {
+    const nConn = connections.length
+    const total = nConn * POINTS_PER_CONN
+    const starts = new Float32Array(total * 3)
+    const ends = new Float32Array(total * 3)
+    const perps = new Float32Array(total * 3)
+    const fracs = new Float32Array(total)
+    const stags = new Float32Array(total)
+    const wamps = new Float32Array(total)
+    const intens = new Float32Array(total)
+    const meta = []
+
+    let vIdx = 0, sIdx = 0
+
+    for (let ci = 0; ci < nConn; ci++) {
+      const conn = connections[ci]
       const sx = conn.start.x, sy = conn.start.y, sz = conn.start.z
       const ex = conn.end.x, ey = conn.end.y, ez = conn.end.z
       const isStar = starRepos ? starRepos.has(conn.target) : false
@@ -1490,18 +1668,34 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
       if (pLen < 0.01) { px = 1; py = 0; pz = 0 }
       else { const pInv = 1 / pLen; px *= pInv; py *= pInv; pz *= pInv }
 
-      geom.push({ dx, dy, dz, len, px, py, pz })
-      // NO escribimos posiciones iniciales — ahorra 1.33M writes síncronos
-    })
+      const stagger = nConn > 1 ? ci / (nConn - 1) : 0
+      const amp = Math.min(len * 0.04, 2.0)
 
-    return { posArr: arr, intensityArr: intens, count: total, connMeta: meta, connGeom: geom }
+      for (let i = 0; i < POINTS_PER_CONN; i++) {
+        const frac = i / (POINTS_PER_CONN - 1)
+        // position = start
+        starts[vIdx] = sx; starts[vIdx + 1] = sy; starts[vIdx + 2] = sz
+        ends[vIdx] = ex; ends[vIdx + 1] = ey; ends[vIdx + 2] = ez
+        perps[vIdx] = px; perps[vIdx + 1] = py; perps[vIdx + 2] = pz
+        vIdx += 3
+        fracs[sIdx] = frac
+        stags[sIdx] = stagger
+        wamps[sIdx] = amp
+        intens[sIdx] = isStar ? 1.0 : 0.3
+        sIdx++
+      }
+    }
+
+    return { startArr: starts, endArr: ends, perpArr: perps, fractionArr: fracs, staggerArr: stags, waveAmpArr: wamps, intensityArr: intens, count: total, connMeta: meta }
   }, [connections, starRepos])
 
-  // Material de shader personalizado
+  // Material de shader personalizado - GPU calcula posiciones desde atributos + uniforms
   const shaderMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color('#ffbd00').multiplyScalar(1.5) },
       uOpacity: { value: 0 },
+      uTime: { value: 0 },
+      uDrawProgress: { value: 0 },
     },
     vertexShader: CHANNEL_VERTEX,
     fragmentShader: CHANNEL_FRAGMENT,
@@ -1510,64 +1704,44 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
     blending: THREE.AdditiveBlending,
   }), [])
 
-  // Animación — onda + draw-on + actualización de intensidad por highlightSet
-  // Usa geometría pre-calculada (connGeom) — CERO allocations Vector3 por frame
+  // useFrame: SOLO 3 uniform writes + intensidad condicional (vs 1.33M iters antes)
   useFrame(({ clock }) => {
     if (!ref.current || connections.length === 0) return
     const p = easeOutCubic(progressRef.current[progressKey])
 
-    // Opacidad global — 0 cuando entanglement aún no ha empezado
-    const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? 0.15 : 0.55))
+    const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? 0.05 : 0.55))
     shaderMat.uniforms.uOpacity.value = baseOpacity
+    shaderMat.uniforms.uTime.value = clock.getElapsedTime()
+    shaderMat.uniforms.uDrawProgress.value = p
 
-    // ¡CRITICAL! Skip loop de 1.33M iteraciones durante los primeros 6.5s
-    // Ahorra 15-50ms por frame (todo el frame budget a 60fps)
     if (p < 0.01) return
 
-    const t = clock.getElapsedTime()
-    const geo = ref.current.geometry
-    const posAttr = geo.attributes.position
-    const intAttr = geo.attributes.aIntensity
-    const nConn = connections.length
-    const hasSel = highlightSet !== null
+    // Actualizar intensidad SOLO cuando cambia el estado de highlight
+    const hlChanged = highlightSet !== lastHighlightRef.current || dimmed !== lastDimmedRef.current || collabHighlight !== lastCollabRef.current
+    if (hlChanged) {
+      lastHighlightRef.current = highlightSet
+      lastDimmedRef.current = dimmed
+      lastCollabRef.current = collabHighlight
 
-    let idx = 0, iIdx = 0
-    for (let ci = 0; ci < nConn; ci++) {
-      const conn = connections[ci]
-      const g = connGeom[ci]
-      const sx = conn.start.x, sy = conn.start.y, sz = conn.start.z
-
-      const stagger = nConn > 1 ? ci / (nConn - 1) : 0
-      const connP = Math.min(Math.max((p - stagger * 0.5) / 0.6, 0), 1)
-
-      // Intensidad: focus mode → conexiones del org seleccionado brillan
-      const { sourceId, targetId, isStar } = connMeta[ci]
-      let intensity
-      if (hasSel) {
-        const orgFocused = highlightSet.has(sourceId)
-        intensity = orgFocused ? (isStar ? 1.0 : 0.65) : 0.04
-      } else {
-        intensity = isStar ? 1.0 : 0.3
-      }
-
-      for (let i = 0; i < POINTS_PER_CONN; i++) {
-        const prog = i / (POINTS_PER_CONN - 1)
-        if (prog <= connP) {
-          const actualProg = prog * connP
-          const wave = Math.sin(actualProg * Math.PI * 3 + t * 3) * Math.min(g.len * 0.04, 2.0) * connP
-          posAttr.array[idx++] = sx + g.dx * actualProg + g.px * wave
-          posAttr.array[idx++] = sy + g.dy * actualProg + g.py * wave
-          posAttr.array[idx++] = sz + g.dz * actualProg + g.pz * wave
+      const intAttr = ref.current.geometry.attributes.aIntensity
+      const hasSel = highlightSet !== null
+      const nConn = connections.length
+      let idx = 0
+      for (let ci = 0; ci < nConn; ci++) {
+        const { sourceId, isStar } = connMeta[ci]
+        let intensity
+        if (hasSel) {
+          const orgFocused = highlightSet.has(sourceId)
+          intensity = orgFocused ? (isStar ? 1.0 : 0.65) : 0.04
         } else {
-          posAttr.array[idx++] = sx + g.dx * connP
-          posAttr.array[idx++] = sy + g.dy * connP
-          posAttr.array[idx++] = sz + g.dz * connP
+          intensity = isStar ? 1.0 : 0.3
         }
-        intAttr.array[iIdx++] = intensity
+        for (let i = 0; i < POINTS_PER_CONN; i++) {
+          intAttr.array[idx++] = intensity
+        }
       }
+      intAttr.needsUpdate = true
     }
-    posAttr.needsUpdate = true
-    intAttr.needsUpdate = true
   })
 
   if (connections.length === 0) return null
@@ -1575,7 +1749,12 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
   return (
     <points ref={ref} material={shaderMat} frustumCulled={false}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={posArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-position" array={startArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aEnd" array={endArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aPerp" array={perpArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aFraction" array={fractionArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aStagger" array={staggerArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aWaveAmp" array={waveAmpArr} itemSize={1} count={count} />
         <bufferAttribute attach="attributes-aIntensity" array={intensityArr} itemSize={1} count={count} />
       </bufferGeometry>
     </points>
@@ -1583,116 +1762,128 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
 }
 
 // ============================================================================
-// ENERGY RINGS — anillos de energía que se expanden desde cada procesador
+// ENERGY RINGS - InstancedMesh (700 draw calls → 1, fix material.clone leak)
 // ============================================================================
 
-function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightSet }) {
-  const ringsRef = useRef([])
+function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightSet, dimmed }) {
+  const meshRef = useRef()
+  const n = orgNodes.length
   const ringGeo = useMemo(() => new THREE.RingGeometry(0.4, 0.6, 48), [])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#00f7ff').multiplyScalar(1.5),
+    color: 0xffffff,
     toneMapped: false,
     transparent: true,
-    opacity: 0,
+    opacity: 0.3,
     side: THREE.DoubleSide,
   }), [])
+  const tmpObj = useMemo(() => new THREE.Object3D(), [])
+  const tmpColor = useMemo(() => new THREE.Color(), [])
+  const baseColor = useMemo(() => new THREE.Color('#00f7ff').multiplyScalar(1.5), [])
 
-  // Ondas expandiéndose — aparecen con los procesadores
   useFrame(({ clock }) => {
+    if (!meshRef.current) return
     const t = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
     const hasSel = highlightSet !== null
-    ringsRef.current.forEach((ring, i) => {
-      if (!ring) return
+
+    for (let i = 0; i < n; i++) {
+      const pos = positions[orgNodes[i].id]
+      if (!pos) continue
       const phase = (t * 0.5 + i * 0.8) % 3
       const scale = (1 + phase * 6) * p
-      const dim = hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.02 : 1
-      const opacity = 0.3 * Math.max(0, 1 - phase / 3) * p * dim
-      ring.scale.setScalar(scale)
-      ring.material.opacity = opacity
-    })
+      const dim = (hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.02 : 1) * (dimmed && !hasSel ? 0.03 : 1)
+      const fade = Math.max(0, 1 - phase / 3) * p * dim
+
+      tmpObj.position.copy(pos)
+      tmpObj.rotation.set(Math.PI / 2, 0, 0)
+      tmpObj.scale.setScalar(fade < 0.01 ? 0 : scale)
+      tmpObj.updateMatrix()
+      meshRef.current.setMatrixAt(i, tmpObj.matrix)
+
+      tmpColor.copy(baseColor).multiplyScalar(fade)
+      meshRef.current.setColorAt(i, tmpColor)
+    }
+
+    meshRef.current.instanceMatrix.needsUpdate = true
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true
   })
 
+  if (n === 0) return null
+
   return (
-    <>
-      {orgNodes.map((org, i) => {
-        const pos = positions[org.id]; if (!pos) return null
-        return (
-          <mesh
-            key={org.id}
-            ref={el => ringsRef.current[i] = el}
-            position={pos}
-            rotation={[Math.PI / 2, 0, 0]}
-            geometry={ringGeo}
-            material={ringMat.clone()} // Clonar para opacidad individual
-          />
-        )
-      })}
-    </>
+    <instancedMesh ref={meshRef} args={[ringGeo, ringMat, n]} frustumCulled={false} />
   )
 }
 
 // ============================================================================
-// INTERFERENCE PATTERN — patrón de interferencia tipo doble rendija
+// INTERFERENCE PATTERN - GPU shader (600 iter/frame → 0)
 // ============================================================================
 
 function InterferenceField({ progressRef, progressKey }) {
   const ref = useRef()
-  const matRef = useRef()
   const count = 600
 
-  const { posArr, phases } = useMemo(() => {
+  const { posArr, phaseArr } = useMemo(() => {
     const arr = new Float32Array(count * 3)
     const ph = new Float32Array(count)
-    // Distribuir en un plano vertical detrás de la escena como patrón de doble rendija
     for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * 500
-      const y = (Math.random() - 0.5) * 300
-      arr[i * 3] = x
-      arr[i * 3 + 1] = y
+      arr[i * 3] = (Math.random() - 0.5) * 500
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 300
       arr[i * 3 + 2] = -200
       ph[i] = Math.random() * Math.PI * 2
     }
-    return { posArr: arr, phases: ph }
+    return { posArr: arr, phaseArr: ph }
   }, [])
 
-  // Patrón de interferencia animado + fade-in
+  const shaderMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 0 },
+      uColor: { value: new THREE.Color('#2244ff').multiplyScalar(0.5) },
+    },
+    vertexShader: `
+      attribute float aPhase;
+      uniform float uTime;
+      void main() {
+        vec3 pos = position;
+        pos.y += sin(uTime + aPhase) * 0.01 * uTime;
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        gl_PointSize = 0.4 * (200.0 / max(-mv.z, 1.0));
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        gl_FragColor = vec4(uColor, uOpacity * (1.0 - d * d));
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [])
+
   useFrame(({ clock }) => {
-    if (!ref.current) return
-    const t = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
-    const pos = ref.current.geometry.attributes.position
-    for (let i = 0; i < count; i++) {
-      const x = pos.array[i * 3]
-      const intensity = Math.cos(x * 0.15 + t * 0.5) ** 2
-      pos.array[i * 3 + 1] += Math.sin(t + phases[i]) * 0.01
-    }
-    pos.needsUpdate = true
-    if (matRef.current) matRef.current.opacity = 0.06 * p
+    shaderMat.uniforms.uTime.value = clock.getElapsedTime()
+    shaderMat.uniforms.uOpacity.value = 0.06 * p
   })
 
   return (
-    <points ref={ref}>
+    <points ref={ref} material={shaderMat} frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" array={posArr} itemSize={3} count={count} />
+        <bufferAttribute attach="attributes-aPhase" array={phaseArr} itemSize={1} count={count} />
       </bufferGeometry>
-      <pointsMaterial
-        ref={matRef}
-        size={0.4}
-        color={new THREE.Color('#2244ff').multiplyScalar(0.5)}
-        toneMapped={false}
-        transparent
-        opacity={0}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
     </points>
   )
 }
 
 // ============================================================================
-// QUANTUM GENESIS — explosión inicial tipo Big Bang
+// QUANTUM GENESIS - explosión inicial tipo Big Bang
 // ============================================================================
 
 function QuantumGenesis({ progressRef, progressKey }) {
@@ -1739,7 +1930,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
 }
 
 // ============================================================================
-// TUNNELING PULSES — fotones viajando por canales de entrelazamiento
+// TUNNELING PULSES - fotones viajando por canales de entrelazamiento
 // ============================================================================
 
 // Vector3 reutilizables para evitar allocations en useFrame (antes: 100 allocs/frame)
@@ -1748,7 +1939,7 @@ const _norm = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _perp = new THREE.Vector3()
 
-function TunnelingPulses({ connections, startAnimation }) {
+function TunnelingPulses({ connections, startAnimation, dimmed }) {
   const ref = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const PULSE_COUNT = Math.min(connections.length, 25)
@@ -1788,7 +1979,7 @@ function TunnelingPulses({ connections, startAnimation }) {
     }
     // Fade-in gradual (empieza DESPUÉS del delay)
     fadeRef.current = Math.min(fadeRef.current + delta * 0.5, 0.9)
-    mat.opacity = fadeRef.current
+    mat.opacity = fadeRef.current * (dimmed ? 0.04 : 1)
 
     pulseData.forEach((pulse, i) => {
       pulse.t += pulse.speed * delta
@@ -1825,10 +2016,10 @@ function TunnelingPulses({ connections, startAnimation }) {
 }
 
 // ============================================================================
-// DECOHERENCE SHOCKWAVES — ondas de decoherencia desde procesadores
+// DECOHERENCE SHOCKWAVES - ondas de decoherencia desde procesadores
 // ============================================================================
 
-function DecoherenceWaves({ orgNodes, positions, startAnimation }) {
+function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed }) {
   const MAX_WAVES = 3
   const wavesRef = useRef([])
   const waveState = useRef(
@@ -1866,7 +2057,7 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation }) {
       const p = wave.age / duration
       mesh.position.copy(wave.pos)
       mesh.scale.setScalar(easeOutCubic(p) * 90)
-      waveMats[i].opacity = 0.3 * Math.pow(1 - p, 2)
+      waveMats[i].opacity = 0.3 * Math.pow(1 - p, 2) * (dimmed ? 0.04 : 1)
       mesh.rotation.x = Math.PI / 2
       mesh.rotation.z = t * 0.08
     })
@@ -1882,78 +2073,114 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation }) {
 }
 
 // ============================================================================
-// HAWKING RADIATION — micropartículas escapando de procesadores
+// HAWKING RADIATION - GPU shader (12.6K iter/frame → 0)
 // ============================================================================
 
-function HawkingRadiation({ orgNodes, positions, startAnimation }) {
-  const ref = useRef()
-  const matRef = useRef()
-  const glowTex = useMemo(() => createGlowTexture(), [])
-  const PER_ORG = 18
-  const animTimer = useRef(0) // tiempo acumulado desde que startAnimation=true
-  const DELAY_BEFORE_VISIBLE = 4.0 // aparecer después de que los procesadores estén visibles
+const HAWKING_VERTEX = `
+  attribute float aTheta;
+  attribute float aPhi;
+  attribute float aSpeed;
+  attribute float aOffset;
+  attribute float aMaxR;
+  uniform float uTime;
+  uniform float uOpacity;
+  varying float vAlpha;
+  void main() {
+    if (uOpacity < 0.001) {
+      gl_PointSize = 0.0;
+      gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
+      return;
+    }
+    float r = mod(uTime * aSpeed + aOffset, aMaxR);
+    vec3 dir = vec3(sin(aPhi) * cos(aTheta), cos(aPhi), sin(aPhi) * sin(aTheta));
+    vec3 finalPos = position + dir * r;
+    vec4 mv = modelViewMatrix * vec4(finalPos, 1.0);
+    float dist = -mv.z;
+    gl_PointSize = 0.35 * (200.0 / max(dist, 1.0));
+    gl_Position = projectionMatrix * mv;
+    vAlpha = uOpacity;
+  }
+`
+const HAWKING_FRAGMENT = `
+  uniform vec3 uColor;
+  varying float vAlpha;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    float glow = exp(-d * d * 3.0);
+    if (glow < 0.01) discard;
+    gl_FragColor = vec4(uColor * glow, vAlpha * glow);
+  }
+`
 
-  const { posArr, particleData, total } = useMemo(() => {
-    const data = []
+function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
+  const ref = useRef()
+  const PER_ORG = 18
+  const animTimer = useRef(0)
+  const opacityRef = useRef(0)
+  const DELAY_BEFORE_VISIBLE = 4.0
+
+  const { centerArr, thetaArr, phiArr, speedArr, offsetArr, maxRArr, total } = useMemo(() => {
+    const n = orgNodes.length * PER_ORG
+    const centers = new Float32Array(n * 3)
+    const thetas = new Float32Array(n)
+    const phis = new Float32Array(n)
+    const speeds = new Float32Array(n)
+    const offsets = new Float32Array(n)
+    const maxRs = new Float32Array(n)
+    let vIdx = 0, sIdx = 0
     orgNodes.forEach(org => {
       const c = positions[org.id]; if (!c) return
       for (let i = 0; i < PER_ORG; i++) {
-        const theta = Math.random() * Math.PI * 2
-        const phi = Math.acos(2 * Math.random() - 1)
-        data.push({
-          cx: c.x, cy: c.y, cz: c.z, theta, phi,
-          speed: 0.3 + Math.random() * 0.5,
-          offset: Math.random() * 12,
-          maxR: 14 + Math.random() * 10,
-        })
+        centers[vIdx] = c.x; centers[vIdx + 1] = c.y; centers[vIdx + 2] = c.z
+        vIdx += 3
+        thetas[sIdx] = Math.random() * Math.PI * 2
+        phis[sIdx] = Math.acos(2 * Math.random() - 1)
+        speeds[sIdx] = 0.3 + Math.random() * 0.5
+        offsets[sIdx] = Math.random() * 12
+        maxRs[sIdx] = 14 + Math.random() * 10
+        sIdx++
       }
     })
-    const arr = new Float32Array(data.length * 3)
-    data.forEach((p, i) => { arr[i * 3] = p.cx; arr[i * 3 + 1] = p.cy; arr[i * 3 + 2] = p.cz })
-    return { posArr: arr, particleData: data, total: data.length }
+    return { centerArr: centers, thetaArr: thetas, phiArr: phis, speedArr: speeds, offsetArr: offsets, maxRArr: maxRs, total: sIdx }
   }, [orgNodes, positions])
+
+  const shaderMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color('#00f7ff').multiplyScalar(2.0) },
+      uOpacity: { value: 0 },
+      uTime: { value: 0 },
+    },
+    vertexShader: HAWKING_VERTEX,
+    fragmentShader: HAWKING_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [])
 
   useFrame(({ clock }, dt) => {
     if (!ref.current || total === 0) return
-    // Fade-in gradual — SOLO después de que la animación lleve 4s
-    if (matRef.current) {
-      if (!startAnimation) { matRef.current.opacity = 0; animTimer.current = 0; return }
-      animTimer.current += dt
-      if (animTimer.current < DELAY_BEFORE_VISIBLE) { matRef.current.opacity = 0; return }
-      const target = 0.7
-      const cur = matRef.current.opacity
-      matRef.current.opacity = cur < target ? Math.min(cur + dt * 0.4, target) : target
-    }
-    const t = clock.getElapsedTime()
-    const pos = ref.current.geometry.attributes.position
-    particleData.forEach((p, i) => {
-      const r = ((t * p.speed + p.offset) % p.maxR)
-      pos.array[i * 3]     = p.cx + r * Math.sin(p.phi) * Math.cos(p.theta)
-      pos.array[i * 3 + 1] = p.cy + r * Math.cos(p.phi)
-      pos.array[i * 3 + 2] = p.cz + r * Math.sin(p.phi) * Math.sin(p.theta)
-    })
-    pos.needsUpdate = true
+    if (!startAnimation) { opacityRef.current = 0; animTimer.current = 0; shaderMat.uniforms.uOpacity.value = 0; return }
+    animTimer.current += dt
+    if (animTimer.current < DELAY_BEFORE_VISIBLE) { shaderMat.uniforms.uOpacity.value = 0; return }
+    const target = dimmed ? 0.03 : 0.7
+    opacityRef.current = Math.min(opacityRef.current + dt * 0.4, target)
+    if (dimmed && opacityRef.current > target) opacityRef.current = Math.max(opacityRef.current - dt * 0.8, target)
+    shaderMat.uniforms.uOpacity.value = opacityRef.current
+    shaderMat.uniforms.uTime.value = clock.getElapsedTime()
   })
 
   if (total === 0) return null
 
   return (
-    <points ref={ref}>
+    <points ref={ref} material={shaderMat} frustumCulled={false}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={posArr} itemSize={3} count={total} />
+        <bufferAttribute attach="attributes-position" array={centerArr} itemSize={3} count={total} />
+        <bufferAttribute attach="attributes-aTheta" array={thetaArr} itemSize={1} count={total} />
+        <bufferAttribute attach="attributes-aPhi" array={phiArr} itemSize={1} count={total} />
+        <bufferAttribute attach="attributes-aSpeed" array={speedArr} itemSize={1} count={total} />
+        <bufferAttribute attach="attributes-aOffset" array={offsetArr} itemSize={1} count={total} />
+        <bufferAttribute attach="attributes-aMaxR" array={maxRArr} itemSize={1} count={total} />
       </bufferGeometry>
-      <pointsMaterial
-        ref={matRef}
-        size={0.35}
-        map={glowTex}
-        color={new THREE.Color('#00f7ff').multiplyScalar(2.0)}
-        toneMapped={false}
-        transparent
-        opacity={0}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
     </points>
   )
 }
@@ -1971,13 +2198,21 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
 
   useEffect(() => {
     if (focusTarget) {
-      target.current.copy(focusTarget)
-      let offset
-      if (selectedEntity?.type === 'user') offset = new THREE.Vector3(4, 2.5, 4)
-      else if (selectedEntity?.type === 'repo') offset = new THREE.Vector3(10, 6, 10)
-      else offset = new THREE.Vector3(18, 10, 18)
-      goal.current.copy(focusTarget).add(offset)
-      flying.current = true
+      // Soporte para focus panorámico (tunnel path): { position, offset }
+      if (focusTarget.position && focusTarget.offset) {
+        target.current.set(focusTarget.position.x, focusTarget.position.y, focusTarget.position.z)
+        goal.current.set(focusTarget.position.x, focusTarget.position.y, focusTarget.position.z)
+          .add(focusTarget.offset)
+        flying.current = true
+      } else {
+        target.current.copy(focusTarget)
+        let offset
+        if (selectedEntity?.type === 'user') offset = new THREE.Vector3(4, 2.5, 4)
+        else if (selectedEntity?.type === 'repo') offset = new THREE.Vector3(10, 6, 10)
+        else offset = new THREE.Vector3(18, 10, 18)
+        goal.current.copy(focusTarget).add(offset)
+        flying.current = true
+      }
     }
   }, [focusTarget, selectedEntity])
 
@@ -2063,7 +2298,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
 }
 
 // ============================================================================
-// LABEL FLOTANTE — estilo cuántico
+// LABEL FLOTANTE - estilo cuántico
 // ============================================================================
 
 function FloatingLabel({ entity, position }) {
@@ -2089,7 +2324,7 @@ function FloatingLabel({ entity, position }) {
 }
 
 // ============================================================================
-// FOCUS HIGHLIGHT — anillos de selección rotando
+// FOCUS HIGHLIGHT - anillos de selección rotando
 // ============================================================================
 
 function FocusHighlight({ position, entityType }) {
@@ -2135,7 +2370,7 @@ function FocusHighlight({ position, entityType }) {
 }
 
 // ============================================================================
-// BUILD ANIMATION — progreso continuo por fase con easing
+// BUILD ANIMATION - progreso continuo por fase con easing
 // ============================================================================
 
 // Ease-out cubic para transiciones suaves
@@ -2148,10 +2383,10 @@ function easeOutElastic(t) {
 }
 
 // Fase timings: [inicio, duración] en segundos
-// La explosión (genesis) va PRIMERO y sola — luego el resto emerge secuencialmente
+// La explosión (genesis) va PRIMERO y sola - luego el resto emerge secuencialmente
 const PHASE_TIMINGS = {
   genesis:      [0.0,  2.0],  // flash + onda expansiva (SOLO al inicio)
-  vacuum:       [2.5,  2.0],  // lattice + fluctuaciones — emerge CON los procesadores, no antes
+  vacuum:       [2.5,  2.0],  // lattice + fluctuaciones - emerge CON los procesadores, no antes
   processors:   [2.8,  1.8],  // orgs aparecen escalonadas
   qubits:       [4.0,  2.0],  // repos materializan
   particles:    [5.5,  1.5],  // users orbitan
@@ -2184,15 +2419,15 @@ function BuildDirector({ progressRef, startAnimation }) {
 }
 
 // ============================================================================
-// LOD CONTROLLER — ajusta detalle por distancia de cámara
+// LOD CONTROLLER - ajusta detalle por distancia de cámara
 // ============================================================================
 // lod: { level: 'far'|'mid'|'near', dist: number }
 // far  (>400u): solo orgs + repos (clusters)
 // mid  (120-400u): + bridge users + bonds
-// near (<120u): todo — users individuales + bonds + effects
+// near (<120u): todo - users individuales + bonds + effects
 
 function useLOD() {
-  const [lod, setLod] = useState({ level: 'near', dist: 260 })
+  const lodRef = useRef({ level: 'near', dist: 260 })
   const { camera } = useThree()
 
   useFrame(() => {
@@ -2201,14 +2436,14 @@ function useLOD() {
     if (d > 400) newLevel = 'far'
     else if (d > 120) newLevel = 'mid'
     else newLevel = 'near'
-    if (newLevel !== lod.level) setLod({ level: newLevel, dist: d })
+    if (newLevel !== lodRef.current.level) lodRef.current = { level: newLevel, dist: d }
   })
 
-  return lod
+  return lodRef
 }
 
 // ============================================================================
-// FRONTERAS ZONALES — esferas wireframe para visualizar core/mid/isolated
+// FRONTERAS ZONALES - esferas wireframe para visualizar core/mid/isolated
 // ============================================================================
 
 const ZONE_CONFIGS = [
@@ -2321,6 +2556,236 @@ function ZoneBoundaries({ zoneMeta, visible }) {
 }
 
 // ============================================================================
+// QUANTUM TUNNEL BEAM - Visualización 3D del camino más corto (Quantum Tunneling)
+// ============================================================================
+// Rayo de energía curvado + fotones viajando + halos en nodos intermedios
+
+const _tunnelDummy = new THREE.Object3D()
+
+function QuantumTunnelBeam({ tunnelPath, positions }) {
+  const tubeRef = useRef()
+  const glowRef = useRef()
+  const halosRef = useRef()
+  const fadeRef = useRef(0)
+  const progressRef = useRef(0)  // draw-on progress 0→1
+  const prevPathId = useRef(null) // para detectar nuevo path
+  const HALO_GLOW_SPEED = 1.2
+  const DRAW_DURATION = 1.6 // segundos para dibujar el rayo completo
+
+  // Construir la curva CatmullRom a partir de las posiciones del path
+  const { curve, pathPoints, totalLength } = useMemo(() => {
+    if (!tunnelPath?.found || !tunnelPath.path || tunnelPath.path.length < 2) {
+      return { curve: null, pathPoints: [], totalLength: 0 }
+    }
+    const pts = []
+    for (const node of tunnelPath.path) {
+      const pos = positions[node.id]
+      if (pos) pts.push(new THREE.Vector3(pos.x, pos.y, pos.z))
+    }
+    if (pts.length < 2) return { curve: null, pathPoints: [], totalLength: 0 }
+
+    const c = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3)
+    return { curve: c, pathPoints: pts, totalLength: c.getLength() }
+  }, [tunnelPath, positions])
+
+  // Geometría del tubo principal
+  const tubeGeo = useMemo(() => {
+    if (!curve) return null
+    const segments = Math.max(64, Math.floor(totalLength * 2))
+    return new THREE.TubeGeometry(curve, segments, 0.4, 10, false)
+  }, [curve, totalLength])
+
+  // Geometría del tubo glow exterior (más grueso)
+  const glowGeo = useMemo(() => {
+    if (!curve) return null
+    const segments = Math.max(48, Math.floor(totalLength * 1.5))
+    return new THREE.TubeGeometry(curve, segments, 1.2, 10, false)
+  }, [curve, totalLength])
+
+  // Shader fragment compartido: degradado animado cyan ↔ verde ↔ morado + draw-on
+  const TUNNEL_FRAG = `
+    uniform float uTime;
+    uniform float uOpacity;
+    uniform float uProgress;
+    uniform vec3 uCyan;
+    uniform vec3 uGreen;
+    uniform vec3 uPurple;
+    varying vec2 vUv;
+
+    // Mezcla suave 3 colores con fase desplazada a lo largo del tubo
+    vec3 triGradient(float pos, float time) {
+      // Onda que se desplaza visiblemente por el tubo
+      float shift = pos - time * 0.18;
+      // 3 fases separadas 120° (2π/3)
+      float w1 = pow(max(sin(shift * 3.14159 * 2.0) * 0.5 + 0.5, 0.0), 1.5);
+      float w2 = pow(max(sin(shift * 3.14159 * 2.0 + 2.094) * 0.5 + 0.5, 0.0), 1.5);
+      float w3 = pow(max(sin(shift * 3.14159 * 2.0 + 4.189) * 0.5 + 0.5, 0.0), 1.5);
+      float total = w1 + w2 + w3 + 0.001;
+      return (uCyan * w1 + uGreen * w2 + uPurple * w3) / total;
+    }
+
+    void main() {
+      // === Draw-on effect: revelado progresivo ===
+      float drawMask = 1.0 - smoothstep(uProgress - 0.06, uProgress, vUv.x);
+      if (drawMask < 0.005) discard;
+
+      // Frente luminoso del dibujo (leading edge glow)
+      float leading = smoothstep(uProgress - 0.12, uProgress - 0.02, vUv.x) * drawMask;
+
+      // Color degradado animado a lo largo del tubo
+      vec3 col = triGradient(vUv.x, uTime);
+
+      // Onda de energía viajando por el tubo (movimiento visible)
+      float wave = sin((vUv.x - uTime * 0.35) * 5.0) * 0.5 + 0.5;
+      float wave2 = sin((vUv.x - uTime * 0.2) * 2.5 + 0.8) * 0.5 + 0.5;
+      float energy = pow(wave * 0.55 + wave2 * 0.45, 1.8);
+
+      // Bordes radiales suaves
+      float edge = 1.0 - abs(vUv.y - 0.5) * 2.0;
+      edge = pow(edge, 0.6);
+
+      // Respiración global
+      float breathe = 0.88 + sin(uTime * 0.35) * 0.12;
+
+      float alpha = uOpacity * (0.35 + energy * 0.65) * edge * breathe * drawMask;
+
+      // Brillo extra en el frente de dibujado
+      col += col * leading * 2.5;
+      alpha = min(alpha + leading * 0.4, 1.0);
+
+      gl_FragColor = vec4(col * (0.55 + energy * 0.45), alpha);
+    }
+  `
+
+  const TUNNEL_VERT = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `
+
+  // Material del tubo principal
+  const tubeMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 0 },
+      uProgress: { value: 0 },
+      uCyan:   { value: new THREE.Color('#00f7ff').multiplyScalar(2.2) },
+      uGreen:  { value: new THREE.Color('#00ff9f').multiplyScalar(2.2) },
+      uPurple: { value: new THREE.Color('#bd00ff').multiplyScalar(2.2) },
+    },
+    vertexShader: TUNNEL_VERT,
+    fragmentShader: TUNNEL_FRAG,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  }), [])
+
+  // Material del glow exterior (más tenue, mismo shader)
+  const glowMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 0 },
+      uProgress: { value: 0 },
+      uCyan:   { value: new THREE.Color('#00f7ff').multiplyScalar(0.8) },
+      uGreen:  { value: new THREE.Color('#00ff9f').multiplyScalar(0.8) },
+      uPurple: { value: new THREE.Color('#bd00ff').multiplyScalar(0.8) },
+    },
+    vertexShader: TUNNEL_VERT,
+    fragmentShader: TUNNEL_FRAG,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  }), [])
+
+  // Material halos en nodos
+  const haloMat = useMemo(() => new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#00ffaa').multiplyScalar(3),
+    toneMapped: false,
+    transparent: true,
+    opacity: 0,
+    side: THREE.DoubleSide,
+  }), [])
+
+  const haloGeo = useMemo(() => new THREE.RingGeometry(1.5, 3.5, 24), [])
+
+  // Resetear progreso cuando cambia el path
+  const pathId = tunnelPath?.path?.map(n => n.id).join('-') || ''
+  if (pathId !== prevPathId.current) {
+    prevPathId.current = pathId
+    progressRef.current = 0
+  }
+
+  useFrame(({ clock }, delta) => {
+    if (!curve) return
+    const t = clock.getElapsedTime()
+
+    // Fade in / fade out
+    const targetFade = tunnelPath?.found ? 1 : 0
+    fadeRef.current += (targetFade - fadeRef.current) * Math.min(delta * 3, 1)
+    const fade = fadeRef.current
+
+    // Animación draw-on: progreso de 0 a 1
+    if (tunnelPath?.found && progressRef.current < 1) {
+      progressRef.current = Math.min(progressRef.current + delta / DRAW_DURATION, 1)
+    }
+    const progress = tunnelPath?.found ? progressRef.current : 1 // al desaparecer, mostrar todo y dejar que fade lo oculte
+
+    // Tubo principal
+    tubeMat.uniforms.uTime.value = t
+    tubeMat.uniforms.uOpacity.value = fade * 0.95
+    tubeMat.uniforms.uProgress.value = progress
+
+    // Glow exterior
+    glowMat.uniforms.uTime.value = t
+    glowMat.uniforms.uOpacity.value = fade * 0.35
+    glowMat.uniforms.uProgress.value = progress
+
+    // Halos en nodos — aparecen progresivamente con el draw-on
+    if (halosRef.current && fade > 0.01 && pathPoints.length > 0) {
+      haloMat.opacity = fade * 0.4
+      // Ciclar color del halo con el tiempo
+      const hueShift = (t * 0.15) % 1
+      const haloColor = hueShift < 0.33
+        ? new THREE.Color('#00f7ff').lerp(new THREE.Color('#00ff9f'), hueShift / 0.33)
+        : hueShift < 0.66
+          ? new THREE.Color('#00ff9f').lerp(new THREE.Color('#bd00ff'), (hueShift - 0.33) / 0.33)
+          : new THREE.Color('#bd00ff').lerp(new THREE.Color('#00f7ff'), (hueShift - 0.66) / 0.34)
+      haloMat.color.copy(haloColor).multiplyScalar(3)
+
+      pathPoints.forEach((pt, i) => {
+        // Cada halo aparece cuando el draw-on llega a su posición
+        const nodeProgress = pathPoints.length > 1 ? i / (pathPoints.length - 1) : 0
+        const haloVisible = progress > nodeProgress ? Math.min((progress - nodeProgress) * 5, 1) : 0
+        _tunnelDummy.position.copy(pt)
+        const pulse = 1 + Math.sin(t * HALO_GLOW_SPEED + i * 2.0) * 0.2
+        _tunnelDummy.scale.setScalar(pulse * haloVisible)
+        _tunnelDummy.lookAt(pt.x, pt.y + 100, pt.z)
+        _tunnelDummy.updateMatrix()
+        halosRef.current.setMatrixAt(i, _tunnelDummy.matrix)
+      })
+      halosRef.current.instanceMatrix.needsUpdate = true
+    }
+  })
+
+  if (!curve || !tubeGeo || !glowGeo || pathPoints.length < 2) return null
+
+  return (
+    <group>
+      {/* Glow exterior difuso */}
+      <mesh ref={glowRef} geometry={glowGeo} material={glowMat} frustumCulled={false} />
+      {/* Rayo principal de energía */}
+      <mesh ref={tubeRef} geometry={tubeGeo} material={tubeMat} frustumCulled={false} />
+      {/* Halos en nodos del path */}
+      <instancedMesh ref={halosRef} args={[haloGeo, haloMat, pathPoints.length]} frustumCulled={false} />
+    </group>
+  )
+}
+
+// ============================================================================
 // ESCENA COMPLETA
 // ============================================================================
 
@@ -2329,13 +2794,29 @@ const SCENE_READY_STAGE = 5 // Señalizar "listo" tras montar lo esencial (orgs+
 // Los stages 5-8 (channels, arcs, effects) se montan MIENTRAS el loader se desvanece
 // Sus animaciones no empiezan hasta 5.5-6.5s después del Big Bang
 
-function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter }) {
-  // === PROGRESO VIA REF — CERO re-renders de React desde el render-loop ===
+function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, tunnelPath }) {
+  // === PROGRESO VIA REF - CERO re-renders de React desde el render-loop ===
   // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
   const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
+  const pointerDownPos = useRef({ x: 0, y: 0, dragged: false })
   const lod = useLOD()
 
-  // ===== MONTAJE PROGRESIVO — cada stage monta un grupo de componentes =====
+  // Drag detection: registrar posición al presionar, marcar como drag si se mueve > 5px
+  const { gl } = useThree()
+  useEffect(() => {
+    const dom = gl.domElement
+    const onDown = (e) => { pointerDownPos.current = { x: e.clientX, y: e.clientY, dragged: false } }
+    const onMove = (e) => {
+      const dp = pointerDownPos.current
+      const dx = e.clientX - dp.x, dy = e.clientY - dp.y
+      if (dx * dx + dy * dy > 25) dp.dragged = true
+    }
+    dom.addEventListener('pointerdown', onDown)
+    dom.addEventListener('pointermove', onMove)
+    return () => { dom.removeEventListener('pointerdown', onDown); dom.removeEventListener('pointermove', onMove) }
+  }, [gl])
+
+  // ===== MONTAJE PROGRESIVO - cada stage monta un grupo de componentes =====
   // Esto evita que el hilo principal se bloquee al alocar todas las geometrías de golpe
   const [mountStage, setMountStage] = useState(0)
 
@@ -2380,17 +2861,32 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
     return ids
   }, [entityFilter, universeData])
 
+  // Set de IDs del tunnel path para highlight selectivo
+  const tunnelHighlightSet = useMemo(() => {
+    if (!tunnelPath?.found || !tunnelPath.path) return null
+    const ids = new Set()
+    tunnelPath.path.forEach(n => ids.add(n.id))
+    return ids
+  }, [tunnelPath])
+
   // Set de IDs relacionados para dimming selectivo
-  // Prioridad: selectedEntity > searchHighlightSet > entityFilter
+  // Prioridad: selectedEntity > searchHighlightSet > tunnelPath > entityFilter
   const highlightSet = useMemo(() => {
     const entitySet = computeRelatedIds(selectedEntity, universeData)
     if (entitySet) return entitySet
     if (searchHighlightSet) return searchHighlightSet
+    if (tunnelHighlightSet) return tunnelHighlightSet
     return filterHighlightSet
-  }, [selectedEntity, universeData, searchHighlightSet, filterHighlightSet])
-  const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0
+  }, [selectedEntity, universeData, searchHighlightSet, tunnelHighlightSet, filterHighlightSet])
+  const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0 || lensData !== null || tunnelPath?.found
 
   const handleHover = useCallback((entity, pos) => {
+    // Bloquear interacción hasta que la animación de aparición haya terminado por completo
+    if (bpRef.current.entanglement < 1.0) {
+      setHovered(null)
+      document.body.style.cursor = 'auto'
+      return
+    }
     // Bloquear hover sobre entidades no resaltadas por el filtro activo
     if (entity && filterHighlightSet && !filterHighlightSet.has(entity.id)) {
       setHovered(null)
@@ -2400,6 +2896,13 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
     setHovered(entity ? { entity, pos } : null)
     document.body.style.cursor = entity ? 'pointer' : 'auto'
   }, [setHovered, filterHighlightSet])
+
+  // Wrapper de onSelect que bloquea selección durante animación y durante drag (rotación orbital)
+  const guardedSelect = useCallback((entity, pos) => {
+    if (bpRef.current.entanglement < 1.0) return
+    if (pointerDownPos.current.dragged) return
+    onSelect(entity, pos)
+  }, [onSelect])
 
   // Conexiones largas (owns) para canales y pulsos
   const longConnections = useMemo(
@@ -2445,56 +2948,56 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       {/* Cámara */}
       <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} />
 
-      {/* Director de animación — escribe directo al ref, sin setState */}
+      {/* Director de animación - escribe directo al ref, sin setState */}
       <BuildDirector progressRef={bpRef} startAnimation={startAnimation} />
 
-      {/* Génesis cuántica — Big Bang inicial */}
+      {/* Génesis cuántica - Big Bang inicial */}
       <QuantumGenesis progressRef={bpRef} progressKey="genesis" />
 
       {/* Vacío cuántico */}
       <QuantumVacuum progressRef={bpRef} progressKey="vacuum" />
       {showEffects && <InterferenceField progressRef={bpRef} progressKey="vacuum" />}
 
-      {/* ===== MONTAJE PROGRESIVO — 9 stages con pausas >= 200ms entre cada uno ===== */}
+      {/* ===== MONTAJE PROGRESIVO - 9 stages con pausas >= 200ms entre cada uno ===== */}
       {/* group invisible → garantiza 0 fugas visuales pre-Big Bang (Bloom, GPU clamping, etc.) */}
       <group visible={startAnimation}>
-      {/* Stage 1: Procesadores (orgs) — 701 materiales + geometría */}
+      {/* Stage 1: Procesadores (orgs) - 701 materiales + geometría */}
       {mountStage >= 1 && (
-        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
+        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
       )}
 
       {/* Stage 2: Anillos de energía (orgs) */}
-      {mountStage >= 2 && <EnergyRings orgNodes={orgNodes} positions={positions} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} />}
+      {mountStage >= 2 && <EnergyRings orgNodes={orgNodes} positions={positions} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} dimmed={dimmed} />}
 
-      {/* Stage 3: Qubits (repos) — 1122 instanced meshes */}
+      {/* Stage 3: Qubits (repos) - 1122 instanced meshes */}
       {mountStage >= 3 && (
-        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="qubits" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
+        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="qubits" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
       )}
 
-      {/* Stage 4: Partículas (users) — 27K+ vertices × 6 atributos (MÁS PESADO) */}
+      {/* Stage 4: Partículas (users) - 27K+ vertices × 6 atributos (MÁS PESADO) */}
       {mountStage >= 4 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={onSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
       )}
 
       {/* Stage 5: Bonds (user-repo connections) */}
       {mountStage >= 5 && showUsers && <QuantumBonds repoUsers={repoUsers} positions={positions} progressRef={bpRef} progressKey="particles" dimmed={dimmed} />}
 
-      {/* Stage 6: Canales de entrelazamiento (38K×35pts — PESADO) */}
+      {/* Stage 6: Canales de entrelazamiento (38K×35pts - PESADO) */}
       {mountStage >= 6 && <EntanglementChannels connections={longConnections} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} highlightSet={highlightSet} starRepos={starRepos} collabHighlight={entityFilter.has('collab')} />}
 
       {/* Stage 7: Arcos org↔org + nubes + ejes (ligeros) */}
       {mountStage >= 7 && entanglementArcs.length > 0 && <OrgEntanglementArcs arcs={entanglementArcs} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} collabHighlight={entityFilter.has('collab')} />}
       {mountStage >= 7 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} />}
-      {mountStage >= 7 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" />}
+      {mountStage >= 7 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} />}
 
-      {/* Stage 8: Efectos de ambiente — radiación + decoherencia + tunelización */}
+      {/* Stage 8: Efectos de ambiente - radiación + decoherencia + tunelización */}
       {/* Pasan startAnimation para no hacerse visibles durante la carga */}
-      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} />}
-      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} />}
-      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} />}
+      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} />}
+      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} />}
+      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} dimmed={dimmed} />}
       </group>
 
-      {/* Highlight de selección — anillos rotando */}
+      {/* Highlight de selección - anillos rotando */}
       {selectedEntity && focusTarget && (
         <FocusHighlight position={focusTarget} entityType={selectedEntity.type} />
       )}
@@ -2502,19 +3005,24 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       {/* Label flotante */}
       {hovered && <FloatingLabel entity={hovered.entity} position={hovered.pos} />}
 
-      {/* === FRONTERAS ZONALES — siempre montadas, fade in/out via visible prop === */}
+      {/* === QUANTUM TUNNEL BEAM - rayo 3D del shortest path === */}
+      {tunnelPath?.found && positions && (
+        <QuantumTunnelBeam tunnelPath={tunnelPath} positions={positions} />
+      )}
+
+      {/* === FRONTERAS ZONALES - siempre montadas, fade in/out via visible prop === */}
       {universeData?.zoneMeta && (
         <ZoneBoundaries zoneMeta={universeData.zoneMeta} visible={showZones} />
       )}
 
-      {/* === BLOOM POSTPROCESSING — glow cuántico espectacular === */}
+      {/* === BLOOM POSTPROCESSING - glow cuántico espectacular === */}
       <EffectComposer multisampling={0}>
         <Bloom
           intensity={1.4}
-          luminanceThreshold={0.08}
+          luminanceThreshold={0.2}
           luminanceSmoothing={0.7}
           mipmapBlur
-          levels={6}
+          levels={4}
           radius={0.85}
         />
       </EffectComposer>
@@ -2630,6 +3138,7 @@ export default function UniverseView() {
   const [uiVisible, setUiVisible] = useState(false)
   const [canvasMounted, setCanvasMounted] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [helpTab, setHelpTab] = useState('entities')
   const [showBots, setShowBots] = useState(false)
   const [showZones, setShowZones] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -2859,14 +3368,14 @@ export default function UniverseView() {
     w.onmessage = (e) => {
       const { phase, data } = e.data
       if (phase === 1) {
-        // Core data + DNA — show panel immediately
+        // Core data + DNA - show panel immediately
         setDetailData(data)
         setDetailLoading(false)
       } else if (phase === 2) {
-        // Medium features (impact sims + collab matrix) — merge
+        // Medium features (impact sims + collab matrix) - merge
         setDetailData(prev => prev ? { ...prev, ...data } : data)
       } else if (phase === 3) {
-        // Heavy features (similar entities) — merge + mark complete
+        // Heavy features (similar entities) - merge + mark complete
         setDetailData(prev => prev ? { ...prev, ...data, _advancedLoaded: true } : data)
       }
     }
@@ -2918,10 +3427,11 @@ export default function UniverseView() {
     }
   }, [loaderVisible, sceneReady, animationStarted])
 
-  // 4. Mostrar UI después de que las animaciones principales terminen
+  // 4. Mostrar UI después de que TODAS las fases de animación hayan terminado
+  // entanglement (última fase) empieza a 6.5s y dura 1.8s → finaliza a ~8.3s
   useEffect(() => {
     if (animationStarted) {
-      const t = setTimeout(() => setUiVisible(true), 4500)
+      const t = setTimeout(() => setUiVisible(true), 8500)
       return () => clearTimeout(t)
     } else {
       setUiVisible(false)
@@ -2989,7 +3499,7 @@ export default function UniverseView() {
       await new Promise(r => setTimeout(r, 300))
     }
 
-    // Apply lens AND reveal simultaneously — color animation starts after canvas de-blurs
+    // Apply lens AND reveal simultaneously - color animation starts after canvas de-blurs
     setActiveLens(lensId)
     setLensTransitioning(false)
     setLensLoadingLabel('')
@@ -3005,32 +3515,80 @@ export default function UniverseView() {
       const c = new THREE.Color(hex)
       return { r: c.r, g: c.g, b: c.b }
     }
+
+    // Percentile rank via sorted array — spreads skewed distributions uniformly across [0,1]
+    const percentileRank = (sorted, value) => {
+      if (sorted.length <= 1) return 0.5
+      let lo = 0, hi = sorted.length
+      while (lo < hi) { const mid = (lo + hi) >> 1; sorted[mid] < value ? lo = mid + 1 : hi = mid }
+      return lo / (sorted.length - 1)
+    }
+
     if (activeLens === 'communities') {
       Object.entries(nm).forEach(([id, m]) => {
         if (m.community_color) map[id] = hexToRgb(m.community_color)
       })
     } else if (activeLens === 'centrality') {
-      // Gradient from dim blue (low) to bright cyan (high)
+      // Data-driven: percentile rank of betweenness → brightness gradient
+      // Material lerps to white when active, so colors render directly
+      // Separate percentile ranks per entity type to avoid cross-type compression
+      const repoEntries = [], otherEntries = []
       Object.entries(nm).forEach(([id, m]) => {
-        const t = m.betweenness || 0
-        map[id] = { r: t * 0.5, g: 0.4 + t * 0.6, b: 0.8 + t * 0.2 }
+        if (id.startsWith('repo_')) repoEntries.push([id, m])
+        else otherEntries.push([id, m])
+      })
+      const repoVals = repoEntries.map(([, m]) => m.betweenness || 0).sort((a, b) => a - b)
+      const otherVals = otherEntries.map(([, m]) => m.betweenness || 0).sort((a, b) => a - b)
+      repoEntries.forEach(([id, m]) => {
+        const t = percentileRank(repoVals, m.betweenness || 0)
+        const b = 0.05 + t * t * 1.8
+        map[id] = { r: b * 0.3, g: b * 0.85, b: b }
+      })
+      otherEntries.forEach(([id, m]) => {
+        const t = percentileRank(otherVals, m.betweenness || 0)
+        const b = 0.03 + t * t * 0.35
+        map[id] = { r: b * 0.7, g: b * 0.95, b: b }
       })
     } else if (activeLens === 'busFactor') {
-      // Color repos by bus factor risk
-      const riskColors = { critical: '#ff3333', high: '#ff8800', medium: '#ffdd00', low: '#00ff88' }
+      // Bus Factor: repos colored by risk level with true hue colors
+      // Material lerps to white when lens active, so these colors appear as-is
+      const riskBrightness = {
+        critical: { r: 1.8, g: 0.2, b: 0.15 },   // bright red
+        high:     { r: 1.8, g: 0.9, b: 0.1 },     // orange
+        medium:   { r: 1.6, g: 1.5, b: 0.15 },    // yellow
+        low:      { r: 0.2, g: 1.6, b: 0.4 },     // green
+      }
       Object.entries(nm).forEach(([id, m]) => {
-        if (m.bus_factor_risk) {
-          map[id] = hexToRgb(riskColors[m.bus_factor_risk] || '#ffffff')
-        } else if (m.community_color) {
-          // Non-repo nodes: dim
-          map[id] = { r: 0.3, g: 0.3, b: 0.3 }
+        if (m.bus_factor_risk && riskBrightness[m.bus_factor_risk]) {
+          map[id] = riskBrightness[m.bus_factor_risk]
+        } else if (m.bus_factor_risk) {
+          // Unknown risk → neutral medium brightness
+          map[id] = { r: 0.5, g: 0.5, b: 0.5 }
+        } else {
+          // Orgs and users: dim down to let repos stand out
+          map[id] = { r: 0.06, g: 0.06, b: 0.08 }
         }
       })
     } else if (activeLens === 'intensity') {
-      // All nodes inherit a warm glow proportional to their degree centrality
+      // Data-driven: percentile rank of degree → brightness gradient
+      // Material lerps to white when active, so colors render directly
+      // Separate percentile ranks per entity type to avoid cross-type compression
+      const repoEntries = [], otherEntries = []
       Object.entries(nm).forEach(([id, m]) => {
-        const d = m.degree || 0
-        map[id] = { r: 1.0, g: 0.3 + d * 0.7, b: 0.1 + d * 0.3 }
+        if (id.startsWith('repo_')) repoEntries.push([id, m])
+        else otherEntries.push([id, m])
+      })
+      const repoVals = repoEntries.map(([, m]) => m.degree || 0).sort((a, b) => a - b)
+      const otherVals = otherEntries.map(([, m]) => m.degree || 0).sort((a, b) => a - b)
+      repoEntries.forEach(([id, m]) => {
+        const t = percentileRank(repoVals, m.degree || 0)
+        const b = 0.05 + t * t * 1.8
+        map[id] = { r: b, g: b * 0.65, b: b * 0.08 }
+      })
+      otherEntries.forEach(([id, m]) => {
+        const t = percentileRank(otherVals, m.degree || 0)
+        const b = 0.03 + t * t * 0.35
+        map[id] = { r: b, g: b * 0.7, b: b * 0.15 }
       })
     }
     return Object.keys(map).length > 0 ? map : null
@@ -3067,7 +3625,7 @@ export default function UniverseView() {
       })
     })
 
-    // Users — pre-build reverse index userId→repoCount (O(R*A) una sola vez)
+    // Users - pre-build reverse index userId→repoCount (O(R*A) una sola vez)
     const userRepoCount = new Map()
     for (const [, users] of Object.entries(universeData.repoUsers || {})) {
       for (const u of users) {
@@ -3151,9 +3709,34 @@ export default function UniverseView() {
     const src = findNode(tunnelingSource)
     const tgt = findNode(tunnelingTarget)
     if (src && tgt) {
-      await findQuantumPathAction(src.id, tgt.id)
+      const result = await findQuantumPathAction(src.id, tgt.id)
+      // Auto-focus: vista panorámica que muestra todo el path
+      if (result?.found && result.path?.length >= 2 && universeData?.positions) {
+        // Calcular bounding box de todas las posiciones del path
+        let minX = Infinity, minY = Infinity, minZ = Infinity
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+        let count = 0
+        for (const node of result.path) {
+          const p = universeData.positions[node.id]
+          if (!p) continue
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+          minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
+          count++
+        }
+        if (count >= 2) {
+          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
+          const sx = maxX - minX, sy = maxY - minY, sz = maxZ - minZ
+          const maxDim = Math.max(sx, sy, sz, 25) // mínimo 25 para paths cortos
+          const dist = maxDim * 1.1 // factor de alejamiento para ver todo holgadamente
+          setFocusTarget({
+            position: { x: cx, y: cy, z: cz },
+            offset: new THREE.Vector3(dist * 0.45, dist * 0.35, dist * 0.55)
+          })
+        }
+      }
     }
-  }, [tunnelingSource, tunnelingTarget, searchableNodes, findQuantumPathAction])
+  }, [tunnelingSource, tunnelingTarget, searchableNodes, findQuantumPathAction, universeData])
 
   if (!showCollaborationGraph) return null
 
@@ -3166,7 +3749,7 @@ export default function UniverseView() {
         <Canvas
           camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 8000 }}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance', stencil: false }}
-          dpr={[1, 2]}
+          dpr={[1, 1.5]}
           raycaster={{ params: { Points: { threshold: 3 } } }}
           onCreated={({ gl }) => gl.setClearColor('#020208')}
           frameloop={animationStarted ? 'always' : 'demand'}
@@ -3186,12 +3769,13 @@ export default function UniverseView() {
             startAnimation={animationStarted}
             showZones={showZones}
             entityFilter={entityFilter}
+            tunnelPath={tunnelingPath}
           />
         </Canvas>
         )}
       </div>
 
-      {/* === QUANTUM LOADING OVERLAY — pantalla de carga inicial === */}
+      {/* === QUANTUM LOADING OVERLAY - pantalla de carga inicial === */}
       {loaderVisible && (
         <div className={`${styles.quantumLoader} ${loaderFading ? styles.quantumLoaderHide : ''}`}>
           <div className={styles.loaderPulseRing} />
@@ -3224,15 +3808,15 @@ export default function UniverseView() {
                   </filter>
                 </defs>
 
-                {/* Órbita 1: cyan — horizontal inclinada */}
+                {/* Órbita 1: cyan - horizontal inclinada */}
                 <ellipse className={styles.svgOrbit1} cx="0" cy="0" rx="46" ry="16"
                   fill="none" stroke="rgba(0,212,228,0.18)" strokeWidth="0.7"
                   transform="rotate(-20)" filter="url(#glowOrbit)" />
-                {/* Órbita 2: purple — 60° */}
+                {/* Órbita 2: purple - 60° */}
                 <ellipse className={styles.svgOrbit2} cx="0" cy="0" rx="42" ry="14"
                   fill="none" stroke="rgba(157,111,219,0.16)" strokeWidth="0.7"
                   transform="rotate(40)" filter="url(#glowOrbit)" />
-                {/* Órbita 3: green — 120° */}
+                {/* Órbita 3: green - 120° */}
                 <ellipse className={styles.svgOrbit3} cx="0" cy="0" rx="44" ry="15"
                   fill="none" stroke="rgba(0,255,159,0.14)" strokeWidth="0.7"
                   transform="rotate(100)" filter="url(#glowOrbit)" />
@@ -3264,7 +3848,7 @@ export default function UniverseView() {
                 <circle cx="0" cy="0" r="2.5" fill="rgba(255,255,255,0.85)" className={styles.svgNucleus} />
               </svg>
             </div>
-            {/* Mensajes cíclicos — puro CSS, sin JS setInterval */}
+            {/* Mensajes cíclicos - puro CSS, sin JS setInterval */}
             <div className={styles.loaderMessages}>
               <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>Colapsando funciones de onda...</p>
               <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>Calculando posiciones orbitales...</p>
@@ -3275,7 +3859,7 @@ export default function UniverseView() {
         </div>
       )}
 
-      {/* === LENS TRANSITION OVERLAY — Atom spinner === */}
+      {/* === LENS TRANSITION OVERLAY - Atom spinner === */}
       {lensTransitioning && (
         <div className={styles.lensTransitionOverlay}>
           <svg className={styles.lensAtomSpinner} viewBox="0 0 120 120" width="90" height="90">
@@ -3308,9 +3892,15 @@ export default function UniverseView() {
       <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''}`}>
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.headerAtom}>⚛</span>
-          <h2>ENTANGLE Quantum Field</h2>
-          <span className={styles.headerSub}>Red de entrelazamiento cuántico</span>
+          <div className={styles.headerBrand}>
+            <span className={styles.headerAtom}>⚛</span>
+            <div className={styles.headerTitleGroup}>
+              <h2>ENTANGLE</h2>
+              <span className={styles.headerTag}>Quantum Field</span>
+            </div>
+          </div>
+          <div className={styles.headerDividerV} />
+          <span className={styles.headerSub}>Grafo de colaboración cuántica</span>
         </div>
         <div className={styles.headerRight}>
           <div className={styles.settingsWrapper} ref={settingsRef}>
@@ -3475,118 +4065,182 @@ export default function UniverseView() {
           className={`${styles.lensBtn} ${showTunneling ? styles.lensBtnActive : ''}`}
           style={showTunneling ? { '--lens-color': '#00ffaa', borderColor: '#00ffaa', color: '#00ffaa' } : { '--lens-color': '#00ffaa' }}
           onClick={() => setShowTunneling(t => !t)}
-          data-tip="Quantum Tunneling — encontrar camino entre entidades"
+          data-tip="Quantum Tunneling - encontrar camino entre entidades"
         >
           <FiCrosshair size={13} />
           <span>Túnel</span>
         </button>
       </div>
 
-      {/* === QUANTUM TUNNELING SEARCH === */}
+      {/* === QUANTUM TUNNELING PANEL === */}
       {showTunneling && (
-        <div className={styles.tunnelingBar}>
-          <div className={styles.tunnelingInputGroup}>
-            <FiTarget size={13} style={{ color: '#00ffaa' }} />
-            <div className={styles.tunnelingInputWrapper}>
-              <input
-                className={styles.tunnelingInput}
-                placeholder="Origen — escribe para buscar..."
-                value={tunnelingSource}
-                onChange={(e) => {
-                  setTunnelingSource(e.target.value)
-                  setSourceResults(filterNodes(e.target.value))
-                }}
-                onFocus={() => {
-                  setSourceInputFocused(true)
-                  if (tunnelingSource) setSourceResults(filterNodes(tunnelingSource))
-                }}
-                onBlur={() => setTimeout(() => setSourceInputFocused(false), 200)}
-                onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
-              />
-              {sourceInputFocused && sourceResults.length > 0 && (
-                <div className={styles.tunnelingDropdown}>
-                  {sourceResults.map(n => (
-                    <div key={n.id} className={styles.tunnelingOption}
-                      onMouseDown={(e) => {
-                        e.preventDefault() // previene blur antes del click
-                        setTunnelingSource(n.label)
-                        setSourceResults([])
-                        setSourceInputFocused(false)
-                      }}>
-                      <span className={styles.tunnelingOptionType} data-type={n.type}>
-                        {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
-                      </span>
-                      <span className={styles.tunnelingOptionLabel}>{n.label}</span>
-                      {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className={styles.tunnelingPanel}>
+          {/* Encabezado del panel */}
+          <div className={styles.tunnelingPanelHeader}>
+            <div className={styles.tunnelingPanelTitle}>
+              <FiCrosshair size={14} />
+              <span>Quantum Tunneling</span>
             </div>
-            <span className={styles.tunnelingArrow}>→</span>
-            <div className={styles.tunnelingInputWrapper}>
-              <input
-                className={styles.tunnelingInput}
-                placeholder="Destino — escribe para buscar..."
-                value={tunnelingTarget}
-                onChange={(e) => {
-                  setTunnelingTarget(e.target.value)
-                  setTargetResults(filterNodes(e.target.value))
-                }}
-                onFocus={() => {
-                  setTargetInputFocused(true)
-                  if (tunnelingTarget) setTargetResults(filterNodes(tunnelingTarget))
-                }}
-                onBlur={() => setTimeout(() => setTargetInputFocused(false), 200)}
-                onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
-              />
-              {targetInputFocused && targetResults.length > 0 && (
-                <div className={styles.tunnelingDropdown}>
-                  {targetResults.map(n => (
-                    <div key={n.id} className={styles.tunnelingOption}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        setTunnelingTarget(n.label)
-                        setTargetResults([])
-                        setTargetInputFocused(false)
-                      }}>
-                      <span className={styles.tunnelingOptionType} data-type={n.type}>
-                        {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
-                      </span>
-                      <span className={styles.tunnelingOptionLabel}>{n.label}</span>
-                      {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button className={styles.tunnelingSearchBtn} onClick={handleTunnelingSearch} disabled={isLoadingTunneling}>
-              {isLoadingTunneling ? <FiLoader size={14} className={styles.lensSpinner} /> : <FiSearch size={14} />}
+            <button className={styles.tunnelingPanelClose} onClick={() => { setShowTunneling(false); clearTunneling() }}>
+              <FiX size={14} />
             </button>
           </div>
 
-          {/* Resultado del tunneling */}
+          {/* Inputs de búsqueda */}
+          <div className={styles.tunnelingFields}>
+            <div className={styles.tunnelingFieldRow}>
+              <div className={styles.tunnelingFieldDot} style={{ background: '#00ffaa' }} />
+              <div className={styles.tunnelingInputWrapper}>
+                <input
+                  className={styles.tunnelingInput}
+                  placeholder="Entidad origen..."
+                  value={tunnelingSource}
+                  onChange={(e) => {
+                    setTunnelingSource(e.target.value)
+                    setSourceResults(filterNodes(e.target.value))
+                  }}
+                  onFocus={() => {
+                    setSourceInputFocused(true)
+                    if (tunnelingSource) setSourceResults(filterNodes(tunnelingSource))
+                  }}
+                  onBlur={() => setTimeout(() => setSourceInputFocused(false), 200)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
+                />
+                {sourceInputFocused && sourceResults.length > 0 && (
+                  <div className={styles.tunnelingDropdown}>
+                    {sourceResults.map(n => (
+                      <div key={n.id} className={styles.tunnelingOption}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setTunnelingSource(n.label)
+                          setSourceResults([])
+                          setSourceInputFocused(false)
+                        }}>
+                        <span className={styles.tunnelingOptionType} data-type={n.type}>
+                          {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
+                        </span>
+                        <span className={styles.tunnelingOptionLabel}>{n.label}</span>
+                        {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.tunnelingFieldConnector}>
+              <svg width="2" height="20" viewBox="0 0 2 20"><line x1="1" y1="0" x2="1" y2="20" stroke="rgba(0,255,170,0.25)" strokeWidth="2" strokeDasharray="3 3" /></svg>
+            </div>
+
+            <div className={styles.tunnelingFieldRow}>
+              <div className={styles.tunnelingFieldDot} style={{ background: '#bd00ff' }} />
+              <div className={styles.tunnelingInputWrapper}>
+                <input
+                  className={styles.tunnelingInput}
+                  placeholder="Entidad destino..."
+                  value={tunnelingTarget}
+                  onChange={(e) => {
+                    setTunnelingTarget(e.target.value)
+                    setTargetResults(filterNodes(e.target.value))
+                  }}
+                  onFocus={() => {
+                    setTargetInputFocused(true)
+                    if (tunnelingTarget) setTargetResults(filterNodes(tunnelingTarget))
+                  }}
+                  onBlur={() => setTimeout(() => setTargetInputFocused(false), 200)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTunnelingSearch()}
+                />
+                {targetInputFocused && targetResults.length > 0 && (
+                  <div className={styles.tunnelingDropdown}>
+                    {targetResults.map(n => (
+                      <div key={n.id} className={styles.tunnelingOption}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setTunnelingTarget(n.label)
+                          setTargetResults([])
+                          setTargetInputFocused(false)
+                        }}>
+                        <span className={styles.tunnelingOptionType} data-type={n.type}>
+                          {n.type === 'org' ? '⊛' : n.type === 'repo' ? '◉' : '•'}
+                        </span>
+                        <span className={styles.tunnelingOptionLabel}>{n.label}</span>
+                        {n.isBridge && <span className={styles.tunnelingBridgeTag}>⚛ bridge</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Botón de búsqueda */}
+          <button className={styles.tunnelingSearchBtn} onClick={handleTunnelingSearch} disabled={isLoadingTunneling || !tunnelingSource || !tunnelingTarget}>
+            {isLoadingTunneling ? (
+              <><FiLoader size={13} className={styles.lensSpinner} /> <span>Buscando...</span></>
+            ) : (
+              <><FiZap size={13} /> <span>Encontrar camino</span></>
+            )}
+          </button>
+
+          {/* === Resultado del tunneling === */}
           {tunnelingPath && (
             <div className={styles.tunnelingResult}>
               {tunnelingPath.found ? (
                 <>
-                  <div className={styles.tunnelingPathHeader}>
-                    <span>Quantum Channel encontrado — {tunnelingPath.length} saltos</span>
+                  <div className={styles.tunnelingResultHeader}>
+                    <div className={styles.tunnelingResultBadge}>
+                      <FiZap size={12} />
+                      <span>{tunnelingPath.length} salto{tunnelingPath.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {tunnelingPath.edges && tunnelingPath.edges.length > 0 && (
+                      <div className={styles.tunnelingResultBadge} data-variant="secondary">
+                        <FiLink size={10} />
+                        <span>{tunnelingPath.edges.length} conexiones</span>
+                      </div>
+                    )}
                     <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
                   </div>
-                  <div className={styles.tunnelingPathChain}>
-                    {tunnelingPath.path.map((node, idx) => (
-                      <span key={node.id}>
-                        <span className={styles.tunnelingPathNode} data-type={node.type}>
-                          {node.type === 'org' ? '⊛' : node.type === 'repo' ? '◉' : '•'} {node.name}
-                        </span>
-                        {idx < tunnelingPath.path.length - 1 && <span className={styles.tunnelingPathEdge}>⟶</span>}
-                      </span>
-                    ))}
+                  <div className={styles.tunnelingTimeline}>
+                    {tunnelingPath.path.map((node, idx) => {
+                      const colorMap = { org: '#00f7ff', repo: '#bd00ff', user: '#00ff9f' }
+                      const typeLabel = { org: 'Organización', repo: 'Repositorio', user: 'Usuario' }
+                      const isFirst = idx === 0
+                      const isLast = idx === tunnelingPath.path.length - 1
+                      return (
+                        <div key={node.id} className={styles.tunnelingTimelineStep} style={{ '--step-delay': `${idx * 80}ms` }}>
+                          {/* Línea vertical de conexión (no en el último) */}
+                          {!isLast && (
+                            <div className={styles.tunnelingTimelineLine} style={{ '--line-color': colorMap[node.type] || '#555' }} />
+                          )}
+                          {/* Dot del timeline */}
+                          <div className={`${styles.tunnelingTimelineDot} ${isFirst || isLast ? styles.tunnelingTimelineDotEndpoint : ''}`}
+                            style={{ '--dot-color': colorMap[node.type] || '#fff' }} />
+                          {/* Card del nodo */}
+                          <button
+                            className={styles.tunnelingTimelineCard}
+                            style={{ '--card-color': colorMap[node.type] || '#fff' }}
+                            onClick={() => {
+                              const pos = universeData?.positions?.[node.id]
+                              if (pos) setFocusTarget(pos)
+                            }}
+                          >
+                            {node.avatar_url && (
+                              <img src={node.avatar_url} alt="" className={styles.tunnelingCardAvatar} />
+                            )}
+                            <div className={styles.tunnelingCardInfo}>
+                              <span className={styles.tunnelingCardName}>{node.name}</span>
+                              <span className={styles.tunnelingCardType}>{typeLabel[node.type] || node.type}</span>
+                            </div>
+                            <FiExternalLink size={10} className={styles.tunnelingCardGo} />
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 </>
               ) : (
                 <div className={styles.tunnelingNoPath}>
+                  <FiAlertTriangle size={14} />
                   <span>No existe canal cuántico entre estas entidades</span>
                   <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
                 </div>
@@ -3598,22 +4252,24 @@ export default function UniverseView() {
 
       {/* Leyenda cuántica */}
       <div className={styles.legend}>
-        <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} />Procesadores (Orgs)</div>
-        <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} />Qubits (Repos)</div>
-        <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} />Partículas (Users)</div>
-        <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} />Entrelazadas (Bridge)</div>
-        <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #00d4e4, #bd70db)' }} />Entrelazamiento Org↔Org</div>
+        <div className={styles.legendCard}>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} /><span>Procesadores</span><span className={styles.legendType}>Org</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} /><span>Qubits</span><span className={styles.legendType}>Repo</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} /><span>Partículas</span><span className={styles.legendType}>User</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} /><span>Entrelazadas</span><span className={styles.legendType}>Bridge</span></div>
+          <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #00d4e4, #bd70db)' }} /><span>Canales</span><span className={styles.legendType}>Collab</span></div>
+        </div>
       </div>
 
-      {/* Métricas — conteos reales del grafo renderizado */}
+      {/* Métricas - conteos reales del grafo renderizado */}
       <div className={styles.metricsFloat}>
-        <div className={styles.metricPill}><FiGrid size={12} />{universeData?.repoNodes?.length || 0} qubits</div>
-        <div className={styles.metricPill}><FiUsers size={12} />{universeData?.userNodes?.length || 0} partículas</div>
-        <div className={styles.metricPill}><FiGitBranch size={12} />{metrics?.connected_repo_pairs || 0} canales</div>
-        <div className={styles.metricPill}><FiZap size={12} />{metrics?.bridge_users_count || 0} entrelazadas</div>
+        <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>qubits</span></div>
+        <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>partículas</span></div>
+        <div className={styles.metricPill}><FiGitBranch size={11} /><span className={styles.metricValue2}>{metrics?.connected_repo_pairs || 0}</span><span className={styles.metricLabel2}>canales</span></div>
+        <div className={styles.metricPill}><FiZap size={11} style={{ color: '#ffbd00' }} /><span className={styles.metricValue2}>{metrics?.bridge_users_count || 0}</span><span className={styles.metricLabel2}>bridge</span></div>
       </div>
 
-      {/* Panel de detalle — PRO */}
+      {/* Panel de detalle - PRO */}
       {(selectedEntity || panelClosing) && (() => {
         // While loading or closing, show skeleton or use stale data
         const hasData = detailData && !detailLoading
@@ -3625,7 +4281,7 @@ export default function UniverseView() {
           orgCrossPollination = 0, orgLangBreakdown = [],
           repoUsers = [], repoBridgeUsers = [], repoNormalUsers = [], repoOwnerOrg, repoOrgDiversity = [], repoHubScore = 0,
           userRepos = [], userOrgs = [], userLangs = [], userTotalStars = 0, expertise = [], userCoContributors = [],
-          networkRole, analysisText, radarAxes = [],
+          networkRole, zoneInfo, analysisText, radarAxes = [],
           knowledgeFlows = [], keyDependencies = [], healthScore, healthBreakdown = [],
           impactSimulations = [], collabMatrix, similarEntities = [], collabDNA,
           _advancedLoaded = false,
@@ -3720,7 +4376,7 @@ export default function UniverseView() {
             </div>
           )}
 
-          {/* === NETWORK ROLE BADGE === */}
+          {/* === NETWORK ROLE + ZONE BADGE === */}
           {networkRole && (
             <div className={styles.detailRoleBadge} style={{ '--role-color': networkRole.color }}
               data-tip="Clasificación automática basada en centralidad y conectividad en la red de colaboración">
@@ -3728,16 +4384,21 @@ export default function UniverseView() {
               <div className={styles.detailRoleText}>
                 <span className={styles.detailRoleLabel}>{networkRole.label}</span>
                 <span className={styles.detailRoleDesc}>{networkRole.desc}</span>
+                {zoneInfo && (
+                  <span className={styles.detailZoneTag} style={{ '--zone-color': zoneInfo.color }}>
+                    {zoneInfo.icon} {zoneInfo.label}
+                  </span>
+                )}
               </div>
             </div>
           )}
 
-          {/* === COLLABORATION RADAR — perfil pentagonal === */}
+          {/* === COLLABORATION RADAR - perfil pentagonal === */}
           {radarAxes.length === 5 && (
             <div className={styles.detailRadar}
               data-tip="Perfil de colaboración: muestra las fortalezas relativas en 5 dimensiones clave">
               <svg viewBox="-80 -25 360 260" className={styles.detailRadarSvg}>
-                {/* Grid pentagonal — 3 niveles */}
+                {/* Grid pentagonal - 3 niveles */}
                 {[1, 0.66, 0.33].map((scale, si) => (
                   <polygon key={si}
                     points={radarAxes.map((_, i) => {
@@ -3770,7 +4431,7 @@ export default function UniverseView() {
                   return <circle key={i} cx={100 + Math.cos(angle) * r} cy={100 + Math.sin(angle) * r}
                     r="2.5" fill={entityColor} opacity="0.9" />
                 })}
-                {/* Labels — posicionados dinámicamente sin cortes */}
+                {/* Labels - posicionados dinámicamente sin cortes */}
                 {radarAxes.map((ax, i) => {
                   const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
                   const cosA = Math.cos(angle)
@@ -3929,7 +4590,7 @@ export default function UniverseView() {
                       <span className={styles.detailStatValue}>{orgTotalUsers}</span>
                       <span className={styles.detailStatLabel}>Contributors</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Usuarios que contribuyen a múltiples organizaciones — conectores clave de la red">
+                    <div className={styles.detailStatCard} data-tip="Usuarios que contribuyen a múltiples organizaciones - conectores clave de la red">
                       <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
                       <span className={styles.detailStatValue}>{orgBridgeCount}</span>
                       <span className={styles.detailStatLabel}>Bridge Users</span>
@@ -4006,7 +4667,7 @@ export default function UniverseView() {
 
                   <div className={styles.detailStatsGrid}>
                     {selectedEntity.stars > 0 && (
-                      <div className={styles.detailStatCard} data-tip="Estrellas en GitHub — indicador de popularidad del repositorio">
+                      <div className={styles.detailStatCard} data-tip="Estrellas en GitHub - indicador de popularidad del repositorio">
                         <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                         <span className={styles.detailStatValue}>{selectedEntity.stars}</span>
                         <span className={styles.detailStatLabel}>Estrellas</span>
@@ -4160,10 +4821,10 @@ export default function UniverseView() {
                   <p className={styles.detailSectionTitle} data-tip="Puntuación 0-100 que mide la salud del ecosistema colaborativo de esta organización"><FiHeart size={10} /> Salud colaborativa</p>
                   <div className={styles.detailHealthGauge}>
                     <svg viewBox="0 0 120 68" className={styles.detailHealthSvg}>
-                      {/* Arco semicircular — envuelve el número */}
+                      {/* Arco semicircular - envuelve el número */}
                       <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
                       <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none"
-                        stroke={healthScore >= 70 ? '#00ff9f' : healthScore >= 40 ? '#ffd166' : '#ff6b6b'}
+                        stroke={healthScore >= 67 ? '#00ff9f' : healthScore >= 33 ? '#ffd166' : '#ff6b6b'}
                         strokeWidth="5" strokeLinecap="round"
                         strokeDasharray={`${healthScore * 1.57} 200`}
                       />
@@ -4195,7 +4856,7 @@ export default function UniverseView() {
               )}
               {collabMatrix && detailExpanded && (
                 <div className={styles.detailSection}>
-                  <p className={styles.detailSectionTitle} data-tip="Heatmap que muestra cuántos contribuidores comparten entre repos — indica transferencia de conocimiento interna"><FiLayers size={10} /> Matriz de colaboración</p>
+                  <p className={styles.detailSectionTitle} data-tip="Heatmap que muestra cuántos contribuidores comparten entre repos - indica transferencia de conocimiento interna"><FiLayers size={10} /> Matriz de colaboración</p>
                   <p className={styles.detailSectionHint}>Contributors compartidos entre repos</p>
                   <div className={styles.detailMatrixWrap}>
                     <div className={styles.detailMatrix} style={{ gridTemplateColumns: `48px repeat(${collabMatrix.labels.length}, 1fr)` }}>
@@ -4238,7 +4899,7 @@ export default function UniverseView() {
             <div className={styles.detailBody}>
               {nm ? (
                 <>
-                  <div className={styles.detailStatsGrid}>
+                  <div className={`${styles.detailStatsGrid} ${styles.detailStatsGridCentered}`}>
                     <div className={styles.detailStatCard} data-tip="Qué tan central es esta entidad en la red global de colaboración (0-100%)">
                       <FiTarget size={14} className={styles.detailStatIcon} style={{ color: '#00b4d8' }} />
                       <span className={styles.detailStatValue}>{centrality}%</span>
@@ -4316,7 +4977,7 @@ export default function UniverseView() {
                     </div>
                   )}
 
-                  {/* ─── KEY DEPENDENCIES — nodos críticos ─── */}
+                  {/* ─── KEY DEPENDENCIES - nodos críticos ─── */}
                   {keyDependencies.length > 0 && (
                     <div className={styles.detailSection}>
                       <p className={styles.detailSectionTitle} data-tip="Usuarios críticos cuya marcha tendría mayor impacto en la red de colaboración"><FiAlertTriangle size={10} /> Dependencias clave <span className={styles.detailCount}>{keyDependencies.length}</span></p>
@@ -4449,7 +5110,7 @@ export default function UniverseView() {
                   {/* ─── KNOWLEDGE FLOWS: flujos internos de conocimiento ─── */}
                   {knowledgeFlows.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle} data-tip="Pares de repositorios que comparten más contribuidores — indica transferencia de conocimiento"><FiLink size={10} /> Flujos de conocimiento <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
+                      <p className={styles.detailSectionTitle} data-tip="Pares de repositorios que comparten más contribuidores - indica transferencia de conocimiento"><FiLink size={10} /> Flujos de conocimiento <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
                       <p className={styles.detailSectionHint}>Pares de repos que comparten más contributors</p>
                       <div className={styles.detailFlowsList}>
                         {knowledgeFlows.map((flow, i) => {
@@ -4643,102 +5304,406 @@ export default function UniverseView() {
       )}
 
       {/* Botón de ayuda */}
-      <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)} data-tip="¿Qué estoy viendo?">
-        <FiHelpCircle size={16} />
-        <span>¿Qué estoy viendo?</span>
+      <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)}>
+        <FiHelpCircle size={15} />
+        <span>Guía del Universo</span>
       </button>
 
-      {/* Panel de ayuda */}
+      {/* Panel de ayuda - Completo */}
       {showHelp && (
         <aside className={styles.helpPanel}>
           <div className={styles.helpHeader}>
-            <h3>¿Qué estoy viendo?</h3>
+            <div className={styles.helpHeaderLeft}>
+              <span className={styles.helpHeaderIcon}>⚛</span>
+              <div>
+                <h3>Guía del Universo Cuántico</h3>
+                <span className={styles.helpHeaderSub}>Todo lo que necesitas saber</span>
+              </div>
+            </div>
             <button className={styles.helpClose} onClick={() => setShowHelp(false)}><FiX size={14} /></button>
           </div>
+          
+          {/* Tabs de navegación */}
+          <div className={styles.helpTabs}>
+            {[
+              { id: 'entities', label: 'Entidades', icon: '◉' },
+              { id: 'quantum', label: 'Fenómenos', icon: '∿' },
+              { id: 'analysis', label: 'Análisis', icon: '⬡' },
+              { id: 'lenses', label: 'Lentes', icon: '◎' },
+              { id: 'controls', label: 'Controles', icon: '⌘' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                className={`${styles.helpTabBtn} ${helpTab === tab.id ? styles.helpTabActive : ''}`}
+                onClick={() => setHelpTab(tab.id)}
+              >
+                <span className={styles.helpTabIcon}>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
           <div className={styles.helpBody}>
-            <p className={styles.helpIntro}>
-              Este grafo 3D representa el <strong>ecosistema de colaboración</strong> en software cuántico. Cada elemento visual es una analogía con la física cuántica.
-            </p>
+            {/* ===== TAB: ENTIDADES ===== */}
+            {helpTab === 'entities' && (
+              <div className={styles.helpSection}>
+                <p className={styles.helpIntro}>
+                  Cada elemento visual del universo es una <strong>analogía con la física cuántica</strong>. Las entidades del ecosistema de software (organizaciones, repositorios, desarrolladores) se representan como partículas y sistemas cuánticos interconectados.
+                </p>
 
-            <div className={styles.helpCard}>
-              <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.12)', color: '#00f7ff' }}>⊛</div>
-              <div>
-                <h4>Procesadores Cuánticos</h4>
-                <p>Los <strong>anillos rotando</strong> son <em>organizaciones</em> de GitHub. Como un procesador cuántico real aloja qubits, cada organización aloja repositorios.</p>
-              </div>
-            </div>
-
-            <div className={styles.helpCard}>
-              <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.12)', color: '#bd00ff' }}>◉</div>
-              <div>
-                <h4>Qubits</h4>
-                <p>Las <strong>esferas violetas</strong> son <em>repositorios</em>. El qubit es la unidad de información cuántica — el repositorio es la unidad de información del ecosistema. Las partículas que los rodean representan su nube de probabilidad.</p>
-              </div>
-            </div>
-
-            <div className={styles.helpCard}>
-              <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>•</div>
-              <div>
-                <h4>Partículas Cuánticas</h4>
-                <p>Los <strong>puntos verdes</strong> son <em>desarrolladores</em> que orbitan los repositorios a los que contribuyen, como electrones alrededor de un átomo.</p>
-              </div>
-            </div>
-
-            <div className={styles.helpCard}>
-              <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⚛</div>
-              <div>
-                <h4>Partículas Entrelazadas</h4>
-                <p>Los <strong>puntos dorados</strong> que destellan simultáneamente son <em>bridge users</em> — desarrolladores que conectan repositorios de diferentes organizaciones. Su destello sincronizado visualiza el entrelazamiento cuántico: correlación instantánea sin importar la distancia.</p>
-              </div>
-            </div>
-
-            <div className={styles.helpCard}>
-              <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>∿</div>
-              <div>
-                <h4>Canales de Entrelazamiento</h4>
-                <p>Las <strong>ondas doradas</strong> entre entidades representan relaciones de colaboración — como canales cuánticos que transmiten información entre repositorios.</p>
-              </div>
-            </div>
-
-            <details className={styles.helpDetails}>
-              <summary><FiChevronDown size={12} /> Efectos ambientales</summary>
-              <div className={styles.helpDetailsList}>
-                <div className={styles.helpMiniCard}>
-                  <strong>Vacío Cuántico</strong> — La rejilla del fondo y las partículas que parpadean representan las fluctuaciones cuánticas del vacío.
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.12)', color: '#00f7ff' }}>⊛</div>
+                  <div>
+                    <h4>Procesadores Cuánticos <span className={styles.helpCardTag}>Organizaciones</span></h4>
+                    <p>Los <strong>anillos rotando</strong> representan organizaciones de GitHub. Como un procesador cuántico real, cada organización contiene y gestiona qubits (repositorios). Sus <em>torus concéntricos</em> giran a diferentes velocidades, simulando los campos magnéticos de un procesador real. El <strong>núcleo central</strong> brilla con la firma cromática de la organización.</p>
+                  </div>
                 </div>
-                <div className={styles.helpMiniCard}>
-                  <strong>Quantum Genesis</strong> — El destello inicial simula el Big Bang que da origen al universo cuántico.
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.12)', color: '#bd00ff' }}>◉</div>
+                  <div>
+                    <h4>Qubits <span className={styles.helpCardTag}>Repositorios</span></h4>
+                    <p>Las <strong>esferas violetas</strong> son repositorios - la unidad de información del ecosistema. El qubit es la unidad de información cuántica; análogamente, cada repositorio almacena el conocimiento del proyecto. Las <em>nubes de probabilidad</em> que los rodean representan su campo de influencia, y su tamaño varía según la actividad del repositorio.</p>
+                  </div>
                 </div>
-                <div className={styles.helpMiniCard}>
-                  <strong>Efecto Túnel</strong> — Las esferas doradas que viajan por los canales son fotones atravesando barreras de potencial.
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>•</div>
+                  <div>
+                    <h4>Partículas Cuánticas <span className={styles.helpCardTag}>Desarrolladores</span></h4>
+                    <p>Los <strong>puntos verdes</strong> son desarrolladores que <em>orbitan</em> los repositorios a los que contribuyen, como electrones orbitando un átomo. Su posición orbital no es fija - vibran constantemente (principio de incertidumbre de Heisenberg). El radio orbital refleja su nivel de actividad en el repositorio.</p>
+                  </div>
                 </div>
-                <div className={styles.helpMiniCard}>
-                  <strong>Ondas de Decoherencia</strong> — Los anillos expansivos desde los procesadores simulan la pérdida de coherencia cuántica.
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⚛</div>
+                  <div>
+                    <h4>Partículas Entrelazadas <span className={styles.helpCardTag}>Bridge Users</span></h4>
+                    <p>Los <strong>puntos dorados</strong> que destellan simultáneamente son <em>bridge users</em> - desarrolladores que trabajan en repositorios de <strong>múltiples organizaciones</strong>. Su destello sincronizado visualiza el entrelazamiento cuántico: correlación instantánea sin importar la distancia. Son las entidades más valiosas del ecosistema porque transfieren conocimiento entre organizaciones.</p>
+                  </div>
                 </div>
-                <div className={styles.helpMiniCard}>
-                  <strong>Radiación de Hawking</strong> — Las micropartículas que emanan de cada procesador simulan la radiación que emiten los agujeros negros.
-                </div>
-                <div className={styles.helpMiniCard}>
-                  <strong>Incertidumbre de Heisenberg</strong> — La micro-vibración constante de todas las entidades refleja que en el mundo cuántico no existen posiciones absolutamente fijas.
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,212,228,0.12)', color: '#00d4e4' }}>∿</div>
+                  <div>
+                    <h4>Canales de Entrelazamiento <span className={styles.helpCardTag}>Colaboraciones</span></h4>
+                    <p>Las <strong>ondas sinuosas</strong> entre entidades representan relaciones de colaboración directa. Como canales cuánticos que transmiten qubits entre procesadores, estas líneas ondulantes visualizan cómo los desarrolladores conectan repositorios y organizaciones entre sí. La <em>intensidad del color</em> y la <em>amplitud de la onda</em> reflejan la fuerza de la conexión.</p>
+                  </div>
                 </div>
               </div>
-            </details>
+            )}
 
-            <details className={styles.helpDetails}>
-              <summary><FiChevronDown size={12} /> Controles</summary>
-              <div className={styles.helpDetailsList}>
-                <div className={styles.helpMiniCard}><strong>Click</strong> — Colapsa la función de onda: revela la información de la entidad.</div>
-                <div className={styles.helpMiniCard}><strong>Scroll</strong> — Navega en la dirección del cursor (vuelo libre).</div>
-                <div className={styles.helpMiniCard}><strong>Arrastrar</strong> — Rota la vista orbital.</div>
-                <div className={styles.helpMiniCard}><strong>ESC</strong> — Deselecciona o cierra la visualización.</div>
+            {/* ===== TAB: FENÓMENOS CUÁNTICOS ===== */}
+            {helpTab === 'quantum' && (
+              <div className={styles.helpSection}>
+                <p className={styles.helpIntro}>
+                  El universo está lleno de <strong>fenómenos cuánticos</strong> que dan vida al espacio entre las entidades. Cada efecto visual tiene un análogo en la física cuántica real.
+                </p>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(100,100,255,0.1)', color: '#6666ff' }}>≋</div>
+                  <div>
+                    <h4>Vacío Cuántico</h4>
+                    <p>La <strong>rejilla de fondo</strong> y las partículas que parpadean aleatoriamente representan las <em>fluctuaciones del vacío cuántico</em>. En la mecánica cuántica, incluso el espacio vacío bulle con energía - pares de partículas aparecen y desaparecen constantemente. La rejilla oscila sutilmente, simulando el tejido del espacio-tiempo.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,255,200,0.12)', color: '#ffffaa' }}>✦</div>
+                  <div>
+                    <h4>Quantum Genesis</h4>
+                    <p>El <strong>destello blanco inicial</strong> simula el Big Bang que da origen al universo cuántico. Al entrar en la visualización, todas las entidades nacen desde un punto singular y se expanden siguiendo una animación cinética que distribuye procesadores, qubits y partículas a sus posiciones finales. La opacidad y escala aumentan <em>progresivamente</em> (entanglement phase).</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.1)', color: '#dd88ff' }}>☁</div>
+                  <div>
+                    <h4>Nubes de Probabilidad</h4>
+                    <p>Los <strong>halos difusos</strong> alrededor de cada qubit (repositorio) son sus <em>nubes de probabilidad</em>. En mecánica cuántica, la posición de un electrón no es un punto fijo sino una distribución de probabilidad. Las partículas de la nube orbitan con velocidades aleatorias, pulsando con un brillo tenue que refleja la superposición de estados del qubit.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.1)', color: '#00f7ff' }}>◎</div>
+                  <div>
+                    <h4>Anillos de Energía</h4>
+                    <p>Los <strong>anillos brillantes</strong> alrededor de los procesadores (organizaciones) representan sus <em>niveles de energía</em>. Como un átomo con sus capas electrónicas, cada organización emite anillos que reflejan su nivel de actividad. Los colores heredan la firma cromática de la organización, y los anillos pulsan sutilmente con el ritmo del ecosistema.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,215,0,0.1)', color: '#ffd700' }}>⊕</div>
+                  <div>
+                    <h4>Efecto Túnel Cuántico</h4>
+                    <p>Las <strong>esferas doradas que viajan</strong> por los canales de entrelazamiento son <em>fotones</em> atravesando barreras de potencial. En la física real, una partícula puede "tunelizar" a través de una barrera que clásicamente sería impenetrable. Aquí, los fotones viajan entre entidades conectadas, visualizando la transferencia activa de información por los canales.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,200,255,0.1)', color: '#00c8ff' }}>○</div>
+                  <div>
+                    <h4>Ondas de Decoherencia</h4>
+                    <p>Los <strong>anillos expansivos</strong> que emanan periódicamente de los procesadores simulan la <em>decoherencia cuántica</em> - el proceso por el que un sistema cuántico pierde su coherencia al interactuar con el entorno. Las ondas se expanden y desvanecen, representando cómo la información cuántica se disipa al exterior del sistema.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,100,100,0.1)', color: '#ff8888' }}>❋</div>
+                  <div>
+                    <h4>Radiación de Hawking</h4>
+                    <p>Las <strong>micropartículas</strong> que emanan constantemente de cada procesador simulan la <em>radiación de Hawking</em> - la emisión térmica predicha por Stephen Hawking para los agujeros negros. Las partículas nacen cerca del procesador y se alejan lentamente, desapareciendo al salir de su campo gravitatorio. Representan la actividad constante del ecosistema.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,200,50,0.1)', color: '#ffcc44' }}>↕</div>
+                  <div>
+                    <h4>Incertidumbre de Heisenberg</h4>
+                    <p>La <strong>micro-vibración constante</strong> de todas las entidades refleja el <em>principio de incertidumbre de Heisenberg</em>: en el mundo cuántico no existen posiciones absolutamente fijas. No puedes conocer simultáneamente la posición y el momento de una partícula con precisión infinita. Cada nodo vibra sutilmente como recordatorio de esta ley fundamental.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(100,150,255,0.1)', color: '#88aaff' }}>⩕</div>
+                  <div>
+                    <h4>Campo de Interferencia</h4>
+                    <p>La <strong>rejilla ondulante</strong> del fondo es un <em>patrón de interferencia</em> - el resultado de ondas cuánticas superponiéndose constructiva y destructivamente. Como el famoso experimento de la doble rendija, las crestas y valles forman un patrón periódico que pulsa lentamente, recordando que las partículas cuánticas se comportan también como ondas.</p>
+                  </div>
+                </div>
               </div>
-            </details>
+            )}
+
+            {/* ===== TAB: ANÁLISIS ===== */}
+            {helpTab === 'analysis' && (
+              <div className={styles.helpSection}>
+                <p className={styles.helpIntro}>
+                  El universo cuántico no es solo una visualización estética - cada entidad se analiza con <strong>métricas de red avanzadas</strong> que revelan la estructura profunda de la colaboración.
+                </p>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#6c5ce7' }}>⬡</div>
+                  <div>
+                    <h4>Radar de Colaboración</h4>
+                    <p>El <strong>pentágono interactivo</strong> del panel de detalle muestra 5 ejes de colaboración: <em>Actividad</em> (commits, PRs), <em>Diversidad</em> (repos distintos), <em>Impacto</em> (influencia en el ecosistema), <em>Consistencia</em> (regularidad temporal), y <em>Alcance</em> (organizaciones distintas). Cada eje se normaliza de 0 a 1 y se compara con la media global.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,180,216,0.12)', color: '#00b4d8' }}>⊕</div>
+                  <div>
+                    <h4>Centralidad de Red</h4>
+                    <p>La <strong>centralidad</strong> mide la importancia estructural de una entidad dentro del grafo. Usa algoritmos como <em>betweenness centrality</em> (cuántos caminos mínimos pasan por ella) y <em>degree centrality</em> (número de conexiones). Las entidades con alta centralidad son críticas para la conectividad: si desaparecen, el ecosistema se fragmenta.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}>⚠</div>
+                  <div>
+                    <h4>Bus Factor</h4>
+                    <p>El <strong>Bus Factor</strong> mide el <em>riesgo de concentración de conocimiento</em>: ¿cuántas personas tendrían que desaparecer para que un proyecto quede sin mantenimiento? Un bus factor de 1 (crítico, rojo) significa que una sola persona controla todo el conocimiento. Se muestra con barras de contribución por usuario y clasificación de riesgo: <span style={{color:'#ff3333'}}>crítico</span>, <span style={{color:'#ff8800'}}>alto</span>, <span style={{color:'#ffdd00'}}>medio</span>, <span style={{color:'#00ff88'}}>bajo</span>.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#a29bfe' }}>⬢</div>
+                  <div>
+                    <h4>Comunidades</h4>
+                    <p>El algoritmo de <strong>detección de comunidades</strong> identifica clusters de entidades densamente conectadas entre sí pero escasamente conectadas con el resto. Cada comunidad recibe un <em>color único</em> y las entidades se agrupan visualmente. Las fronteras zonales (activables desde Ajustes) delimitan estas comunidades con esferas translúcidas.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>◈</div>
+                  <div>
+                    <h4>Roles de Red</h4>
+                    <p>Cada usuario recibe un <strong>rol de red</strong> basado en sus métricas de conectividad: <em>Hub Central</em> (muchas conexiones directas), <em>Puente</em> (conecta comunidades disjuntas), <em>Especialista</em> (contribuciones intensas en pocos repos), <em>Explorador</em> (contribuciones dispersas en muchos repos), o <em>Colaborador</em> (participación regular). El rol se muestra con un badge cromático en el panel de detalle.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⇋</div>
+                  <div>
+                    <h4>Cross-Pollination</h4>
+                    <p>La tasa de <strong>polinización cruzada</strong> mide qué porcentaje de usuarios contribuyen a repositorios de <em>múltiples organizaciones</em>, transfiriendo prácticas y conocimiento entre equipos. Una tasa alta indica un ecosistema saludable donde las ideas fluyen libremente. Se calcula como: bridge users / total users × 100.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(162,155,254,0.12)', color: '#a29bfe' }}>🧬</div>
+                  <div>
+                    <h4>ADN de Colaboración</h4>
+                    <p>El <strong>ADN de Colaboración</strong> es una visualización única que codifica el <em>patrón de contribución</em> de cada entidad como una cadena genética. Cada segmento de color representa un tipo de actividad (commits, issues, PRs, reviews), y la secuencia revela el estilo de trabajo del desarrollador o equipo - ¿es más revisor, más codificador, o muy equilibrado?</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,100,100,0.12)', color: '#ff6b6b' }}>💥</div>
+                  <div>
+                    <h4>Simulación de Impacto</h4>
+                    <p>La <strong>simulación de impacto</strong> responde a la pregunta: <em>"¿Qué pasaría si este usuario dejara de contribuir?"</em> Calcula qué repositorios perderían mantenimiento, cuántas conexiones se romperían, y cuánto se fragmentaría la red. Se clasifica como impacto <span style={{color:'#ff6b6b'}}>crítico</span>, <span style={{color:'#ffbd00'}}>alto</span> o <span style={{color:'#a29bfe'}}>moderado</span>.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,220,200,0.12)', color: '#00ddc8' }}>≈</div>
+                  <div>
+                    <h4>Entidades Similares</h4>
+                    <p>El motor de <strong>similitud</strong> encuentra entidades con patrones de colaboración parecidos usando métricas como co-contribución (repos en común), distribución de lenguajes, nivel de actividad y conexiones. El porcentaje de similitud indica qué tan intercambiables son dos entidades en el grafo. Útil para encontrar candidatos de backup o colaboradores afines.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,150,0.12)', color: '#00ff96' }}>♥</div>
+                  <div>
+                    <h4>Salud del Proyecto</h4>
+                    <p>El <strong>gauge de salud</strong> (arco semicircular) muestra un score compuesto de 0-100 que evalúa la sostenibilidad del proyecto. Combina métricas de: <em>diversidad de contribuidores</em>, <em>actividad reciente</em>, <em>distribución de commits</em> y <em>bus factor</em>. A mayor puntaje, más resiliente es el proyecto ante la pérdida de contribuidores clave.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffd166' }}>→</div>
+                  <div>
+                    <h4>Flujos de Conocimiento</h4>
+                    <p>Los <strong>flujos de conocimiento</strong> rastrean cómo los desarrolladores llevan prácticas, herramientas y patrones de un repositorio a otro. Una barra de flujo A → B indica que desarrolladores que trabajan en A también contribuyen a B, creando un canal de transferencia de conocimiento. La anchura de la barra refleja el volumen de flujo.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ===== TAB: LENTES ===== */}
+            {helpTab === 'lenses' && (
+              <div className={styles.helpSection}>
+                <p className={styles.helpIntro}>
+                  Las <strong>lentes analíticas</strong> transforman la visualización del universo para revelar diferentes dimensiones de la red de colaboración. Cada lente aplica un algoritmo de coloreo y dimensionado que resalta un aspecto específico.
+                </p>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#6c5ce7' }}><FiLayers size={18} /></div>
+                  <div>
+                    <h4>Lente de Comunidades</h4>
+                    <p>Colorea cada entidad según la <strong>comunidad</strong> a la que pertenece (algoritmo Louvain/modularity). Las entidades del mismo color forman clusters de trabajo estrecho. Permite identificar <em>silos organizacionales</em>, equipos que trabajan aislados, y los <em>bridge users</em> que los conectan. Las fronteras zonales se habilitan automáticamente para delimitar cada comunidad en el espacio 3D.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,180,216,0.12)', color: '#00b4d8' }}><FiActivity size={18} /></div>
+                  <div>
+                    <h4>Lente de Centralidad</h4>
+                    <p>Visualiza la <strong>betweenness centrality</strong> de cada entidad - cuántos caminos mínimos de la red pasan por ella. Las entidades más centrales se ven <em>más grandes y brillantes</em>, las periféricas se oscurecen y encogen. Se aplica a <strong>todos los tipos</strong>: organizaciones, repositorios y usuarios. Usa percentil rank (distribución uniforme), así que siempre verás un gradiente claro de oscuro a brillante independientemente de la distribución de los datos.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}><FiShield size={18} /></div>
+                  <div>
+                    <h4>Lente de Bus Factor</h4>
+                    <p>Colorea los <strong>repositorios</strong> según su riesgo de bus factor (cuántas personas hacen falta para cubrir el 50% del trabajo). <span style={{color:'#ff3333'}}>Rojo intenso</span> = crítico (1 persona), <span style={{color:'#ff8800'}}>naranja</span> = alto (2), <span style={{color:'#ffdd00'}}>amarillo</span> = medio (3-4), <span style={{color:'#00ff88'}}>verde</span> = bajo (5+). Organizaciones y usuarios se atenúan para que los repos destaquen. Los repos más grandes y brillantes tienen mayor riesgo.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166' }}><FiZap size={18} /></div>
+                  <div>
+                    <h4>Lente de Intensidad</h4>
+                    <p>Visualiza la <strong>degree centrality</strong> - el número de conexiones directas de cada entidad. Las entidades más conectadas se ven más grandes y con un brillo dorado cálido, las poco conectadas se oscurecen. Usa percentil rank para distribución uniforme del gradiente. Complementa la lente de Centralidad: <em>degree</em> mide conexiones directas, <em>betweenness</em> mide importancia como puente.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,170,0.12)', color: '#00ffaa' }}><FiCrosshair size={18} /></div>
+                  <div>
+                    <h4>Quantum Tunneling</h4>
+                    <p>El <strong>efecto túnel</strong> permite encontrar el <em>camino más corto</em> entre dos entidades cualesquiera del universo. Escribe el origen y destino en los campos de búsqueda y el algoritmo BFS encontrará la cadena de conexiones más corta. El resultado muestra cada salto entre entidades y su tipo (org → repo → user → repo → org). Si no hay camino, las entidades están en componentes desconectados del grafo.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ===== TAB: CONTROLES ===== */}
+            {helpTab === 'controls' && (
+              <div className={styles.helpSection}>
+                <p className={styles.helpIntro}>
+                  Controles de navegación e interacción con el universo cuántico. Toda interacción sigue la metáfora cuántica.
+                </p>
+
+                <div className={styles.helpControlGrid}>
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}>Click</div>
+                    <div>
+                      <strong>Colapso de Función de Onda</strong>
+                      <p>Al hacer click en una entidad, "colapsa su función de onda" revelando toda su información: radar de colaboración, estadísticas, métricas de red, bus factor, ADN, y más. La cámara se acerca suavemente a la entidad seleccionada.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}>Scroll</div>
+                    <div>
+                      <strong>Control de Zoom</strong>
+                      <p>La rueda del ratón controla el nivel de zoom. El sistema de <em>Level of Detail</em> (LOD) ajusta automáticamente la complejidad visual según la distancia: de lejos se ven solo puntos, de cerca se ven los detalles completos de cada entidad.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}>Arrastrar</div>
+                    <div>
+                      <strong>Rotación Orbital</strong>
+                      <p>Arrastra con el ratón para orbitar alrededor del universo. La cámara sigue una órbita esférica centrada en el punto de interés seleccionado, o en el centro del universo si no hay selección.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}>ESC</div>
+                    <div>
+                      <strong>Deselección / Salir</strong>
+                      <p>Cierra el panel de detalle si hay una entidad seleccionada. Si no hay nada seleccionado, cierra la visualización completa y vuelve al dashboard principal.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}><FiSearch size={13} /></div>
+                    <div>
+                      <strong>Búsqueda</strong>
+                      <p>La barra superior permite buscar cualquier entidad por nombre. Los resultados se agrupan por tipo (organizaciones, repositorios, usuarios) y los bridge users se marcan con una etiqueta dorada. Seleccionar un resultado centra la cámara en la entidad.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}><FiSettings size={13} /></div>
+                    <div>
+                      <strong>Ajustes</strong>
+                      <p>El menú de ajustes permite: activar/desactivar <em>fronteras zonales</em>, mostrar/ocultar <em>bots</em>, y <em>resaltar</em> tipos específicos de entidades con filtros de color para organizaciones, repositorios, usuarios normales, bridge users y canales de colaboración.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}><FiBookmark size={13} /></div>
+                    <div>
+                      <strong>Pin & Compare</strong>
+                      <p>En el panel de detalle, usa el botón <em>pin</em> para anclar una entidad y luego selecciona otra para compararlas lado a lado. Las barras muestran las métricas de ambas entidades superpuestas con un delta que indica la diferencia.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.helpControlCard}>
+                    <div className={styles.helpControlKey}><FiMaximize2 size={13} /></div>
+                    <div>
+                      <strong>Expandir Panel</strong>
+                      <p>El panel de detalle puede expandirse a vista completa con el botón de maximizar, mostrando un layout de 2 columnas con todas las métricas, matriz de colaboración, flujos de conocimiento y análisis completo de la entidad.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </aside>
       )}
 
       <div className={styles.interactionHint}>
-        Click · Colapso de función de onda &nbsp;|&nbsp; Scroll · Control de zoom &nbsp;|&nbsp; Arrastrar · Rotación orbital  
+        <span>Click · Colapso de función de onda</span>
+        <span className={styles.hintDivider}>|</span>
+        <span>Scroll · Zoom</span>
+        <span className={styles.hintDivider}>|</span>
+        <span>Arrastrar · Órbita</span>
       </div>
       </div>{/* cierre universeUI */}
     </div>

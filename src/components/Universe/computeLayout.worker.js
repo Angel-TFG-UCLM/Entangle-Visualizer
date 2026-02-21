@@ -1,5 +1,5 @@
 /**
- * Web Worker — Compute Layout del Quantum Universe
+ * Web Worker - Compute Layout del Quantum Universe
  * =================================================
  * Mueve la computación pesada de posicionamiento (O(n²~n³)) fuera del
  * hilo principal para que las animaciones CSS del loader no se congelen.
@@ -14,13 +14,79 @@ function seededRandom(seed) {
   return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646 }
 }
 
-// Vector3 mínimo — solo se necesita constructor + distanceTo
+// Vector3 mínimo - solo se necesita constructor + distanceTo
 class Vec3 {
   constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z }
   distanceTo(v) {
     const dx = this.x - v.x, dy = this.y - v.y, dz = this.z - v.z
     return Math.sqrt(dx * dx + dy * dy + dz * dz)
   }
+}
+
+// ============================================================================
+// ALGORITMO DE JENKS NATURAL BREAKS (Fisher-Jenks)
+// ============================================================================
+// Clasifica datos 1D en k grupos minimizando la varianza intra-grupo (SDCM).
+// Las fronteras de zona emergen de la distribución real de los datos,
+// sin constantes arbitrarias. O(n^2 * k) - trivial para n~127, k=3.
+// Ref: Fisher, W.D. (1958) "On Grouping for Maximum Homogeneity"
+
+function jenksNaturalBreaks(data, nClasses) {
+  const sorted = [...data].sort((a, b) => a - b)
+  const n = sorted.length
+
+  if (n <= nClasses) {
+    const step = n > 1 ? (sorted[n - 1] - sorted[0]) / nClasses : sorted[0]
+    return {
+      boundaries: Array.from({length: nClasses - 1}, (_, i) => sorted[0] + step * (i + 1)),
+      classStarts: Array.from({length: nClasses}, (_, i) => Math.min(i, n - 1)),
+      sorted
+    }
+  }
+
+  // DP: lower[i][j] = inicio optimo de clase j para los i primeros elementos
+  // vari[i][j] = SDCM minima para esa clasificacion
+  const lower = Array.from({length: n + 1}, () => new Int32Array(nClasses + 1))
+  const vari = Array.from({length: n + 1}, () => {
+    const r = new Float64Array(nClasses + 1); r.fill(Infinity); return r
+  })
+
+  for (let j = 1; j <= nClasses; j++) { lower[1][j] = 1; vari[1][j] = 0 }
+
+  for (let l = 2; l <= n; l++) {
+    let sum = 0, sumSq = 0, w = 0
+    for (let m = 1; m <= l; m++) {
+      const i3 = l - m + 1
+      const val = sorted[i3 - 1]
+      w++; sum += val; sumSq += val * val
+      const v = sumSq - (sum * sum) / w
+      if (i3 > 1) {
+        for (let j = 2; j <= nClasses; j++) {
+          const cost = v + vari[i3 - 1][j - 1]
+          if (cost < vari[l][j]) { lower[l][j] = i3; vari[l][j] = cost }
+        }
+      }
+    }
+    lower[l][1] = 1
+    vari[l][1] = sumSq - (sum * sum) / w
+  }
+
+  // Backtrack: indice de inicio de cada clase (0-based)
+  const classStarts = new Array(nClasses)
+  classStarts[0] = 0
+  let k = n
+  for (let j = nClasses; j >= 2; j--) {
+    classStarts[j - 1] = lower[k][j] - 1
+    k = lower[k][j] - 1
+  }
+
+  // Frontera = punto medio entre ultimo de clase C y primero de clase C+1
+  const boundaries = []
+  for (let c = 1; c < nClasses; c++) {
+    boundaries.push((sorted[classStarts[c] - 1] + sorted[classStarts[c]]) / 2)
+  }
+
+  return { boundaries, classStarts, sorted }
 }
 
 // ============================================================================
@@ -99,17 +165,19 @@ function computeLayout(graph, nodeMetrics) {
   })
 
   // FASE 2: Score de centralidad por org
+  // IMPORTANTE: usar collab_centrality_raw (suma de contributors compartidos),
+  // NO collab_centrality (percentil 0-100 que distorsiona la clasificación zonal)
   const orgScore = {}
   let useBackendMetrics = false
 
   if (nodeMetrics) {
     const anyOrgHasMetrics = orgNodes.some(org =>
-      nodeMetrics[org.id]?.collab_centrality !== undefined
+      nodeMetrics[org.id]?.collab_centrality_raw !== undefined
     )
     if (anyOrgHasMetrics) {
       useBackendMetrics = true
       orgNodes.forEach(org => {
-        orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality ?? 0
+        orgScore[org.id] = nodeMetrics[org.id]?.collab_centrality_raw ?? 0
       })
     }
   }
@@ -130,8 +198,9 @@ function computeLayout(graph, nodeMetrics) {
   const sortedByScore = [...orgNodes].sort((a, b) => orgScore[b.id] - orgScore[a.id])
 
   if (sortedByScore.length > 0) {
-    console.log(`[Layout Worker] Modo: ${useBackendMetrics ? 'BACKEND collab_centrality' : 'LOCAL orgScore'}`)
-    console.log(`[Layout Worker] Top 5 orgs:`, sortedByScore.slice(0, 5).map(o => `${o.id}=${orgScore[o.id]}`))
+    console.log(`[Layout Worker] Modo: ${useBackendMetrics ? 'BACKEND collab_centrality_raw' : 'LOCAL orgScore'}`)
+    console.log(`[Layout Worker] Top 10 orgs:`, sortedByScore.slice(0, 10).map(o => `${o.id}=${orgScore[o.id]}`))
+    console.log(`[Layout Worker] Bottom 5 orgs:`, sortedByScore.slice(-5).map(o => `${o.id}=${orgScore[o.id]}`))
   }
 
   // FASE 3: Posicionar orgs
@@ -140,44 +209,50 @@ function computeLayout(graph, nodeMetrics) {
   const positions = {}
   const rng = seededRandom(42)
 
-  const CORE_RADIUS = 150 * scaleFactor
-  const PERIPHERY_MIN = 500 * scaleFactor
+  // PERIPHERY_MAX: parametro de escala visual (define el tamano del universo).
+  // NO es una frontera de zona - solo el lienzo maximo de posicionamiento.
   const PERIPHERY_MAX = 900 * scaleFactor
 
-  const coreOrgs = []
-  const midOrgs = []
-  const isolatedOrgs = []
+  const orgPositions = []
+  const MIN_SEP = 55 * scaleFactor
 
-  if (useBackendMetrics) {
-    sortedByScore.forEach(org => {
-      const s = orgScore[org.id]
-      if (s >= 40) coreOrgs.push(org)
-      else if (s > 0) midOrgs.push(org)
-      else isolatedOrgs.push(org)
-    })
-  } else {
-    const maxScore = Math.max(...Object.values(orgScore), 1)
-    sortedByScore.forEach(org => {
-      const s = orgScore[org.id]
-      if (s >= maxScore * 0.15) coreOrgs.push(org)
-      else if (s > 0) midOrgs.push(org)
-      else isolatedOrgs.push(org)
-    })
+  // Mapeo CONTINUO logaritmico: radio proporcional a log(score)
+  const nonZeroOrgs = sortedByScore.filter(o => orgScore[o.id] > 0)
+  const maxScore = nonZeroOrgs.length > 0 ? orgScore[nonZeroOrgs[0].id] : 1
+
+  // Pre-computar targetR para TODAS las orgs con colaboracion (antes del placement)
+  // Esto permite alimentar el algoritmo de Jenks con la distribucion completa.
+  const orgTargetR = {}
+  const allTargetRadii = []
+  for (const org of nonZeroOrgs) {
+    const score = orgScore[org.id]
+    const normalized = Math.log(1 + score) / Math.log(1 + maxScore)
+    const curved = Math.pow(normalized, 0.7)
+    const tr = PERIPHERY_MAX * (1 - curved)
+    orgTargetR[org.id] = tr
+    allTargetRadii.push(tr)
   }
 
-  console.log(`[Layout Worker] Zonas: core=${coreOrgs.length}, mid=${midOrgs.length}, isolated=${isolatedOrgs.length}`)
-
-  const orgPositions = []
-  const MIN_SEP = 80 * scaleFactor
+  // JENKS NATURAL BREAKS: fronteras de zona derivadas de la distribucion real.
+  // El algoritmo (Fisher 1958) minimiza la varianza intra-clase (SDCM),
+  // encontrando los cortes naturales donde la distribucion de radios se
+  // separa por si sola. Cero constantes arbitrarias - todo lo define el dato.
+  let CORE_BOUNDARY, MID_BOUNDARY
+  if (allTargetRadii.length >= 6) {
+    const { boundaries, classStarts } = jenksNaturalBreaks(allTargetRadii, 3)
+    CORE_BOUNDARY = boundaries[0]
+    MID_BOUNDARY = boundaries[1]
+    const c1 = classStarts[1]
+    const c2 = classStarts[2] - classStarts[1]
+    const c3 = allTargetRadii.length - classStarts[2]
+    console.log(`[Layout Worker] Jenks Natural Breaks -> core<${CORE_BOUNDARY.toFixed(0)} (${c1} orgs), mid<${MID_BOUNDARY.toFixed(0)} (${c2} orgs), peripheral (${c3} orgs)`)
+  } else {
+    CORE_BOUNDARY = PERIPHERY_MAX * 0.25
+    MID_BOUNDARY = PERIPHERY_MAX * 0.6
+    console.log(`[Layout Worker] Fallback (n<6): core<${CORE_BOUNDARY.toFixed(0)}, mid<${MID_BOUNDARY.toFixed(0)}`)
+  }
 
   function placeOrg(org, rMin, rMax) {
-    if (coreOrgs.length > 0 && coreOrgs[0] === org && !positions[org.id]) {
-      const pos = new Vec3(0, 0, 0)
-      positions[org.id] = pos
-      orgPositions.push(pos)
-      return
-    }
-
     const neighbors = orgNeighbors[org.id]
     let attractCenter = null
     if (neighbors && neighbors.size > 0) {
@@ -241,11 +316,45 @@ function computeLayout(graph, nodeMetrics) {
     orgPositions.push(best)
   }
 
-  coreOrgs.forEach(org => placeOrg(org, 0, CORE_RADIUS))
-  midOrgs.forEach(org => placeOrg(org, CORE_RADIUS * 0.5, PERIPHERY_MIN))
-  isolatedOrgs.forEach(org => placeOrg(org, PERIPHERY_MIN, PERIPHERY_MAX))
+  // Org #1 (mayor score): centro absoluto
+  if (sortedByScore.length > 0 && orgScore[sortedByScore[0].id] > 0) {
+    positions[sortedByScore[0].id] = new Vec3(0, 0, 0)
+    orgPositions.push(positions[sortedByScore[0].id])
+  }
 
-  // FASE 4: Repos en órbita alrededor de sus orgs — ponderados por nº de contribuidores
+  // Resto: usar targetR pre-computado (ya alimentó a Jenks)
+  const startIdx = (sortedByScore.length > 0 && orgScore[sortedByScore[0].id] > 0) ? 1 : 0
+  for (let i = startIdx; i < sortedByScore.length; i++) {
+    const org = sortedByScore[i]
+    const score = orgScore[org.id]
+
+    if (score > 0) {
+      const targetR = orgTargetR[org.id]
+      const band = Math.max(MIN_SEP, targetR * 0.15)
+      placeOrg(org, Math.max(0, targetR - band), targetR + band)
+    } else {
+      // Sin colaboracion inter-org -> mas alla de la frontera natural
+      placeOrg(org, MID_BOUNDARY, PERIPHERY_MAX)
+    }
+  }
+
+  // Derivar zonas desde posiciones reales (para metadatos visuales y fronteras)
+  const coreOrgs = []
+  const midOrgs = []
+  const isolatedOrgs = []
+  sortedByScore.forEach(org => {
+    const p = positions[org.id]
+    if (!p) { isolatedOrgs.push(org); return }
+    const r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+    if (r <= CORE_BOUNDARY) coreOrgs.push(org)
+    else if (r <= MID_BOUNDARY) midOrgs.push(org)
+    else isolatedOrgs.push(org)
+  })
+
+  console.log(`[Layout Worker] Distribución continua: core=${coreOrgs.length}, mid=${midOrgs.length}, isolated=${isolatedOrgs.length}`)
+  console.log(`[Layout Worker] Score: max=${maxScore}, nonZero=${nonZeroOrgs.length}/${sortedByScore.length}`)
+
+  // FASE 4: Repos en órbita alrededor de sus orgs - ponderados por nº de contribuidores
   // Repos con más contribuidores orbitan más cerca de su org ("planetas masivos"),
   // repos con pocos contribuidores orbitan más lejos ("satélites periféricos").
   const assignedRepos = new Set()
@@ -290,8 +399,8 @@ function computeLayout(graph, nodeMetrics) {
   const orphanRepos = repoNodes.filter(r => !assignedRepos.has(r.id))
   orphanRepos.forEach((repo, i) => {
     const a = (i / Math.max(orphanRepos.length, 1)) * Math.PI * 2 + rng() * 0.5
-    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.4
-    const yOff = (rng() - 0.5) * PERIPHERY_MIN * 0.25
+    const r2 = MID_BOUNDARY * 0.5 + rng() * MID_BOUNDARY * 0.4
+    const yOff = (rng() - 0.5) * MID_BOUNDARY * 0.25
     positions[repo.id] = new Vec3(
       r2 * Math.cos(a) + (rng() - 0.5) * 30,
       yOff,
@@ -299,7 +408,7 @@ function computeLayout(graph, nodeMetrics) {
     )
   })
 
-  // FASE 5: Users — posicionados en centroide de sus repos
+  // FASE 5: Users - posicionados en centroide de sus repos
   // Si un user contribuye a 1 repo → orbita ese repo (como antes)
   // Si contribuye a N repos de la misma org → centroide de esos repos (más cerca del org center)
   // Si contribuye a repos de distintas orgs → centroide ponderado ("bridge developer")
@@ -351,10 +460,10 @@ function computeLayout(graph, nodeMetrics) {
 
   userNodes.filter(u => !assignedUsers.has(u.id)).forEach((user, i) => {
     const a = rng() * Math.PI * 2
-    const r2 = PERIPHERY_MIN * 0.5 + rng() * PERIPHERY_MIN * 0.3
+    const r2 = MID_BOUNDARY * 0.5 + rng() * MID_BOUNDARY * 0.3
     positions[user.id] = new Vec3(
       r2 * Math.cos(a) + (rng() - 0.5) * 50,
-      (rng() - 0.5) * PERIPHERY_MIN * 0.25,
+      (rng() - 0.5) * MID_BOUNDARY * 0.25,
       r2 * Math.sin(a) + (rng() - 0.5) * 50
     )
   })
@@ -377,8 +486,8 @@ function computeLayout(graph, nodeMetrics) {
 
   // Metadatos de zonas para el toggle de fronteras
   const zoneMeta = {
-    coreRadius: CORE_RADIUS,
-    peripheryMin: PERIPHERY_MIN,
+    coreRadius: CORE_BOUNDARY,
+    peripheryMin: MID_BOUNDARY,
     peripheryMax: PERIPHERY_MAX,
     coreCount: coreOrgs.length,
     midCount: midOrgs.length,

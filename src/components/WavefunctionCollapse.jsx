@@ -1,5 +1,5 @@
 /**
- * WavefunctionCollapse — Efecto decorativo SVG
+ * WavefunctionCollapse - Efecto decorativo SVG
  * ==============================================
  * 
  * Onda de probabilidad que oscila continuamente.
@@ -82,7 +82,7 @@ export default function WavefunctionCollapse({ collapsed = false, width = 120, h
           className={styles.wave}
         />
         
-        {/* Delta de Dirac (estado colapsado) — visible solo en hover */}
+        {/* Delta de Dirac (estado colapsado) - visible solo en hover */}
         <path 
           d={collapsedPath}
           fill="none"
@@ -92,7 +92,7 @@ export default function WavefunctionCollapse({ collapsed = false, width = 120, h
           className={styles.collapsed}
         />
         
-        {/* Punto de medición — solo en hover */}
+        {/* Punto de medición - solo en hover */}
         <circle 
           cx={width / 2} 
           cy={cy - height * 0.4} 

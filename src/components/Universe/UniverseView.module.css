@@ -1,5 +1,5 @@
 /* ============================================================================
-   UniverseView — Overlay 3D fullscreen
+   UniverseView - Overlay 3D fullscreen
    ============================================================================ */
 
 .universe {
@@ -16,14 +16,14 @@
   opacity: 1;
 }
 
-/* Contenedor de toda la UI (header, search, lenses, etc.) — se revela tras el big bang */
+/* Contenedor de toda la UI (header, search, lenses, etc.) - se revela tras el big bang */
 .universeUI {
   position: absolute;
   inset: 0;
   z-index: 4;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .universeUIVisible {
   opacity: 1;
@@ -46,10 +46,10 @@
 }
 
 /* ============================================================================
-   QUANTUM LOADING OVERLAY — pantalla de carga al abrir el universo
+   QUANTUM LOADING OVERLAY - pantalla de carga al abrir el universo
    ============================================================================ */
 
-/* === QUANTUM LOADER — estilo unificado con el loader principal === */
+/* === QUANTUM LOADER - estilo unificado con el loader principal === */
 .quantumLoader {
   position: absolute;
   inset: 0;
@@ -72,7 +72,7 @@
   pointer-events: none;
 }
 
-/* Scanlines CRT — efecto del loader original */
+/* Scanlines CRT - efecto del loader original */
 .loaderScanline {
   position: absolute;
   inset: 0;
@@ -147,7 +147,7 @@
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* Logo — estilo del loader original con sombras animadas */
+/* Logo - estilo del loader original con sombras animadas */
 .loaderLogo {
   width: 180px;
   height: auto;
@@ -185,7 +185,7 @@
   margin-bottom: 18px;
 }
 
-/* === ÁTOMO SVG REALISTA — órbitas elípticas con electrones brillantes === */
+/* === ÁTOMO SVG REALISTA - órbitas elípticas con electrones brillantes === */
 .loaderAtomSVG {
   width: 120px;
   height: 120px;
@@ -205,7 +205,7 @@
   50%      { opacity: 1; }
 }
 
-/* Electrones orbitando — cada grupo rota alrededor del centro */
+/* Electrones orbitando - cada grupo rota alrededor del centro */
 .svgElectronGroup1 { animation: svgElOrbit 2.4s linear infinite; }
 .svgElectronGroup2 { animation: svgElOrbit 3.2s linear infinite reverse; }
 .svgElectronGroup3 { animation: svgElOrbit 4s linear infinite; }
@@ -225,7 +225,7 @@
   50%      { transform: scale(1.15); opacity: 1; }
 }
 
-/* Mensajes cíclicos — puro CSS, sin JS setInterval */
+/* Mensajes cíclicos - puro CSS, sin JS setInterval */
 .loaderMessages {
   position: relative;
   min-height: 1.4em;
@@ -295,7 +295,7 @@
 }
 
 /* ============================================================================
-   LENS TRANSITION OVERLAY — animación de cambio de lente (atom spinner)
+   LENS TRANSITION OVERLAY - animación de cambio de lente (atom spinner)
    ============================================================================ */
 
 .lensTransitionOverlay {
@@ -376,27 +376,72 @@
   top: 0;
   left: 0;
   right: 0;
-  padding: 16px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(180deg, rgba(5, 5, 16, 0.85) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(5, 5, 16, 0.9) 0%, rgba(5, 5, 16, 0.4) 70%, transparent 100%);
   pointer-events: none;
   z-index: 10;
+}
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 247, 255, 0.15) 20%, rgba(189, 0, 255, 0.15) 80%, transparent);
+  opacity: 0.6;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.headerBrand {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
-.headerLeft h2 {
+
+.headerTitleGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.headerTitleGroup h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 3px;
   color: #e8eaed;
   text-transform: uppercase;
+  background: linear-gradient(135deg, #e8eaed 0%, #00f7ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.headerTag {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(0, 247, 255, 0.5);
+  padding: 2px 8px;
+  border: 1px solid rgba(0, 247, 255, 0.15);
+  border-radius: 4px;
+  background: rgba(0, 247, 255, 0.04);
+}
+
+.headerDividerV {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .headerZap {
@@ -624,21 +669,38 @@
 
 .legend {
   position: absolute;
-  bottom: 60px;
-  left: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  bottom: 56px;
+  left: 20px;
   z-index: 10;
   pointer-events: none;
+}
+
+.legendCard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 14px;
+  background: rgba(8, 10, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
 }
 
 .legendItem {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  gap: 7px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.3px;
+}
+
+.legendType {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
@@ -664,10 +726,10 @@
 
 .metricsFloat {
   position: absolute;
-  bottom: 60px;
-  right: 24px;
+  bottom: 56px;
+  right: 20px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   z-index: 10;
   pointer-events: none;
 }
@@ -677,12 +739,26 @@
   align-items: center;
   gap: 5px;
   padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 20px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
+}
+
+.metricValue2 {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(12px);
+}
+
+.metricLabel2 {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ============================================================================
@@ -691,14 +767,23 @@
 
 .interactionHint {
   position: absolute;
-  bottom: 20px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.25);
-  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.5px;
   pointer-events: none;
   z-index: 10;
+  white-space: nowrap;
+}
+
+.hintDivider {
+  color: rgba(255, 255, 255, 0.1);
+  font-size: 9px;
 }
 
 /* ============================================================================
@@ -758,7 +843,7 @@
 
 /* ─── Layout system: compact = column, expanded = 2-col row ─── */
 .detailLayout {
-  display: contents; /* invisible in compact — children flow into parent */
+  display: contents; /* invisible in compact - children flow into parent */
 }
 .detailSidebar {
   display: contents;
@@ -842,6 +927,12 @@
 }
 .detailPanelExpanded .detailStatsGrid {
   grid-template-columns: repeat(4, 1fr);
+}
+.detailPanelExpanded .detailStatsGridCentered {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 50%;
+  margin-left: auto;
+  margin-right: auto;
 }
 .detailPanelExpanded .detailStatCard {
   padding: 12px 8px;
@@ -1081,7 +1172,7 @@
   width: fit-content;
 }
 
-/* 2×2 stats grid */
+/* 2x2 stats grid */
 .detailStatsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1499,6 +1590,21 @@
   font-size: 10px;
   color: rgba(255, 255, 255, 0.4);
   line-height: 1.3;
+}
+.detailZoneTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--zone-color);
+  background: color-mix(in srgb, var(--zone-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--zone-color) 20%, transparent);
+  border-radius: 4px;
+  width: fit-content;
+  letter-spacing: 0.2px;
 }
 
 /* ─── Language Breakdown Bars ─── */
@@ -2070,76 +2176,99 @@
 
 .helpBtn {
   position: absolute;
-  bottom: 58px;
+  bottom: 54px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 16px;
+  background: rgba(8, 10, 24, 0.7);
+  border: 1px solid rgba(0, 247, 255, 0.12);
   border-radius: 20px;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(0, 247, 255, 0.5);
   font-size: 11px;
   pointer-events: auto;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   cursor: pointer;
   z-index: 15;
-  backdrop-filter: blur(10px);
-  transition: all 0.25s ease;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s ease;
 }
 
 .helpBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 247, 255, 0.25);
+  background: rgba(0, 247, 255, 0.08);
+  color: rgba(0, 247, 255, 0.85);
+  border-color: rgba(0, 247, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 247, 255, 0.1);
 }
 
 .helpPanel {
   position: absolute;
-  bottom: 96px;
+  bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
-  width: 420px;
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
-  background: rgba(8, 10, 25, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 560px;
+  max-height: calc(100vh - 160px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 8, 22, 0.95);
+  border: 1px solid rgba(0, 247, 255, 0.1);
   border-radius: 16px;
   z-index: 25;
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(30px);
   pointer-events: auto;
-  animation: helpSlideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: helpSlideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 247, 255, 0.1) inset;
+  overflow: hidden;
 }
 
 @keyframes helpSlideUp {
-  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
 .helpHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 12px;
+  padding: 16px 20px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.helpHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.helpHeaderIcon {
+  font-size: 20px;
+  filter: drop-shadow(0 0 8px rgba(0, 247, 255, 0.5));
+  animation: zapPulse 2.5s ease-in-out infinite;
 }
 
 .helpHeader h3 {
   font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
   margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.helpHeaderSub {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
   letter-spacing: 0.3px;
 }
 
 .helpClose {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
   cursor: pointer;
-  padding: 4px;
+  padding: 5px;
   border-radius: 6px;
   transition: all 0.2s;
   display: flex;
@@ -2147,19 +2276,80 @@
 }
 
 .helpClose:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Help Tabs */
+.helpTabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+
+.helpTabBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 7px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-transform: uppercase;
+}
+
+.helpTabIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.helpTabBtn:hover {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.helpTabActive {
+  color: rgba(0, 247, 255, 0.85);
+  border-bottom-color: rgba(0, 247, 255, 0.5);
+  background: rgba(0, 247, 255, 0.04);
+}
+
+.helpTabActive .helpTabIcon {
+  filter: drop-shadow(0 0 4px rgba(0, 247, 255, 0.4));
 }
 
 .helpBody {
-  padding: 14px 18px 18px;
+  padding: 14px 20px 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.helpSection {
+  animation: helpFadeIn 0.25s ease-out;
+}
+
+@keyframes helpFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .helpIntro {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.6;
-  margin: 0 0 14px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.65;
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .helpIntro strong {
@@ -2169,8 +2359,8 @@
 .helpCard {
   display: flex;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .helpCard:last-of-type {
@@ -2179,27 +2369,42 @@
 
 .helpCardIcon {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  margin-top: 2px;
+  font-size: 17px;
+  margin-top: 1px;
 }
 
 .helpCard h4 {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0 0 3px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.helpCardTag {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 3px;
 }
 
 .helpCard p {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.42);
-  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.6;
   margin: 0;
 }
 
@@ -2208,81 +2413,82 @@
 }
 
 .helpCard p em {
-  color: rgba(0, 247, 255, 0.6);
+  color: rgba(0, 247, 255, 0.55);
   font-style: normal;
 }
 
-.helpDetails {
-  margin-top: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.helpDetails + .helpDetails {
-  margin-top: 6px;
-}
-
-.helpDetails summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 14px;
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  list-style: none;
-  transition: all 0.2s;
-  user-select: none;
-}
-
-.helpDetails summary::-webkit-details-marker {
-  display: none;
-}
-
-.helpDetails summary:hover {
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.helpDetails[open] summary {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.helpDetails[open] summary svg {
-  transform: rotate(180deg);
-}
-
-.helpDetailsList {
-  padding: 8px 14px 10px;
+/* Help Controls Grid */
+.helpControlGrid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
-.helpMiniCard {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.38);
-  line-height: 1.5;
-  padding: 6px 8px;
+.helpControlCard {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.helpControlCard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.helpControlKey {
+  flex-shrink: 0;
+  min-width: 40px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
 }
 
-.helpMiniCard strong {
-  color: rgba(255, 255, 255, 0.6);
+.helpControlCard strong {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  display: block;
+  margin-bottom: 3px;
 }
 
-.helpPanel::-webkit-scrollbar {
+.helpControlCard p {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.38);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.helpControlCard p em {
+  color: rgba(0, 247, 255, 0.5);
+  font-style: normal;
+}
+
+/* Help body scrollbar */
+.helpBody::-webkit-scrollbar {
   width: 4px;
 }
-.helpPanel::-webkit-scrollbar-track {
+.helpBody::-webkit-scrollbar-track {
   background: transparent;
 }
-.helpPanel::-webkit-scrollbar-thumb {
+.helpBody::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
+}
+.helpBody::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ============================================================================
@@ -2340,24 +2546,32 @@
   }
 
   .helpBtn {
-    bottom: 48px;
+    bottom: 44px;
     font-size: 10px;
     padding: 5px 10px;
   }
 
   .helpPanel {
     width: calc(100vw - 24px);
-    bottom: 80px;
-    max-height: 60vh;
+    bottom: 76px;
+    max-height: 55vh;
   }
 
-  .headerSub {
+  .helpTabs {
+    padding: 6px 8px 0;
+  }
+
+  .helpTabBtn span:last-child {
+    font-size: 8px;
+  }
+
+  .headerSub, .headerTag, .headerDividerV {
     display: none;
   }
 }
 
 /* ============================================================================
-   LENTES ANALÍTICAS — Toolbar
+   LENTES ANALÍTICAS - Toolbar
    ============================================================================ */
 
 .lensToolbar {
@@ -2436,209 +2650,405 @@
 }
 
 /* ============================================================================
-   QUANTUM TUNNELING — Search & Path
+   QUANTUM TUNNELING - Search & Path
    ============================================================================ */
 
-.tunnelingBar {
+.tunnelingPanel {
   position: absolute;
   top: 54px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 16px;
+  width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   z-index: 20;
-  min-width: 480px;
   pointer-events: auto;
+  background: rgba(6, 6, 18, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 255, 170, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 255, 170, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: tunnelingPanelIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+@keyframes tunnelingPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.tunnelingInputGroup {
+.tunnelingPanelHeader {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: rgba(2, 2, 8, 0.85);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(0, 255, 170, 0.15);
-  border-radius: 10px;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tunnelingPanelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #00ffaa;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.tunnelingPanelClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tunnelingPanelClose:hover {
+  background: rgba(255, 80, 80, 0.12);
+  border-color: rgba(255, 80, 80, 0.3);
+  color: rgba(255, 100, 100, 0.9);
 }
 
+/* --- Campos de búsqueda --- */
+.tunnelingFields {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 14px 16px 10px;
+  gap: 0;
+}
+.tunnelingFieldRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tunnelingFieldDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+}
+.tunnelingFieldConnector {
+  display: flex;
+  justify-content: center;
+  padding-left: 3px; /* alineado bajo el dot */
+  width: 18px;
+  flex-shrink: 0;
+}
 .tunnelingInputWrapper {
   position: relative;
   flex: 1;
 }
-
 .tunnelingInput {
   width: 100%;
-  padding: 5px 8px;
+  padding: 8px 12px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 8px;
   color: #e0e0e0;
   font-size: 12px;
   font-family: 'JetBrains Mono', monospace;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
-
 .tunnelingInput:focus {
-  border-color: rgba(0, 255, 170, 0.4);
+  border-color: rgba(0, 255, 170, 0.35);
+  background: rgba(0, 255, 170, 0.03);
+  box-shadow: 0 0 0 3px rgba(0, 255, 170, 0.06);
 }
-
 .tunnelingInput::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.2);
+  font-family: inherit;
 }
 
-.tunnelingArrow {
-  color: rgba(0, 255, 170, 0.5);
-  font-size: 16px;
-  font-weight: bold;
-}
-
+/* --- Dropdown de autocompletado --- */
 .tunnelingDropdown {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: rgba(10, 10, 20, 0.95);
-  backdrop-filter: blur(12px);
+  background: rgba(10, 10, 24, 0.97);
+  backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  max-height: 200px;
+  border-radius: 10px;
+  max-height: 180px;
   overflow-y: auto;
-  z-index: 30;
+  z-index: 35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-
 .tunnelingOption {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.12s;
 }
-
+.tunnelingOption:first-child { border-radius: 10px 10px 0 0; }
+.tunnelingOption:last-child { border-radius: 0 0 10px 10px; }
 .tunnelingOption:hover {
   background: rgba(0, 255, 170, 0.08);
   color: #fff;
 }
-
 .tunnelingOptionType {
   font-size: 14px;
   flex-shrink: 0;
 }
-
 .tunnelingOptionLabel {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .tunnelingBridgeTag {
-  font-size: 9px;
+  font-size: 8px;
   padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(255, 189, 0, 0.15);
+  border-radius: 4px;
+  background: rgba(255, 189, 0, 0.12);
   color: #ffbd00;
-  border: 1px solid rgba(255, 189, 0, 0.25);
+  border: 1px solid rgba(255, 189, 0, 0.2);
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
-
 .tunnelingOptionType[data-type="org"] { color: #00f7ff; }
 .tunnelingOptionType[data-type="repo"] { color: #bd00ff; }
 .tunnelingOptionType[data-type="user"] { color: #00ff9f; }
 
+/* --- Botón de búsqueda --- */
 .tunnelingSearchBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 255, 170, 0.1);
-  border: 1px solid rgba(0, 255, 170, 0.25);
+  gap: 6px;
+  margin: 0 16px 14px;
+  padding: 8px 16px;
+  background: rgba(0, 255, 170, 0.08);
+  border: 1px solid rgba(0, 255, 170, 0.2);
   border-radius: 8px;
   color: #00ffaa;
   cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   transition: all 0.2s;
 }
-
 .tunnelingSearchBtn:hover:not(:disabled) {
-  background: rgba(0, 255, 170, 0.2);
-  box-shadow: 0 0 12px rgba(0, 255, 170, 0.3);
+  background: rgba(0, 255, 170, 0.15);
+  border-color: rgba(0, 255, 170, 0.4);
+  box-shadow: 0 0 16px rgba(0, 255, 170, 0.15);
 }
-
 .tunnelingSearchBtn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
+/* --- Resultado --- */
 .tunnelingResult {
-  background: rgba(2, 2, 8, 0.85);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(0, 255, 170, 0.15);
-  border-radius: 10px;
-  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 16px 14px;
+  animation: tunnelingResultIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes tunnelingResultIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.tunnelingPathHeader {
+.tunnelingResultHeader {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 11px;
-  color: rgba(0, 255, 170, 0.8);
-  margin-bottom: 8px;
-  font-weight: 500;
+  gap: 6px;
+  margin-bottom: 12px;
 }
-
+.tunnelingResultBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #00ffaa;
+  background: rgba(0, 255, 170, 0.1);
+  border: 1px solid rgba(0, 255, 170, 0.2);
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+}
+.tunnelingResultBadge[data-variant="secondary"] {
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
 .tunnelingCloseBtn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  padding: 2px;
-}
-
-.tunnelingPathChain {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-}
-
-.tunnelingPathNode {
-  padding: 3px 8px;
+  padding: 3px;
+  margin-left: auto;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  transition: all 0.15s;
+}
+.tunnelingCloseBtn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* --- Timeline vertical --- */
+.tunnelingTimeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.tunnelingTimelineStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 6px;
+  animation: tunnelingStepIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--step-delay, 0ms);
+}
+@keyframes tunnelingStepIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.tunnelingTimelineStep:last-child {
+  padding-bottom: 0;
+}
+
+.tunnelingTimelineLine {
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: -2px;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--line-color) 40%, transparent),
+    rgba(255, 255, 255, 0.06)
+  );
+  border-radius: 1px;
+}
+
+.tunnelingTimelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid color-mix(in srgb, var(--dot-color) 50%, transparent);
+  transition: all 0.2s;
+  z-index: 1;
+}
+.tunnelingTimelineDotEndpoint {
+  background: color-mix(in srgb, var(--dot-color) 25%, transparent);
+  border-color: var(--dot-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--dot-color) 35%, transparent);
+}
+
+.tunnelingTimelineCard {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+}
+.tunnelingTimelineCard:hover {
+  background: color-mix(in srgb, var(--card-color) 8%, transparent);
+  border-color: color-mix(in srgb, var(--card-color) 30%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--card-color) 12%, transparent);
+  transform: translateX(3px);
+}
+
+.tunnelingCardAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e0e0e0;
+  flex-shrink: 0;
+}
+
+.tunnelingCardInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tunnelingCardName {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.tunnelingPathNode[data-type="org"] { border-color: rgba(0, 247, 255, 0.3); color: #00f7ff; }
-.tunnelingPathNode[data-type="repo"] { border-color: rgba(189, 0, 255, 0.3); color: #bd00ff; }
-.tunnelingPathNode[data-type="user"] { border-color: rgba(0, 255, 159, 0.3); color: #00ff9f; }
-
-.tunnelingPathEdge {
-  color: rgba(0, 255, 170, 0.4);
-  font-size: 13px;
-  margin: 0 2px;
+.tunnelingCardType {
+  font-size: 9px;
+  color: var(--card-color, rgba(255, 255, 255, 0.35));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.65;
+}
+.tunnelingCardGo {
+  color: rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.tunnelingTimelineCard:hover .tunnelingCardGo {
+  color: var(--card-color, rgba(255, 255, 255, 0.5));
 }
 
+/* --- Sin resultado --- */
 .tunnelingNoPath {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   font-size: 11px;
-  color: rgba(255, 100, 100, 0.8);
+  color: rgba(255, 100, 100, 0.75);
+  padding: 4px 0;
 }
 
 /* ============================================================================
-   PANEL DE DETALLE — Métricas de Red Enriquecidas
+   PANEL DE DETALLE - Métricas de Red Enriquecidas
    ============================================================================ */
 
 .detailNetworkMetrics {
@@ -2820,7 +3230,7 @@
 }
 
 /* ============================================================================
-   RESPONSIVE OVERRIDES — Lentes & Tunneling
+   RESPONSIVE OVERRIDES - Lentes & Tunneling
    ============================================================================ */
 
 @media (max-width: 768px) {
@@ -2854,7 +3264,7 @@
 }
 
 /* ============================================================================
-   SEARCH BAR — Búsqueda con autocomplete
+   SEARCH BAR - Búsqueda con autocomplete
    ============================================================================ */
 
 .searchBar {

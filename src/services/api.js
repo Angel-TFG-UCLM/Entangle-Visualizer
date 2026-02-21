@@ -286,7 +286,7 @@ export async function discoverCollaboration(forceRefresh = false) {
     const params = forceRefresh ? { force: true } : {};
     const response = await apiClient.get('/collaboration/discover', {
       params,
-      timeout: 120000, // 2 min — la construcción del grafo completo puede tardar
+      timeout: 120000, // 2 min - la construcción del grafo completo puede tardar
     });
     console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}`);
     return response.data;
@@ -307,7 +307,7 @@ export async function getNetworkMetrics(forceRefresh = false) {
   try {
     const response = await apiClient.get('/collaboration/network-metrics', {
       params: { force_refresh: forceRefresh },
-      timeout: 180000, // 3 minutos — la computación de NetworkX es pesada
+      timeout: 180000, // 3 minutos - la computación de NetworkX es pesada
     });
     console.log(`📊 Network metrics: ${Object.keys(response.data.node_metrics || {}).length} nodes analyzed`);
     return response.data;
@@ -329,7 +329,7 @@ export async function findQuantumPath(source, target) {
   try {
     const response = await apiClient.get('/collaboration/quantum-tunneling', {
       params: { source, target },
-      timeout: 120000, // 2 minutos — reconstruye el grafo
+      timeout: 120000, // 2 minutos - reconstruye el grafo
     });
     console.log(`🔮 Quantum tunneling: ${source} → ${target}, found=${response.data.found}`);
     return response.data;

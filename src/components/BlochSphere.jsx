@@ -1,5 +1,5 @@
 /**
- * BlochSphere — Esfera de Bloch decorativa SVG
+ * BlochSphere - Esfera de Bloch decorativa SVG
  * ===============================================
  * Representación minimalista de la esfera de Bloch (espacio de estados
  * de un qubit). Decorativa, con órbitas animadas y vector de estado.

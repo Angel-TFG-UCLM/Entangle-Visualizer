@@ -1,5 +1,5 @@
 /**
- * EntanglementLines — SVG decorativo entre KPI cards
+ * EntanglementLines - SVG decorativo entre KPI cards
  * ====================================================
  * 
  * Dibuja líneas curvas pulsantes que conectan las 3 KPI cards,
@@ -54,7 +54,7 @@ export default function EntanglementLines({ containerRef, cardRefs }) {
       if (newPaths.length > 0) setPaths(newPaths)
     }
 
-    // Reintentar periódicamente — las cards tienen scroll-reveal (opacity 0 → 1)
+    // Reintentar periódicamente - las cards tienen scroll-reveal (opacity 0 → 1)
     // así que necesitamos esperar a que sean visibles para medir posiciones correctas
     const timers = [
       setTimeout(calculate, 200),

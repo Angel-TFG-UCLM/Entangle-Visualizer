@@ -19,7 +19,7 @@
   opacity: 0.8;
 }
 
-/* Onda superpuesta — visible por defecto, se oculta en collapse */
+/* Onda superpuesta - visible por defecto, se oculta en collapse */
 .wave {
   opacity: 1;
   transition: opacity 0.5s ease-out;
@@ -43,7 +43,7 @@
   }
 }
 
-/* Delta colapsada — oculta por defecto, visible en collapse */
+/* Delta colapsada - oculta por defecto, visible en collapse */
 .collapsed {
   opacity: 0;
   transition: opacity 0.5s ease-out 0.2s;
@@ -68,7 +68,7 @@
   transform: scale(1);
 }
 
-/* Label |ψ|² — visible por defecto */
+/* Label |ψ|² - visible por defecto */
 .label {
   position: absolute;
   bottom: -2px;
@@ -84,7 +84,7 @@
   opacity: 0;
 }
 
-/* Label δ(x) — oculto por defecto */
+/* Label δ(x) - oculto por defecto */
 .labelCollapsed {
   position: absolute;
   bottom: -2px;

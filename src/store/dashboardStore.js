@@ -133,7 +133,7 @@ export const useDashboardStore = create(
           // También actualizar data legacy para compatibilidad con componentes existentes
           // Usamos los datos de graph como "data" para que los componentes funcionen
           const legacyData = {
-            organizations: stats.graph?.organizations || stats.charts?.organizations || [],
+            organizations: stats.graph?.organizations || (Array.isArray(stats.charts?.organizations) ? stats.charts.organizations : []),
             users: normalizeUserOrgs(stats.graph?.users || stats.charts?.users || []),
             repositories: stats.graph?.repositories || stats.charts?.repositories || [],
           }
@@ -152,7 +152,7 @@ export const useDashboardStore = create(
           }, false, 'loadFullData/success')
           
           console.log(`✅ Métricas cargadas: ${stats.kpis?.totalRepos} repos, ${stats.kpis?.totalUsers} users, ${stats.kpis?.totalOrgs} orgs`)
-          console.log(`   📊 Charts: ${stats.charts?.organizations?.length} orgs, ${stats.charts?.repositories?.length} repos`)
+          console.log(`   📊 Charts: organizations=${typeof stats.charts?.organizations === 'object' ? Object.keys(stats.charts.organizations).join(',') : '?'}, repos keys=${typeof stats.charts?.repositories === 'object' ? Object.keys(stats.charts.repositories).join(',') : '?'}`)
           console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
           
           // Auto-detectar colaboración después de cargar datos
@@ -253,6 +253,16 @@ export const useDashboardStore = create(
           selectedRepo: newRepo,
         }, false, `setFilter/${filterType}/${value}`)
         
+        // Si hay una vista activa, los filtros se aplican localmente en ChartsSection
+        // No necesitamos llamar al backend — los datos de la vista ya están en memoria
+        try {
+          const favStore = (await import('./favoritesStore')).default
+          if (favStore.getState().activeViewId) {
+            console.log(`🔍 Vista activa: filtro local aplicado (${filterType}=${shouldClear ? 'null' : value})`)
+            return
+          }
+        } catch { /* continuar con flujo normal */ }
+        
         // Recargar datos del backend con los nuevos filtros
         const hasFilters = newOrg || newLanguage || newRepo
         
@@ -342,6 +352,16 @@ export const useDashboardStore = create(
           isFiltering: true,
         }, false, 'resetFilters')
         
+        // Si hay vista activa, los filtros se aplican localmente → no recargar backend
+        try {
+          const favStore = (await import('./favoritesStore')).default
+          if (favStore.getState().activeViewId) {
+            set({ isFiltering: false }, false, 'resetFilters/viewLocal')
+            console.log('🔍 Vista activa: filtros locales limpiados')
+            return
+          }
+        } catch { /* continuar */ }
+        
         // Recargar datos base
         try {
           const { getDashboardStats } = await import('../services/api')
@@ -397,13 +417,6 @@ export const useDashboardStore = create(
           selectedOrgs: newSelection.length > 0 ? [] : state.selectedOrgs,
           selectedUser: newSelection.length > 0 ? null : state.selectedUser,
         }, false, `toggleRepoSelection/${repoFullName}`)
-        
-        // Auto-trigger análisis si hay 2+ repos
-        if (newSelection.length >= 2) {
-          get().analyzeCollaboration()
-        } else {
-          set({ collaborationData: null }, false, 'clearCollaborationData')
-        }
       },
 
       /**
@@ -428,13 +441,6 @@ export const useDashboardStore = create(
           selectedRepos: newSelection.length > 0 ? [] : state.selectedRepos,
           selectedUser: newSelection.length > 0 ? null : state.selectedUser,
         }, false, `toggleOrgSelection/${orgLogin}`)
-        
-        // Auto-trigger análisis si hay 2+ orgs
-        if (newSelection.length >= 2) {
-          get().analyzeCollaboration()
-        } else {
-          set({ collaborationData: null }, false, 'clearCollaborationData')
-        }
       },
 
       /**

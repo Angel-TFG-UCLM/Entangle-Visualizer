@@ -522,6 +522,21 @@ export async function searchEntities(query, limit = 15) {
 }
 
 /**
+ * Obtiene los detalles completos de una entidad por su ID con prefijo
+ * @param {string} entityId - ID con prefijo (user_login, repo_owner/name, org_login)
+ * @returns {Promise<Object>} Datos completos de la entidad desde la BBDD
+ */
+export async function getEntityDetail(entityId) {
+  try {
+    const response = await apiClient.get(`/search/entity/${encodeURIComponent(entityId)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getEntityDetail] Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Obtiene los hijos jerárquicos de un favorito (org→repos, repo→users)
  * Endpoint: GET /favorites/{entity_id}/children
  * @param {string} entityId - ID con prefijo (org_login, repo_full_name)

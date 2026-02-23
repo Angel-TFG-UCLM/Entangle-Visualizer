@@ -21,11 +21,17 @@ import useFavoritesStore from './store/favoritesStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
 import NetworkGraph from './components/Dashboard/NetworkGraph'
+import ContributorSankey from './components/Dashboard/ContributorSankey'
+import BridgeUsersTable from './components/Dashboard/BridgeUsersTable'
+import OrgComparisonRadar from './components/Dashboard/OrgComparisonRadar'
+import TechStackMap from './components/Dashboard/TechStackMap'
 import DetailTable from './components/Dashboard/DetailTable'
 import DashboardNav from './components/Dashboard/DashboardNav'
 import CollaborationBanner from './components/Dashboard/CollaborationBanner'
 import FavoritesPanel from './components/Dashboard/FavoritesPanel'
 import ViewBar from './components/Dashboard/ViewBar'
+import DevMenu from './components/Dashboard/DevMenu'
+import { useDevStore } from './store/devStore'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
 const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
@@ -65,16 +71,35 @@ function App() {
   const activeViewData = useFavoritesStore(s => s.activeViewData)
   const favoritesCount = useFavoritesStore(s => s.favorites.length)
 
+  // Dev features
+  const devFeatures = useDevStore(s => s.features)
+
   // Cuando hay una vista activa, usar sus datos filtrados; si no, datos globales
   const data = (activeViewId && activeViewData) 
-    ? {
-        organizations: activeViewData.charts?.organizations || [],
-        users: activeViewData.charts?.users || [],
-        repositories: activeViewData.charts?.repositories || [],
-        kpis: activeViewData.kpis,
-        charts: activeViewData.charts,
-        tables: activeViewData.tables,
-      }
+    ? (() => {
+        // charts.organizations puede ser un objeto {byRepos, byStars, ...} o un array
+        const rawOrgs = activeViewData.charts?.organizations
+        const orgsArray = Array.isArray(rawOrgs) 
+          ? rawOrgs 
+          : (rawOrgs?.byRepos || rawOrgs?.byStars || [])
+        // charts.repositories puede ser un objeto {byStars, byForks, ...} o un array
+        const rawRepos = activeViewData.charts?.repositories
+        const reposArray = Array.isArray(rawRepos)
+          ? rawRepos
+          : [...new Map([
+              ...(rawRepos?.byStars || []),
+              ...(rawRepos?.byForks || []),
+              ...(rawRepos?.byCollaborators || []),
+            ].map(r => [r.full_name || r.name, r])).values()]
+        return {
+          organizations: orgsArray,
+          users: activeViewData.charts?.users || [],
+          repositories: reposArray,
+          kpis: activeViewData.kpis,
+          charts: activeViewData.charts,
+          tables: activeViewData.tables,
+        }
+      })()
     : globalData
 
   console.log('[App] Store data:', data)
@@ -360,10 +385,10 @@ function App() {
   return (
     <div className={`${styles.app} ${styles.fadeInApp}`}>
       {/* FONDO DE PARTÍCULAS CUÁNTICAS */}
-      <QuantumBackground />
+      {devFeatures.quantumBackground !== false && <QuantumBackground />}
 
       {/* HEADER */}
-      <header className={`${styles.header} ${styles.fadeInStagger1}`}>
+      {devFeatures.header !== false && <header className={`${styles.header} ${styles.fadeInStagger1}`}>
         <div className={styles.headerContent}>
           <div className={styles.branding}>
             <img 
@@ -427,19 +452,19 @@ function App() {
             </div>
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* Barra de vista activa */}
-      <ViewBar />
+      {devFeatures.viewBar !== false && <ViewBar />}
 
       {/* Panel de favoritos */}
-      <FavoritesPanel 
+      {devFeatures.favoritesPanel !== false && <FavoritesPanel 
         isOpen={showFavoritesPanel} 
         onClose={() => setShowFavoritesPanel(false)} 
-      />
+      />}
 
       {/* Banner offline - efecto decoherencia */}
-      {apiStatus.status === 'offline' && (
+      {devFeatures.offlineBanner !== false && apiStatus.status === 'offline' && (
         <div className={styles.offlineBanner}>
           <span className={styles.offlinePulse} />
           <span className={styles.decoherenceText}><FaExclamationTriangle className={styles.decoherenceIcon} /> Decoherencia detectada - Backend offline - Los datos mostrados son <strong>simulados</strong></span>
@@ -447,13 +472,13 @@ function App() {
       )}
 
       {/* NAV DE SECCIONES */}
-      <DashboardNav />
+      {devFeatures.dashboardNav !== false && <DashboardNav />}
 
       {/* MAIN CONTENT */}
       <main className={styles.main}>
         <div className={styles.container}>
           {/* Hero compacto + KPIs integrados para overview inmediato */}
-          <section className={`${styles.heroCompact} ${styles.fadeInStagger2}`}>
+          {devFeatures.heroKpis !== false && <section className={`${styles.heroCompact} ${styles.fadeInStagger2}`}>
             <div className={styles.heroHeader}>
               <div className={styles.heroTitleContainer}>
                 <span className={styles.heroKet}>|</span>
@@ -476,31 +501,35 @@ function App() {
             <p className={styles.heroFooter}>
               <span className={styles.heroEquation}>iℏ ∂/∂t |ψ⟩ = Ĥ |ψ⟩</span>
             </p>
-          </section>
+          </section>}
 
-          <QuantumDivider />
+          {devFeatures.quantumDividers !== false && <QuantumDivider />}
 
           {/* Gráficos interactivos con drill-down */}
-          <div id="section-charts" className={styles.sectionAnchor}>
+          {devFeatures.chartsSection !== false && <div id="section-charts" className={styles.sectionAnchor}>
             <ChartsSection data={data} />
-          </div>
+          </div>}
 
-          <QuantumDivider variant="large" />
+          {devFeatures.quantumDividers !== false && <QuantumDivider variant="large" />}
 
           {/* Banner portal al universo - justo antes de la sección de red */}
-          <CollaborationBanner />
+          {devFeatures.collabBanner !== false && <CollaborationBanner />}
 
-          {/* Grafo de redes de colaboración */}
+          {/* Análisis de colaboración y ecosistema */}
           <div id="section-network" className={`${styles.sectionAnchor} ${styles.fadeInStagger4}`}>
-            <NetworkGraph />
+            {devFeatures.networkGraph !== false && <NetworkGraph />}
+            {devFeatures.contributorSankey !== false && <ContributorSankey />}
+            {devFeatures.bridgeUsersTable !== false && <BridgeUsersTable />}
+            {devFeatures.orgComparisonRadar !== false && <OrgComparisonRadar />}
+            {devFeatures.techStackMap !== false && <TechStackMap />}
           </div>
 
-          <QuantumDivider />
+          {devFeatures.quantumDividers !== false && <QuantumDivider />}
 
           {/* Tablas de detalle: Top Repos y Top Users */}
-          <div id="section-tables" className={`${styles.sectionAnchor} ${styles.fadeInStagger5}`}>
+          {devFeatures.detailTables !== false && <div id="section-tables" className={`${styles.sectionAnchor} ${styles.fadeInStagger5}`}>
             <DetailTable />
-          </div>
+          </div>}
 
           {/* Mensaje de alerta si el backend está offline */}
           {apiStatus.status === 'offline' && (
@@ -521,7 +550,7 @@ function App() {
       </main>
 
       {/* Universo 3D de Colaboración - lazy loaded */}
-      {store.showCollaborationGraph && (
+      {devFeatures.universeView !== false && store.showCollaborationGraph && (
         <Suspense fallback={
           <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
@@ -532,8 +561,11 @@ function App() {
         </Suspense>
       )}
 
+      {/* DEV MENU */}
+      <DevMenu />
+
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
-      <footer className={styles.footer}>
+      {devFeatures.footer !== false && <footer className={styles.footer}>
         {/* Separador ondulado */}
         <div className={styles.footerWave}>
           <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
@@ -614,7 +646,7 @@ function App() {
             </div>
           </div>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }

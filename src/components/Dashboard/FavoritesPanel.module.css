@@ -315,8 +315,8 @@
 .searchResultItem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 4px 6px 4px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 0.15s;
 }
@@ -325,8 +325,20 @@
   border-bottom: none;
 }
 
-.searchResultItem:hover {
-  background: rgba(255, 255, 255, 0.04);
+.searchResultClickable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.searchResultClickable:hover {
+  background: rgba(0, 212, 228, 0.08);
 }
 
 .searchResultIcon {
@@ -334,7 +346,6 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: rgba(0, 212, 228, 0.6);
 }
 
 .searchResultInfo {
@@ -965,4 +976,363 @@
 /* Bridge icon color */
 .bridgeIcon {
   color: rgba(157, 111, 219, 0.7) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* Entity Inline Detail Panel                                   */
+/* ═══════════════════════════════════════════════════════════ */
+
+.entityInlineDetail {
+  margin: 8px 0 12px;
+  border: 1px solid rgba(0, 212, 228, 0.15);
+  border-radius: 12px;
+  background: rgba(0, 10, 20, 0.6);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: entitySlideIn 0.25s ease-out;
+}
+
+@keyframes entitySlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.entityInlineHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 212, 228, 0.04);
+}
+
+.entityInlineBack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.entityInlineBack:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.entityInlineHeaderTitle {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.entityInlineClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.entityInlineClose:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.entityInlineLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+}
+
+.entityInlineError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  color: #ef4444;
+  font-size: 12px;
+}
+
+.entityInlineBody {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entityInlineIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.entityInlineAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.entityInlineAvatarFallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.entityInlineNameBlock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.entityInlineName {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entityInlineLogin {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entityInlineTypeBadge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.entityInlineDesc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.entityInlineBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.entityInlineBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+.entityInlineStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.entityInlineStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
+}
+
+.entityInlineStatVal {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.entityInlineStatLbl {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.entityInlineSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entityInlineMetaGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.entityInlineMetaItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.entityInlineMetaLabel {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.entityInlineMetaValue {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.entityInlineTopics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.entityInlineTopic {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 9px;
+  color: rgba(0, 212, 228, 0.8);
+  background: rgba(0, 212, 228, 0.08);
+  border: 1px solid rgba(0, 212, 228, 0.15);
+  border-radius: 10px;
+}
+
+.entityInlineOrgs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.entityInlineOrgsLabel {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-right: 2px;
+}
+
+.entityInlineOrgTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 9px;
+  color: rgba(0, 255, 159, 0.8);
+  background: rgba(0, 255, 159, 0.06);
+  border: 1px solid rgba(0, 255, 159, 0.15);
+  border-radius: 8px;
+}
+
+.entityInlineOrgMore {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.entityInlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.entityInlineActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.entityInlineActionBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.entityInlineActionActive {
+  color: #ffd700;
+  border-color: rgba(255, 215, 0, 0.3);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.entityInlineActionActive:hover {
+  border-color: rgba(255, 215, 0, 0.5);
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+}
+
+.entityInlineActionNetwork {
+  color: rgba(0, 212, 228, 0.8);
+  border-color: rgba(0, 212, 228, 0.2);
+  background: rgba(0, 212, 228, 0.06);
+}
+
+.entityInlineActionNetwork:hover {
+  border-color: rgba(0, 212, 228, 0.4);
+  background: rgba(0, 212, 228, 0.12);
+  color: #00D4E4;
 }

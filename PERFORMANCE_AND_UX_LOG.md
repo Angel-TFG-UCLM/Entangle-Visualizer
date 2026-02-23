@@ -1788,3 +1788,41 @@ Los repos también cambian de tamaño según el valor de la lente. `lensScaleFac
   - Props `dimmed` pasados a EnergyRings, BlochAxes, HawkingRadiation, DecoherenceWaves, TunnelingPulses
   - Cada componente de efecto: firma actualizada, opacidad reducida cuando `dimmed`
 - `scripts/_lens_analysis.py` — Script de validación de distribuciones
+
+---
+
+## 47. Quantum Decoherence — Transición de Salida del Universo 3D
+
+**Problema**: Al cerrar el Universo Cuántico 3D (ESC o botón de cierre), el componente se desmontaba abruptamente — un simple `set({ showCollaborationGraph: false })` — sin transición visual alguna. El contraste con la elaborada animación de entrada (túnel cuántico) resultaba discordante.
+
+**Solución**: Secuencia de "Wavefunction Collapse" / decoherencia cuántica con 7 capas de animación CSS superpuestas.
+
+**Implementación**:
+- `isExiting` state controla las clases CSS y monta el overlay de efectos
+- `handleExit` callback: `setIsExiting(true)` → espera 1800ms (toda la secuencia CSS) → `closeCollaborationGraph()` → `setIsExiting(false)`
+- Todas las llamadas a `closeCollaborationGraph()` (ESC, botón close) redirigidas a `handleExit()`
+- 7 `@keyframes` independientes ejecutados en paralelo por el compositor GPU
+
+**Fases de la animación** (total ~1.8s):
+
+| Fase | Keyframes | Duración | Delay | Efecto |
+|------|-----------|----------|-------|--------|
+| UI Fade | `uiExitFade` | 0.5s | 0s | Controles blur+fade |
+| Universe Collapse | `universeCollapse` | 1.8s | 0s | Brightness 1→3→0.5, blur 0→20px |
+| Canvas Implosion | `canvasImplode` | 1.7s | 0s | Scale 1→0, rotate 0→5° |
+| Singularity Pulse | `singularityPulse` | 1.8s | 0s | Punto central 0→8×→0, halos cian/púrpura |
+| Shockwave (×2) | `shockwaveExpand` | 1.5s/1.4s | 0.35s/0.5s | Anillos expansivos, scale 0→40× |
+| Particle Burst | `particlesFly` | 1.6s | 0.3s | 12 partículas radiales dispersas |
+| Collapse Flash | `collapseFlash` | 1.8s | 0s | Flash blanco radial, blend-mode: screen |
+
+**Rendimiento**: Cero impacto en el render loop de Three.js — todas las animaciones son CSS puro (`transform`, `opacity`, `filter`) ejecutadas en el compositor GPU. El canvas continúa su último frame congelado mientras CSS lo contrae.
+
+**Archivos modificados**:
+- `src/components/Universe/UniverseView.jsx`:
+  - `isExiting` state + `handleExit` useCallback
+  - Sustitución de `closeCollaborationGraph()` por `handleExit()` en ESC y botón close
+  - Overlay JSX: `.exitOverlay` con `.exitSingularity`, `.exitShockwave`, `.exitShockwave2`, `.exitParticles`, `.exitFlash`
+  - Clases condicionales: `universeExiting`, `canvasExiting`
+- `src/components/Universe/UniverseView.module.css`:
+  - ~250 líneas de CSS nuevo: 7 `@keyframes`, clases de estado, overlay, pseudo-elementos
+  - Easing: `cubic-bezier(0.55, 0, 1, 0.45)` (colapso acelerativo), `cubic-bezier(0.22, 1, 0.36, 1)` (expansión desacelerativa)

@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useDashboardStore } from '../../store/dashboardStore'
 import {
   FiX, FiUsers, FiGitBranch, FiActivity, FiGrid, FiUser, FiLink, FiZap
@@ -498,7 +499,9 @@ export default function CollaborationPanel() {
     collaborationDiscovery,
     closeCollaborationGraph,
     selectUserForAnalysis
-  } = useDashboardStore()
+  } = useDashboardStore(
+    useShallow(s => ({ showCollaborationGraph: s.showCollaborationGraph, collaborationDiscovery: s.collaborationDiscovery, closeCollaborationGraph: s.closeCollaborationGraph, selectUserForAnalysis: s.selectUserForAnalysis }))
+  )
   
   const [entering, setEntering] = useState(false)
   

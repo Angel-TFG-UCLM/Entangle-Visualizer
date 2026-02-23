@@ -16,10 +16,14 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { 
   Star, Eye, Plus, Trash2, Download, Upload, X,
   ChevronRight, ChevronDown, Palette, Check, AlertCircle,
-  Search, Loader, User, GitFork, Building2, Link2
+  Search, Loader, User, GitFork, Building2, Link2,
+  ExternalLink, Network, ArrowLeft, Globe, MapPin, Mail,
+  Calendar, GitCommit, GitPullRequest, Tag, Cpu, Shield, Zap,
+  Briefcase, Archive, Users
 } from 'lucide-react'
 import useFavoritesStore from '../../store/favoritesStore'
-import { searchEntities, getFavoriteChildren } from '../../services/api'
+import { useDashboardStore } from '../../store/dashboardStore'
+import { searchEntities, getFavoriteChildren, getEntityDetail } from '../../services/api'
 import styles from './FavoritesPanel.module.css'
 
 const VIEW_COLORS = [
@@ -238,6 +242,8 @@ export default function FavoritesPanel({ isOpen, onClose }) {
     clearError,
   } = useFavoritesStore()
 
+  const { selectUserForAnalysis } = useDashboardStore()
+
   const [tab, setTab] = useState('favorites') // 'favorites' | 'views'
   const [showCreateView, setShowCreateView] = useState(false)
   const [newViewName, setNewViewName] = useState('')
@@ -252,6 +258,12 @@ export default function FavoritesPanel({ isOpen, onClose }) {
   const [isSearching, setIsSearching] = useState(false)
   const searchTimerRef = useRef(null)
 
+  // Entity detail state
+  const [entityDetail, setEntityDetail] = useState(null)     // full entity data
+  const [entityDetailType, setEntityDetailType] = useState(null) // 'user' | 'repository' | 'organization'
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [detailError, setDetailError] = useState(null)
+
   // Reset create view form when closing
   useEffect(() => {
     if (!isOpen) {
@@ -260,6 +272,9 @@ export default function FavoritesPanel({ isOpen, onClose }) {
       setSelectedForView([])
       setSearchQuery('')
       setSearchResults([])
+      setEntityDetail(null)
+      setEntityDetailType(null)
+      setDetailError(null)
     }
   }, [isOpen])
 
@@ -371,15 +386,47 @@ export default function FavoritesPanel({ isOpen, onClose }) {
     })
   }, [toggleFavorite])
 
+  // Open entity detail panel from search result
+  const handleOpenDetail = useCallback(async (entity) => {
+    setLoadingDetail(true)
+    setDetailError(null)
+    try {
+      const data = await getEntityDetail(entity.id)
+      setEntityDetail(data)
+      setEntityDetailType(data._entity_type || entity.type)
+    } catch (err) {
+      console.error('Error loading entity detail:', err)
+      setDetailError('No se pudo cargar la información')
+      setEntityDetail(null)
+      setEntityDetailType(null)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }, [])
+
+  const handleCloseDetail = useCallback(() => {
+    setEntityDetail(null)
+    setEntityDetailType(null)
+    setDetailError(null)
+  }, [])
+
+  const handleCollaborationNetwork = useCallback((login) => {
+    selectUserForAnalysis(login)
+    onClose()
+  }, [selectUserForAnalysis, onClose])
+
   const isEntityFavorited = useCallback((entityId) => {
     return favorites.some(f => f.id === entityId)
   }, [favorites])
 
+  const TYPE_COLORS = { user: '#00ff9f', repository: '#9D6FDB', organization: '#00D4E4' }
+
   const getTypeIcon = useCallback((type) => {
+    const color = TYPE_COLORS[type] || 'rgba(255,255,255,0.5)'
     switch (type) {
-      case 'user': return <User size={14} />
-      case 'repository': return <GitFork size={14} />
-      case 'organization': return <Building2 size={14} />
+      case 'user': return <User size={14} style={{ color }} />
+      case 'repository': return <GitFork size={14} style={{ color }} />
+      case 'organization': return <Building2 size={14} style={{ color }} />
       default: return <Star size={14} />
     }
   }, [])
@@ -486,16 +533,22 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                         const favorited = isEntityFavorited(entity.id)
                         return (
                           <div key={entity.id} className={styles.searchResultItem}>
-                            <span className={styles.searchResultIcon}>{getTypeIcon(entity.type)}</span>
-                            <div className={styles.searchResultInfo}>
-                              <span className={styles.searchResultName}>{entity.name}</span>
-                              {entity.subtitle && (
-                                <span className={styles.searchResultSub}>{entity.subtitle}</span>
-                              )}
+                            <div 
+                              className={styles.searchResultClickable}
+                              onClick={() => handleOpenDetail(entity)}
+                              title="Ver detalles"
+                            >
+                              <span className={styles.searchResultIcon}>{getTypeIcon(entity.type)}</span>
+                              <div className={styles.searchResultInfo}>
+                                <span className={styles.searchResultName}>{entity.name}</span>
+                                {entity.subtitle && (
+                                  <span className={styles.searchResultSub}>{entity.subtitle}</span>
+                                )}
+                              </div>
                             </div>
                             <button
                               className={`${styles.searchAddBtn} ${favorited ? styles.searchAddBtnActive : ''}`}
-                              onClick={() => handleAddFromSearch(entity)}
+                              onClick={(e) => { e.stopPropagation(); handleAddFromSearch(entity) }}
                               title={favorited ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                             >
                               <Star size={14} fill={favorited ? 'currentColor' : 'none'} />
@@ -508,7 +561,316 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                 )}
               </div>
 
-              {favorites.length === 0 && searchQuery.trim().length < 2 ? (
+              {/* ─── Entity Detail Inline Panel ─── */}
+              {(entityDetail || loadingDetail || detailError) && (
+                <div className={styles.entityInlineDetail}>
+                  <div className={styles.entityInlineHeader}>
+                    <button className={styles.entityInlineBack} onClick={handleCloseDetail}>
+                      <ArrowLeft size={14} />
+                    </button>
+                    <span className={styles.entityInlineHeaderTitle}>
+                      {entityDetailType === 'user' ? 'Usuario' : entityDetailType === 'repository' ? 'Repositorio' : 'Organización'}
+                    </span>
+                    <button className={styles.entityInlineClose} onClick={handleCloseDetail}>
+                      <X size={12} />
+                    </button>
+                  </div>
+
+                  {loadingDetail && (
+                    <div className={styles.entityInlineLoading}>
+                      <Loader size={20} className={styles.searchSpinner} />
+                      <span>Cargando detalles...</span>
+                    </div>
+                  )}
+
+                  {detailError && (
+                    <div className={styles.entityInlineError}>
+                      <AlertCircle size={14} />
+                      <span>{detailError}</span>
+                    </div>
+                  )}
+
+                  {entityDetail && !loadingDetail && (() => {
+                    const d = entityDetail
+                    const t = entityDetailType
+                    const typeColors = { user: '#00ff9f', repository: '#9D6FDB', organization: '#00D4E4' }
+                    const accentColor = typeColors[t] || '#00D4E4'
+                    const entityId = t === 'user' ? `user_${d.login}` : t === 'repository' ? `repo_${d.full_name || d.name}` : `org_${d.login}`
+                    const favorited = isEntityFavorited(entityId)
+                    const githubUrl = t === 'user' ? `https://github.com/${d.login}`
+                      : t === 'repository' ? `https://github.com/${d.full_name || d.name}`
+                      : `https://github.com/${d.login}`
+
+                    return (
+                      <div className={styles.entityInlineBody}>
+                        {/* Identity */}
+                        <div className={styles.entityInlineIdentity}>
+                          {d.avatar_url ? (
+                            <img src={d.avatar_url} alt="" className={styles.entityInlineAvatar} />
+                          ) : (
+                            <div className={styles.entityInlineAvatarFallback} style={{ borderColor: accentColor }}>
+                              {t === 'user' ? <User size={18} /> : t === 'repository' ? <GitFork size={18} /> : <Building2 size={18} />}
+                            </div>
+                          )}
+                          <div className={styles.entityInlineNameBlock}>
+                            <h4 className={styles.entityInlineName}>
+                              {t === 'user' ? (d.name || d.login) : (d.name || d.full_name || d.login)}
+                            </h4>
+                            {t === 'user' && d.name && d.login && (
+                              <span className={styles.entityInlineLogin}>@{d.login}</span>
+                            )}
+                            {t === 'repository' && d.full_name && (
+                              <span className={styles.entityInlineLogin}>{d.full_name}</span>
+                            )}
+                            <span className={styles.entityInlineTypeBadge} style={{ color: accentColor, borderColor: `${accentColor}40` }}>
+                              {t === 'user' ? 'Usuario' : t === 'repository' ? 'Repositorio' : 'Organización'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bio / Description */}
+                        {(d.bio || d.description) && (
+                          <p className={styles.entityInlineDesc}>{d.bio || d.description}</p>
+                        )}
+
+                        {/* Badges */}
+                        {(() => {
+                          const badges = []
+                          if (t === 'organization' && d.is_verified) badges.push({ icon: Shield, label: 'Verificada', color: '#22C55E' })
+                          if (t === 'organization' && d.is_quantum_focused) badges.push({ icon: Zap, label: 'Quantum Focus', color: '#F59E0B' })
+                          if (t === 'repository' && d.is_fork) badges.push({ icon: GitFork, label: 'Fork', color: '#9D6FDB' })
+                          if (t === 'repository' && d.is_archived) badges.push({ icon: Archive, label: 'Archivado', color: '#EF4444' })
+                          if (t === 'user' && d.is_hireable) badges.push({ icon: Briefcase, label: 'Disponible', color: '#22C55E' })
+                          if (t === 'user' && d.quantum_expertise_score > 0) badges.push({ icon: Cpu, label: `QE ${d.quantum_expertise_score.toFixed(1)}`, color: '#00D4E4' })
+                          if (badges.length === 0) return null
+                          return (
+                            <div className={styles.entityInlineBadges}>
+                              {badges.map((b, i) => (
+                                <span key={i} className={styles.entityInlineBadge} style={{ color: b.color, borderColor: `${b.color}40`, background: `${b.color}10` }}>
+                                  <b.icon size={10} /> {b.label}
+                                </span>
+                              ))}
+                            </div>
+                          )
+                        })()}
+
+                        {/* Stats Grid */}
+                        <div className={styles.entityInlineStats}>
+                          {t === 'user' && (() => {
+                            // Usar métricas pre-calculadas del backend (consistentes con Dashboard)
+                            const contributions = d._total_quantum_contributions || 0
+                            const repos = d._relevant_repos_count || 0
+                            const collabScore = d._collab_score || 0
+                            return (
+                              <>
+                                <div className={styles.entityInlineStat}>
+                                  <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{collabScore.toLocaleString()}</span>
+                                  <span className={styles.entityInlineStatLbl}>Collab Score</span>
+                                </div>
+                                <div className={styles.entityInlineStat}>
+                                  <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{contributions.toLocaleString()}</span>
+                                  <span className={styles.entityInlineStatLbl}>Contrib. Quantum</span>
+                                </div>
+                                <div className={styles.entityInlineStat}>
+                                  <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.followers_count || 0).toLocaleString()}</span>
+                                  <span className={styles.entityInlineStatLbl}>Seguidores</span>
+                                </div>
+                                <div className={styles.entityInlineStat}>
+                                  <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{repos.toLocaleString()}</span>
+                                  <span className={styles.entityInlineStatLbl}>Repos Quantum</span>
+                                </div>
+                              </>
+                            )
+                          })()}
+                          {t === 'repository' && (
+                            <>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.stargazer_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Estrellas</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{(d.fork_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Forks</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{(d.collaborators_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Contribuidores</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{(d.watchers_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Watchers</span>
+                              </div>
+                            </>
+                          )}
+                          {t === 'organization' && (
+                            <>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{(d.quantum_repositories_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Repos Quantum</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.total_stars || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Estrellas</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{(d.total_unique_contributors || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Contributors</span>
+                              </div>
+                              <div className={styles.entityInlineStat}>
+                                <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{(d.total_repositories_count || 0).toLocaleString()}</span>
+                                <span className={styles.entityInlineStatLbl}>Repos Totales</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Additional info section */}
+                        {t === 'repository' && (
+                          <div className={styles.entityInlineSection}>
+                            <div className={styles.entityInlineMetaGrid}>
+                              {d.primary_language && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <span className={styles.entityInlineMetaLabel}>Lenguaje</span>
+                                  <span className={styles.entityInlineMetaValue}>{d.primary_language}</span>
+                                </div>
+                              )}
+                              {d.commits_count > 0 && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <span className={styles.entityInlineMetaLabel}>Commits</span>
+                                  <span className={styles.entityInlineMetaValue}>{d.commits_count.toLocaleString()}</span>
+                                </div>
+                              )}
+                              {d.pull_requests_count > 0 && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <span className={styles.entityInlineMetaLabel}>PRs</span>
+                                  <span className={styles.entityInlineMetaValue}>{d.pull_requests_count.toLocaleString()}</span>
+                                </div>
+                              )}
+                              {d.issues_count > 0 && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <span className={styles.entityInlineMetaLabel}>Issues</span>
+                                  <span className={styles.entityInlineMetaValue}>{d.issues_count.toLocaleString()}</span>
+                                </div>
+                              )}
+                            </div>
+                            {Array.isArray(d.repository_topics) && d.repository_topics.length > 0 && (
+                              <div className={styles.entityInlineTopics}>
+                                {d.repository_topics.slice(0, 8).map((topic, i) => (
+                                  <span key={i} className={styles.entityInlineTopic}>{topic}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {t === 'user' && (
+                          <div className={styles.entityInlineSection}>
+                            <div className={styles.entityInlineMetaGrid}>
+                              {d.location && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <MapPin size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{d.location}</span>
+                                </div>
+                              )}
+                              {d.company && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <Building2 size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{d.company}</span>
+                                </div>
+                              )}
+                              {d.email && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <Mail size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{d.email}</span>
+                                </div>
+                              )}
+                            </div>
+                            {Array.isArray(d.organizations) && d.organizations.length > 0 && (
+                              <div className={styles.entityInlineOrgs}>
+                                <span className={styles.entityInlineOrgsLabel}>Organizaciones:</span>
+                                {d.organizations.slice(0, 5).map((org, i) => (
+                                  <span key={i} className={styles.entityInlineOrgTag}>
+                                    {typeof org === 'string' ? org : org.login || org.name}
+                                  </span>
+                                ))}
+                                {d.organizations.length > 5 && (
+                                  <span className={styles.entityInlineOrgMore}>+{d.organizations.length - 5} más</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {t === 'organization' && (
+                          <div className={styles.entityInlineSection}>
+                            <div className={styles.entityInlineMetaGrid}>
+                              {d.location && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <MapPin size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{d.location}</span>
+                                </div>
+                              )}
+                              {d.email && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <Mail size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{d.email}</span>
+                                </div>
+                              )}
+                              {d.created_at && (
+                                <div className={styles.entityInlineMetaItem}>
+                                  <Calendar size={11} />
+                                  <span className={styles.entityInlineMetaValue}>{new Date(d.created_at).toLocaleDateString('es-ES')}</span>
+                                </div>
+                              )}
+                            </div>
+                            {Array.isArray(d.top_languages) && d.top_languages.length > 0 && (
+                              <div className={styles.entityInlineOrgs}>
+                                <span className={styles.entityInlineOrgsLabel}>Lenguajes:</span>
+                                {d.top_languages.slice(0, 5).map((lang, i) => {
+                                  const langName = typeof lang === 'string' ? lang : lang?.name
+                                  if (!langName) return null
+                                  return <span key={i} className={styles.entityInlineTopic}>{langName}</span>
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div className={styles.entityInlineActions}>
+                          <button
+                            className={`${styles.entityInlineActionBtn} ${favorited ? styles.entityInlineActionActive : ''}`}
+                            onClick={() => toggleFavorite({ id: entityId, name: d.name || d.login || d.full_name, type: t })}
+                          >
+                            <Star size={13} fill={favorited ? 'currentColor' : 'none'} />
+                            <span>{favorited ? 'En favoritos' : 'Añadir a favoritos'}</span>
+                          </button>
+                          <a
+                            href={githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.entityInlineActionBtn}
+                          >
+                            <ExternalLink size={13} />
+                            <span>GitHub</span>
+                          </a>
+                          {t === 'user' && d.login && (
+                            <button
+                              className={`${styles.entityInlineActionBtn} ${styles.entityInlineActionNetwork}`}
+                              onClick={() => handleCollaborationNetwork(d.login)}
+                            >
+                              <Network size={13} />
+                              <span>Red de colaboración</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {favorites.length === 0 && searchQuery.trim().length < 2 && !entityDetail && !loadingDetail ? (
                 <div className={styles.emptyState}>
                   <Star size={32} strokeWidth={1} />
                   <p>Sin favoritos aún</p>

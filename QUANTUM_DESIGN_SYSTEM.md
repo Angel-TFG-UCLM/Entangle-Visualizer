@@ -457,6 +457,70 @@ Cuando el backend está offline, aparece un banner sticky bajo el header:
 | Modelo atómico | Spinner de carga (órbitas + electrones), núcleo del NetworkGraph |
 | Función de onda | QuantumDivider (ψ(x), φ(x)), WavefunctionCollapse (\|ψ\|²) |
 | Estados propios (eigenstates) | Rankings `\|n⟩`, expertise labels (Ground State, Superposed, Entangled, Qubit Master) |
+| **Decoherencia cuántica** | **Transición de salida del Universo (7 fases: UI fade, universe collapse, canvas implosion, singularity pulse, shockwave expand, particle burst, collapse flash)** |
+
+---
+
+## 14. Transición de Salida del Universo — Quantum Decoherence
+
+Al cerrar el Universo 3D de colaboración, se reproduce una secuencia de "decoherencia cuántica" que transiciona visualmente de vuelta al dashboard. Todos los efectos son **CSS puro** (animaciones `@keyframes` en el compositor GPU), sin afectar al render loop de Three.js.
+
+### 14.1 Arquitectura
+
+| Capa | Elemento | Archivo |
+|------|----------|---------|
+| Estado React | `isExiting` (`useState`) | `UniverseView.jsx` |
+| Orquestación | `handleExit` (`useCallback`) | `UniverseView.jsx` |
+| Overlay DOM | `.exitOverlay` con 5 hijos | `UniverseView.jsx` |
+| Animaciones CSS | 7 `@keyframes` independientes | `UniverseView.module.css` |
+
+### 14.2 Flujo de ejecución
+
+```
+ESC / click close → handleExit()
+  ├── setIsExiting(true)
+  ├── CSS classes activadas:
+  │   ├── .universeExiting → universeCollapse (1.8s)
+  │   ├── .canvasExiting   → canvasImplode (1.7s)
+  │   └── .exitOverlay monta 5 elementos:
+  │       ├── .exitSingularity  → singularityPulse (1.8s)
+  │       ├── .exitShockwave    → shockwaveExpand (1.5s, delay 0.35s)
+  │       ├── .exitShockwave2   → shockwaveExpand (1.4s, delay 0.5s)
+  │       ├── .exitParticles    → particlesFly (1.6s, delay 0.3s)
+  │       └── .exitFlash        → collapseFlash (1.8s)
+  └── setTimeout(1800ms):
+      ├── closeCollaborationGraph() → desmonta UniverseView
+      └── setIsExiting(false) → reset para próxima apertura
+```
+
+### 14.3 Fases visuales
+
+| # | Fase | Duración | Delay | Concepto cuántico |
+|---|------|----------|-------|-------------------|
+| 1 | UI Fade | 0.5s | 0s | Pérdida de instrumentación — el observador pierde la capacidad de medir |
+| 2 | Universe Collapse | 1.8s | 0s | Cascada energética — brightness 1→3→0.5, blur 0→20px |
+| 3 | Canvas Implosion | 1.7s | 0s | Colapso del espacio-tiempo — scale 1→0, rotate 0→5° |
+| 4 | Singularity Pulse | 1.8s | 0s | Singularidad central — punto 0→8×→0 con halos concéntricos |
+| 5 | Shockwave Expand | 1.5s/1.4s | 0.35s/0.5s | Ondas de decoherencia — anillos cian y púrpura, scale 0→40× |
+| 6 | Particle Burst | 1.6s | 0.3s | Dispersión de la función de onda — 12 partículas radiales |
+| 7 | Collapse Flash | 1.8s | 0s | Colapso total — flash blanco radial, mix-blend-mode: screen |
+
+### 14.4 Paleta cromática
+
+| Color | Uso en la transición |
+|-------|---------------------|
+| Blanco `#ffffff` | Singularidad central, flash final |
+| Cian `rgba(0, 212, 228)` | Shockwave primario, halos, partículas |
+| Púrpura `rgba(157, 111, 219)` | Shockwave secundario, halos exteriores |
+| Verde `rgba(0, 255, 159)` | Partículas de dispersión (acento) |
+
+### 14.5 Detalles técnicos
+
+- **Easing functions**: `cubic-bezier(0.55, 0, 1, 0.45)` para colapso (acelerativo), `cubic-bezier(0.22, 1, 0.36, 1)` para expansión (desacelerativo)
+- **`mix-blend-mode: screen`** en el flash final: suma aditiva de luz sobre la escena oscurecida
+- **`pointer-events: none`** en el overlay: no intercepta clicks durante la animación
+- **`transform-origin: center center`** en canvas: la implosión converge al centro exacto
+- Duración total calibrada a **~1.8s** — suficiente para apreciar cada fase sin perder dramatismo
 
 ---
 

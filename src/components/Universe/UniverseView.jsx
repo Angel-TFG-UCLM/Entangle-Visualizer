@@ -3121,6 +3121,7 @@ export default function UniverseView() {
   const isFavorite = useFavoritesStore(s => s.isFavorite)
 
   const [entering, setEntering] = useState(false)
+  const [isExiting, setIsExiting] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [detailExpanded, setDetailExpanded] = useState(false)
   const [detailTab, setDetailTab] = useState('info') // 'info' | 'red' | 'explorer'
@@ -3181,6 +3182,19 @@ export default function UniverseView() {
     setSearchResults([])
     setSearchEntity(null)
   }, [])
+
+  // === Quantum Decoherence Exit ===
+  const handleExit = useCallback(() => {
+    if (isExiting) return
+    setIsExiting(true)
+    // Fase 1: UI fade + canvas implosion (CSS handles it)
+    // Fase 2: After animation completes, actually unmount
+    setTimeout(() => {
+      closeCollaborationGraph()
+      // Reset for next open
+      setIsExiting(false)
+    }, 1800)
+  }, [isExiting, closeCollaborationGraph])
 
   // === Lens transition state ===
   const [lensTransitioning, setLensTransitioning] = useState(false)
@@ -3247,6 +3261,7 @@ export default function UniverseView() {
   useEffect(() => {
     if (showCollaborationGraph) {
       requestAnimationFrame(() => setEntering(true))
+      setIsExiting(false)
       setSceneReady(false)
       setLoaderVisible(true)
       setLoaderFading(false)
@@ -3257,7 +3272,7 @@ export default function UniverseView() {
         requestAnimationFrame(() => setCanvasMounted(true))
       })
     } else {
-      setEntering(false); setSelectedEntity(null); setHovered(null); setFocusTarget(null)
+      setEntering(false); setIsExiting(false); setSelectedEntity(null); setHovered(null); setFocusTarget(null)
       setSceneReady(false); setLoaderVisible(true); setLoaderFading(false); setAnimationStarted(false); setUiVisible(false)
       setCanvasMounted(false)
     }
@@ -3310,12 +3325,12 @@ export default function UniverseView() {
         if (searchEntity) { handleSearchClear() }
         else if (detailExpanded) { setDetailExpanded(false) }
         else if (selectedEntity) { handleClosePanel() }
-        else closeCollaborationGraph()
+        else handleExit()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showCollaborationGraph, selectedEntity, searchEntity, closeCollaborationGraph, handleSearchClear, handleClosePanel, detailExpanded])
+  }, [showCollaborationGraph, selectedEntity, searchEntity, handleExit, handleSearchClear, handleClosePanel, detailExpanded])
 
   // Mapeo de filtro activo → tipos de entidad permitidos para selección
   const allowedTypes = useMemo(() => {
@@ -3748,8 +3763,18 @@ export default function UniverseView() {
   const metrics = collaborationDiscovery?.metrics
 
   return (
-    <div className={`${styles.universe} ${entering ? styles.universeVisible : ''}`}>
-      <div className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''}`}>
+    <div className={`${styles.universe} ${entering ? styles.universeVisible : ''} ${isExiting ? styles.universeExiting : ''}`}>
+      {/* Quantum Decoherence Exit Overlay */}
+      {isExiting && (
+        <div className={styles.exitOverlay}>
+          <div className={styles.exitSingularity} />
+          <div className={styles.exitShockwave} />
+          <div className={styles.exitShockwave2} />
+          <div className={styles.exitParticles} />
+          <div className={styles.exitFlash} />
+        </div>
+      )}
+      <div className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''} ${isExiting ? styles.canvasExiting : ''}`}>
         {canvasMounted && (
         <Canvas
           camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 8000 }}
@@ -3973,7 +3998,7 @@ export default function UniverseView() {
             )}
           </div>
           <button className={styles.resetBtn} onClick={handleReset} data-tip="Vista general"><FiMaximize2 size={14} /></button>
-          <button className={styles.closeBtn} onClick={closeCollaborationGraph}><FiX size={18} /><span>ESC</span></button>
+          <button className={styles.closeBtn} onClick={handleExit}><FiX size={18} /><span>ESC</span></button>
         </div>
       </header>
 

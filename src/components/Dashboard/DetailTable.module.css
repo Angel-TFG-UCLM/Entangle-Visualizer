@@ -103,7 +103,7 @@
   transform: translateX(2px);
 }
 
-/* Efecto quantum tunneling — sweep de luz al hacer hover */
+/* Efecto quantum tunneling - sweep de luz al hacer hover */
 .tableRow::after {
   content: '';
   position: absolute;

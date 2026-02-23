@@ -1,5 +1,5 @@
 /**
- * QuantumBackground — Fondo de partículas cuánticas con entrelazamiento
+ * QuantumBackground - Fondo de partículas cuánticas con entrelazamiento
  * =====================================================================
  * Canvas animado con partículas que se conectan entre sí cuando están cerca,
  * simulando el efecto de entrelazamiento cuántico. Las conexiones brillan

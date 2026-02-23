@@ -1,8 +1,9 @@
-﻿/**
+/**
  * NETWORK GRAPH - Visualización Circular Cyberpunk
  */
 
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useDashboardStore } from '../../store/dashboardStore'
 import styles from './NetworkGraph.module.css'
 
@@ -96,7 +97,7 @@ function generateCircularGraphData(data, selectedOrg, selectedLanguage) {
 }
 
 /**
- * FilterBadge — indicador de filtro activo con animaciones
+ * FilterBadge - indicador de filtro activo con animaciones
  */
 function FilterBadge({ value, onClear, label }) {
   const [state, setState] = useState('hidden')
@@ -167,7 +168,9 @@ export default function NetworkGraph() {
   const pulseIdRef = useRef(0)
   const firePulseRef = useRef(null)
   
-  const { data, selectedOrg, selectedLanguage, setFilter } = useDashboardStore()
+  const { data, selectedOrg, selectedLanguage, setFilter } = useDashboardStore(
+    useShallow(s => ({ data: s.data, selectedOrg: s.selectedOrg, selectedLanguage: s.selectedLanguage, setFilter: s.setFilter }))
+  )
   
   // Generar datos del grafo con posiciones circulares
   const graphData = useMemo(

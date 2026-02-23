@@ -22,6 +22,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Users, Database, Building2 } from 'lucide-react'
 import { useDashboardStore } from '../../store/dashboardStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import WavefunctionCollapse from '../WavefunctionCollapse'
 import BlochSphere from '../BlochSphere'
 import styles from '../../App.module.css'
@@ -118,6 +119,11 @@ export default function KPISection({ data }) {
   // Obtener filtros activos y KPIs pre-calculados del store
   const { selectedOrg, selectedLanguage, selectedRepo, kpis: precomputedKpis } = useDashboardStore()
 
+  // Vista activa: si hay una vista de favoritos, sus KPIs tienen prioridad
+  const activeViewId = useFavoritesStore(s => s.activeViewId)
+  const activeViewData = useFavoritesStore(s => s.activeViewData)
+  const viewKpis = (activeViewId && activeViewData) ? activeViewData.kpis : null
+
   // Animaciones de scroll para cada tarjeta
   const [reposRef, reposVisible] = useScrollAnimation(0.2)
   const [usersRef, usersVisible] = useScrollAnimation(0.2)
@@ -134,6 +140,14 @@ export default function KPISection({ data }) {
   // Calcular stats: SIEMPRE usar pre-calculados del backend cuando estén disponibles
   // El backend ya devuelve KPIs filtrados correctamente
   const stats = useMemo(() => {
+    // Vista activa: usar sus KPIs filtrados
+    if (viewKpis && viewKpis.totalRepos !== undefined) {
+      return {
+        totalRepos: viewKpis.totalRepos,
+        totalUsers: viewKpis.totalUsers,
+        totalOrgs: viewKpis.totalOrgs,
+      }
+    }
     // Si tenemos KPIs pre-calculados del backend, usarlos directamente
     // El backend ya los calcula considerando los filtros activos
     if (precomputedKpis && precomputedKpis.totalRepos !== undefined) {
@@ -211,7 +225,7 @@ export default function KPISection({ data }) {
       totalUsers: filteredUsers.length,
       totalOrgs: filteredOrgs.length,
     }
-  }, [repositories, users, organizations, selectedOrg, selectedLanguage, selectedRepo, hasFilters, precomputedKpis])
+  }, [repositories, users, organizations, selectedOrg, selectedLanguage, selectedRepo, hasFilters, precomputedKpis, viewKpis])
 
   // Hover state para wavefunction collapse
   const [hoveredCard, setHoveredCard] = useState(null)

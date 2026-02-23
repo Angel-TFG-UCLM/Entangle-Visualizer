@@ -13,6 +13,7 @@
 
 import { useMemo } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import styles from './DetailTable.module.css'
 
 /**
@@ -210,7 +211,20 @@ function TopUsersTable({ users }) {
  * OPTIMIZADO: Usa datos pre-calculados del backend cuando no hay filtros.
  */
 export default function DetailTable() {
-  const { data, selectedOrg, selectedLanguage, selectedRepo, tables } = useDashboardStore()
+  const { data: storeData, selectedOrg, selectedLanguage, selectedRepo, tables: storeTables } = useDashboardStore()
+  
+  // Vista activa: si hay una vista de favoritos, sus datos tienen prioridad
+  const activeViewId = useFavoritesStore(s => s.activeViewId)
+  const activeViewData = useFavoritesStore(s => s.activeViewData)
+  const viewActive = activeViewId && activeViewData
+  
+  const data = viewActive 
+    ? { 
+        repositories: activeViewData.charts?.repositories || [], 
+        users: activeViewData.charts?.users || [] 
+      } 
+    : storeData
+  const tables = viewActive ? (activeViewData.tables || null) : storeTables
   
   // Verificar si hay filtros activos
   const hasFilters = selectedOrg || selectedLanguage || selectedRepo

@@ -21,6 +21,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { useDashboardStore } from '../../store/dashboardStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink } from 'react-icons/fi'
 import styles from './UniverseView.module.css'
 
@@ -3115,6 +3116,10 @@ export default function UniverseView() {
   const isLoadingTunneling = useDashboardStore(s => s.isLoadingTunneling)
   const clearTunneling = useDashboardStore(s => s.clearTunneling)
 
+  // Favoritos
+  const toggleFavorite = useFavoritesStore(s => s.toggleFavorite)
+  const isFavorite = useFavoritesStore(s => s.isFavorite)
+
   const [entering, setEntering] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [detailExpanded, setDetailExpanded] = useState(false)
@@ -4298,6 +4303,22 @@ export default function UniverseView() {
               </button>
             )}
             <div className={styles.detailToolbarSpacer} />
+            <button
+              className={`${styles.detailToolBtn} ${styles.detailFavBtn} ${isFavorite(`${selectedEntity.type === 'org' ? 'org' : selectedEntity.type === 'repo' ? 'repo' : 'user'}_${selectedEntity.login || selectedEntity.full_name || selectedEntity.id}`) ? styles.detailFavBtnActive : ''}`}
+              onClick={() => {
+                const prefix = selectedEntity.type === 'org' ? 'org' : selectedEntity.type === 'repo' ? 'repo' : 'user'
+                const entityId = `${prefix}_${selectedEntity.login || selectedEntity.full_name || selectedEntity.id}`
+                toggleFavorite({
+                  id: entityId,
+                  type: selectedEntity.type === 'org' ? 'organization' : selectedEntity.type,
+                  name: selectedEntity.name || selectedEntity.login || selectedEntity.full_name,
+                  avatar_url: selectedEntity.avatar_url,
+                })
+              }}
+              data-tip={isFavorite(`${selectedEntity.type === 'org' ? 'org' : selectedEntity.type === 'repo' ? 'repo' : 'user'}_${selectedEntity.login || selectedEntity.full_name || selectedEntity.id}`) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+            >
+              <FiStar size={13} />
+            </button>
             <button
               className={`${styles.detailToolBtn} ${isPinned ? styles.detailToolBtnActive : ''}`}
               onClick={handlePinToggle}

@@ -1488,6 +1488,20 @@
   color: #ffd166 !important;
   background: rgba(255, 209, 102, 0.15) !important;
 }
+
+/* Botón de favorito en toolbar */
+.detailFavBtn svg {
+  transition: all 0.25s ease;
+}
+.detailFavBtnActive {
+  color: #ffd93d !important;
+  background: rgba(255, 217, 61, 0.15) !important;
+}
+.detailFavBtnActive svg {
+  fill: #ffd93d;
+  filter: drop-shadow(0 0 4px rgba(255, 217, 61, 0.5));
+}
+
 .detailCompareBar {
   margin: 0 12px 8px;
   padding: 8px 10px;

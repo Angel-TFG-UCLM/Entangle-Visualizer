@@ -14,15 +14,18 @@
 
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
-import { Server, RefreshCw } from 'lucide-react'
+import { Server, RefreshCw, Star } from 'lucide-react'
 import { FaExclamationTriangle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
+import useFavoritesStore from './store/favoritesStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
 import NetworkGraph from './components/Dashboard/NetworkGraph'
 import DetailTable from './components/Dashboard/DetailTable'
 import DashboardNav from './components/Dashboard/DashboardNav'
 import CollaborationBanner from './components/Dashboard/CollaborationBanner'
+import FavoritesPanel from './components/Dashboard/FavoritesPanel'
+import ViewBar from './components/Dashboard/ViewBar'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
 const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
@@ -48,12 +51,31 @@ function App() {
   // === ZUSTAND STORE ===
   // Datos del ecosistema (con valores por defecto)
   const store = useDashboardStore()
-  const data = store.data || { organizations: [], users: [], repositories: [] }
+  const globalData = store.data || { organizations: [], users: [], repositories: [] }
   const loadFullData = store.loadFullData
   const refreshMetrics = store.refreshMetrics
 
   // Estado para refresh manual
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Favorites & Views
+  const [showFavoritesPanel, setShowFavoritesPanel] = useState(false)
+  const initFavorites = useFavoritesStore(s => s.initialize)
+  const activeViewId = useFavoritesStore(s => s.activeViewId)
+  const activeViewData = useFavoritesStore(s => s.activeViewData)
+  const favoritesCount = useFavoritesStore(s => s.favorites.length)
+
+  // Cuando hay una vista activa, usar sus datos filtrados; si no, datos globales
+  const data = (activeViewId && activeViewData) 
+    ? {
+        organizations: activeViewData.charts?.organizations || [],
+        users: activeViewData.charts?.users || [],
+        repositories: activeViewData.charts?.repositories || [],
+        kpis: activeViewData.kpis,
+        charts: activeViewData.charts,
+        tables: activeViewData.tables,
+      }
+    : globalData
 
   console.log('[App] Store data:', data)
 
@@ -110,6 +132,8 @@ function App() {
           
           if (metricsLoaded) {
             console.log('🔬 Usando métricas REALES del backend (pre-calculadas)')
+            // Cargar favoritos y vistas del usuario
+            initFavorites().catch(() => {})
           } else {
             console.log('🧪 Usando datos de PRUEBA (mockData)')
           }
@@ -359,8 +383,20 @@ function App() {
             </div>
           </div>
 
-          {/* Controles del header: refresh + status */}
+          {/* Controles del header: favoritos + refresh + status */}
           <div className={styles.headerControls}>
+            {/* Botón de favoritos */}
+            {apiStatus.status === 'online' && (
+              <button 
+                className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
+                onClick={() => setShowFavoritesPanel(prev => !prev)}
+                title="Favoritos & Vistas personalizadas"
+              >
+                <Star size={16} fill={favoritesCount > 0 ? '#ffd93d' : 'none'} color={favoritesCount > 0 ? '#ffd93d' : 'currentColor'} />
+                {favoritesCount > 0 && <span className={styles.favoritesCount}>{favoritesCount}</span>}
+              </button>
+            )}
+
             {/* Botón de refresh métricas */}
             {apiStatus.status === 'online' && (
               <button 
@@ -392,6 +428,15 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Barra de vista activa */}
+      <ViewBar />
+
+      {/* Panel de favoritos */}
+      <FavoritesPanel 
+        isOpen={showFavoritesPanel} 
+        onClose={() => setShowFavoritesPanel(false)} 
+      />
 
       {/* Banner offline - efecto decoherencia */}
       {apiStatus.status === 'offline' && (

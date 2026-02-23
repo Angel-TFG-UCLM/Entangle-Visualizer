@@ -1276,6 +1276,40 @@
   to { transform: rotate(360deg); }
 }
 
+/* Botón de favoritos en el header */
+.favoritesButton {
+  position: relative;
+  padding: 8px 10px;
+  gap: 0;
+}
+
+.favoritesButton:hover:not(:disabled) svg {
+  transform: scale(1.1) rotate(0deg);
+}
+
+.favoritesButtonActive {
+  background: rgba(255, 217, 61, 0.12);
+  border-color: rgba(255, 217, 61, 0.4);
+}
+
+.favoritesCount {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ffd93d;
+  color: #1a1f2e;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
 /* === FOOTER CON CIRCUITO CUÁNTICO === */
 .footer {
   background: var(--color-card);

@@ -18,6 +18,7 @@ import { ChevronDown } from 'lucide-react'
 import { 
   FiUsers, FiCode, FiEye, FiPackage, FiStar, FiGitBranch, FiUserCheck 
 } from 'react-icons/fi'
+import { Building2, GitFork, User, ExternalLink, X, MapPin, Calendar, Globe, Shield, BookOpen, Tag, GitCommit, GitPullRequest, AlertCircle, Scale, Archive, Eye, Users, Code, Briefcase, Mail, Clock, Cpu, Zap } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -32,6 +33,7 @@ import {
   Cell,
 } from 'recharts'
 import { useDashboardStore } from '../../store/dashboardStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import styles from './ChartsSection.module.css'
 
 // Paleta de colores del diseño Entangle
@@ -215,6 +217,10 @@ export default function ChartsSection({ data }) {
   const collabDropdownRef = useRef(null)
   const [isUpdatingUsers, setIsUpdatingUsers] = useState(false) // Estado de carga para colaboradores
   
+  // Estado para panel de detalle de entidad (aparece al click en barra)
+  const [detailEntity, setDetailEntity] = useState(null) // { type: 'org'|'repo'|'user', data: {...} }
+  const [detailClosing, setDetailClosing] = useState(false)
+  
   // Animaciones de scroll
   const [orgChartRef, orgChartVisible] = useScrollAnimation(0.3)
   const [repoChartRef, repoChartVisible] = useScrollAnimation(0.3)
@@ -247,10 +253,17 @@ export default function ChartsSection({ data }) {
   // Protección contra datos no disponibles
   // NUEVA ARQUITECTURA: El backend ahora maneja el filtrado dinámico
   // Los datos en charts/tables ya vienen filtrados cuando hay filtros activos
-  const charts = useDashboardStore(state => state.charts)
-  const tables = useDashboardStore(state => state.tables)
+  const storeCharts = useDashboardStore(state => state.charts)
+  const storeTables = useDashboardStore(state => state.tables)
   const isLoading = useDashboardStore(state => state.isLoading)
   const isFiltering = useDashboardStore(state => state.isFiltering)
+
+  // Vista activa: si hay una vista de favoritos, sus datos tienen prioridad
+  const activeViewId = useFavoritesStore(s => s.activeViewId)
+  const activeViewData = useFavoritesStore(s => s.activeViewData)
+  const viewActive = activeViewId && activeViewData
+  const charts = viewActive ? (activeViewData.charts || null) : storeCharts
+  const tables = viewActive ? (activeViewData.tables || null) : storeTables
   
   // Datos legacy como fallback - asegurar que siempre sean arrays
   const organizations = Array.isArray(data?.organizations) ? data.organizations : []
@@ -377,8 +390,26 @@ export default function ChartsSection({ data }) {
     if (charts?.organizations?.length > 0) {
       return charts.organizations.map(org => ({
         name: org.login,
-        repositories: org.quantum_repositories_count || 0,
+        displayName: org.name || org.login,
+        repositories: org.quantum_repositories_count || org.public_repos || 0,
         stars: org.total_stars || 0,
+        description: org.description || null,
+        avatar_url: org.avatar_url || null,
+        members_count: org.members_count || 0,
+        quantum_focus_score: org.quantum_focus_score || 0,
+        location: org.location || null,
+        is_verified: org.is_verified || false,
+        created_at: org.created_at || null,
+        website_url: org.website_url || null,
+        twitter_username: org.twitter_username || null,
+        email: org.email || null,
+        quantum_contributors_count: org.quantum_contributors_count || 0,
+        total_repositories_count: org.total_repositories_count || 0,
+        total_members_count: org.total_members_count || 0,
+        total_unique_contributors: org.total_unique_contributors || 0,
+        top_languages: org.top_languages || [],
+        is_quantum_focused: org.is_quantum_focused || false,
+        top_quantum_contributors: org.top_quantum_contributors || [],
         isSelected: selectedOrg === org.login,
       }))
     }
@@ -390,8 +421,26 @@ export default function ChartsSection({ data }) {
       )
       return {
         name: org.login,
+        displayName: org.name || org.login,
         repositories: orgRepos.length,
         stars: orgRepos.reduce((sum, r) => sum + (r.stargazer_count || 0), 0),
+        description: org.description || null,
+        avatar_url: org.avatar_url || null,
+        members_count: 0,
+        quantum_focus_score: 0,
+        location: org.location || null,
+        is_verified: false,
+        created_at: org.created_at || null,
+        website_url: null,
+        twitter_username: null,
+        email: null,
+        quantum_contributors_count: 0,
+        total_repositories_count: 0,
+        total_members_count: 0,
+        total_unique_contributors: 0,
+        top_languages: [],
+        is_quantum_focused: false,
+        top_quantum_contributors: [],
         isSelected: selectedOrg === org.login,
       }
     })
@@ -400,12 +449,13 @@ export default function ChartsSection({ data }) {
   }, [charts?.organizations, organizations, repositories, selectedOrg])
 
   // GRÁFICO 2: Top Repos (por métrica seleccionada)
+  const repoMetricLabels = {
+    stargazer_count: 'Estrellas',
+    fork_count: 'Forks',
+    collaborators_count: 'Contribuidores',
+  }
   const repoData = useMemo(() => {
-    const metricLabels = {
-      stargazer_count: 'Estrellas',
-      fork_count: 'Forks',
-      collaborators_count: 'Contribuidores',
-    }
+    const metricLabels = repoMetricLabels
     
     // Mapeo de métrica a clave del backend
     const metricToKey = {
@@ -435,7 +485,34 @@ export default function ChartsSection({ data }) {
       .map(repo => ({
         name: (repo.name || '').length > 15 ? repo.name.slice(0, 15) + '...' : (repo.name || ''),
         fullName: repo.full_name,
-        [metricLabels[repoMetric]]: repo[repoMetric] || 0,
+        rawName: repo.name || '',
+        description: repo.description || null,
+        language: repo.primary_language?.name || repo.primary_language || null,
+        owner: repo.owner?.login || null,
+        stargazer_count: (repo.stargazer_count ?? 0) || 0,
+        fork_count: (repo.fork_count ?? 0) || 0,
+        collaborators_count: (repo.collaborators_count ?? 0) || 0,
+        [metricLabels[repoMetric]]: (repo[repoMetric] ?? 0) || 0,
+        url: repo.url || null,
+        homepage_url: repo.homepage_url || null,
+        repository_topics: repo.repository_topics || [],
+        created_at: repo.created_at || null,
+        updated_at: repo.updated_at || null,
+        pushed_at: repo.pushed_at || null,
+        commits_count: repo.commits_count || 0,
+        issues_count: repo.issues_count || 0,
+        open_issues_count: repo.open_issues_count || 0,
+        pull_requests_count: repo.pull_requests_count || 0,
+        merged_pull_requests_count: repo.merged_pull_requests_count || 0,
+        open_pull_requests_count: repo.open_pull_requests_count || 0,
+        releases_count: repo.releases_count || 0,
+        latest_release: repo.latest_release || null,
+        license_info: repo.license_info || null,
+        is_fork: repo.is_fork || false,
+        is_archived: repo.is_archived || false,
+        watchers_count: repo.watchers_count || 0,
+        languages: repo.languages || [],
+        default_branch: repo.default_branch_ref_name || 'main',
         isSelected: selectedRepo === repo.full_name,
       }))
       .sort((a, b) => b[metricLabels[repoMetric]] - a[metricLabels[repoMetric]])
@@ -450,6 +527,7 @@ export default function ChartsSection({ data }) {
     const usersWithScore = sourceUsers.map(user => {
       // Soportar múltiples formatos de campos (backend real vs mockData)
       const contributions = user.total_contributions || 
+        user.contributions_last_year ||
         user.contributions_to_quantum || // Campo de mockData
         (
           (user.total_commit_contributions || 0) +
@@ -457,19 +535,40 @@ export default function ChartsSection({ data }) {
           (user.total_pr_review_contributions || 0) +
           (user.total_issue_contributions || 0)
         )
-      const repos = user.relevant_repos_count || user.quantum_repos_count || 0
+      const repos = user.relevant_repos_count || user.quantum_repos_count || user.public_repos || 0
       // Score: raíz cuadrada de (contribuciones × repos) para balancear ambas métricas
       // Multiplicamos repos por 100 para darle más peso a la diversidad
       const collaborationScore = Math.round(Math.sqrt(contributions * (repos * 100)))
       
       return {
-        login: user.login, // Necesario para el click en análisis de colaboración
-        name: user.name || user.login, // Mostrar nombre o login como fallback
-        displayName: user.login, // Para el eje X
+        login: user.login,
+        name: user.name || user.login,
+        displayName: user.login,
+        avatar_url: user.avatar_url || null,
         score: collaborationScore,
         contributions,
         repos,
-        isSelected: selectedUser === user.login, // Marcar si está seleccionado para análisis
+        organizations: user.organizations || [],
+        has_commits: user.has_commits ?? true,
+        is_mentionable: user.is_mentionable ?? false,
+        commits: user.total_commit_contributions || 0,
+        prs: user.total_pr_contributions || 0,
+        reviews: user.total_pr_review_contributions || 0,
+        issues: user.total_issue_contributions || 0,
+        bio: user.bio || null,
+        company: user.company || null,
+        location: user.location || null,
+        created_at: user.created_at || null,
+        followers_count: user.followers_count || 0,
+        following_count: user.following_count || 0,
+        public_repos_count: user.public_repos_count || 0,
+        top_languages: user.top_languages || [],
+        quantum_expertise_score: user.quantum_expertise_score || 0,
+        url: user.url || null,
+        website_url: user.website_url || null,
+        twitter_username: user.twitter_username || null,
+        is_hireable: user.is_hireable || false,
+        isSelected: selectedUser === user.login,
       }
     })
     
@@ -624,37 +723,102 @@ export default function ChartsSection({ data }) {
     return () => cancelAnimationFrame(raf)
   }, [languageData, hoveredPieIndex, hasSelectedLanguage, selectedLanguage])
 
+  // Ref para capturar el último evento nativo de click (Recharts no siempre pasa el event)
+  const lastClickEventRef = useRef(null)
+  useEffect(() => {
+    const handler = (e) => { lastClickEventRef.current = e }
+    window.addEventListener('click', handler, true) // capture phase
+    return () => window.removeEventListener('click', handler, true)
+  }, [])
+
   // Handlers
-  // Click normal: filtro simple
-  // Ctrl/Cmd + Click: selección múltiple para análisis de colaboración
+  // Click normal: abrir panel de detalle
+  // Ctrl/Cmd + Click: selección múltiple / filtro
+  const openEntityDetail = useCallback((type, data) => {
+    setDetailClosing(false)
+    setDetailEntity({ type, data })
+  }, [])
+
+  const closeEntityDetail = useCallback(() => {
+    setDetailClosing(true)
+    setTimeout(() => {
+      setDetailEntity(null)
+      setDetailClosing(false)
+    }, 250)
+  }, [])
+
+  // Helper: format date for detail panel
+  const formatDetailDate = useCallback((dateStr) => {
+    if (!dateStr) return null
+    try {
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return null
+      return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })
+    } catch { return null }
+  }, [])
+
+  // Helper: time ago for detail panel
+  const timeAgo = useCallback((dateStr) => {
+    if (!dateStr) return null
+    try {
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return null
+      const diffMs = Date.now() - d.getTime()
+      const days = Math.floor(diffMs / 86400000)
+      if (days < 1) return 'hoy'
+      if (days < 30) return `hace ${days}d`
+      if (days < 365) return `hace ${Math.floor(days / 30)}m`
+      return `hace ${Math.floor(days / 365)}a`
+    } catch { return null }
+  }, [])
+
   const handleOrgClick = (data, event) => {
     if (!data?.name) return
+    const e = event || lastClickEventRef.current
     
-    // Ctrl/Cmd + Click = selección múltiple para análisis
-    if (event?.ctrlKey || event?.metaKey) {
+    if (e?.ctrlKey || e?.metaKey) {
+      // Ctrl/Cmd + Click = selección múltiple para análisis
       toggleOrgSelection(data.name)
+    } else if (e?.shiftKey) {
+      // Shift + Click = abrir panel de detalle
+      openEntityDetail('org', data)
     } else {
+      // Click normal = filtrar (comportamiento original)
       setFilter('org', data.name)
     }
   }
 
   const handleRepoClick = (data, event) => {
     if (!data?.fullName) return
+    const e = event || lastClickEventRef.current
     
-    // Ctrl/Cmd + Click = selección múltiple para análisis
-    if (event?.ctrlKey || event?.metaKey) {
+    if (e?.ctrlKey || e?.metaKey) {
+      // Ctrl/Cmd + Click = selección múltiple para análisis
       toggleRepoSelection(data.fullName)
+    } else if (e?.shiftKey) {
+      // Shift + Click = abrir panel de detalle
+      openEntityDetail('repo', data)
     } else {
+      // Click normal = filtrar (comportamiento original)
       setFilter('repo', data.fullName)
     }
   }
 
-  // Click en usuario para ver su red de colaboración
+  // Click en usuario
   const handleUserClick = (data, event) => {
     if (!data?.login) return
+    const e = event || lastClickEventRef.current
     
-    // Siempre abre el análisis de colaboración del usuario
-    selectUserForAnalysis(data.login)
+    if (e?.ctrlKey || e?.metaKey) {
+      // Ctrl+Click = seleccionar usuario para análisis
+      selectUserForAnalysis(data.login)
+    } else if (e?.shiftKey) {
+      // Shift + Click = abrir panel de detalle
+      openEntityDetail('user', data)
+    } else {
+      // Click normal = análisis de colaboración
+      selectUserForAnalysis(data.login)
+    }
   }
 
   const handleLanguageClick = (entry, index) => {
@@ -672,20 +836,68 @@ export default function ChartsSection({ data }) {
     setShowOthersPanel(false)
   }
 
-  // Custom tooltip - estilo medición cuántica
-  const CustomTooltip = ({ active, payload, label }) => {
+  // Custom tooltip para Organizaciones - info rica
+  const OrgTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload
       return (
         <div className={styles.customTooltip}>
-          <p className={styles.tooltipLabel}>
-            <span className={styles.tooltipMeasure}>⊕</span> {label}
-          </p>
-          {payload.map((entry, index) => (
-            <p key={index} style={{ color: entry.color }}>
-              ⟨{entry.name}| = <strong>{entry.value.toLocaleString()}</strong>
+          <div className={styles.tooltipHeader}>
+            {data.avatar_url && (
+              <img src={data.avatar_url} alt="" className={styles.tooltipAvatar} />
+            )}
+            <div>
+              <p className={styles.tooltipLabel}>{data.displayName || data.name}</p>
+              {data.displayName !== data.name && (
+                <span className={styles.tooltipHandle}>@{data.name}</span>
+              )}
+            </div>
+          </div>
+          {data.description && (
+            <p className={styles.tooltipDesc}>
+              {data.description.length > 80 ? data.description.slice(0, 80) + '...' : data.description}
             </p>
-          ))}
-          <span className={styles.tooltipFooter}>medición colapsada</span>
+          )}
+          <div className={styles.tooltipStats}>
+            <p><span style={{color: '#00D4E4'}}>Repositorios:</span> <strong>{data.repositories.toLocaleString()}</strong></p>
+            <p><span style={{color: '#F59E0B'}}>Estrellas:</span> <strong>{data.stars.toLocaleString()}</strong></p>
+            {data.total_unique_contributors > 0 && (
+              <p><span style={{color: '#9D6FDB'}}>Contributors:</span> <strong>{data.total_unique_contributors.toLocaleString()}</strong></p>
+            )}
+          </div>
+          <span className={styles.tooltipFooter}>click para filtrar · ctrl+click para comparar</span>
+        </div>
+      )
+    }
+    return null
+  }
+
+  // Custom tooltip para Repositorios - info rica
+  const RepoTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div className={styles.customTooltip}>
+          <p className={styles.tooltipLabel}>{data.fullName || data.name}</p>
+          {data.description && (
+            <p className={styles.tooltipDesc}>
+              {data.description.length > 80 ? data.description.slice(0, 80) + '...' : data.description}
+            </p>
+          )}
+          {data.language && (
+            <span className={styles.tooltipLangBadge}>{data.language}</span>
+          )}
+          <div className={styles.tooltipStats}>
+            <p><span style={{color: '#F59E0B'}}>Estrellas:</span> <strong>{data.stargazer_count.toLocaleString()}</strong></p>
+            <p><span style={{color: '#9D6FDB'}}>Forks:</span> <strong>{data.fork_count.toLocaleString()}</strong></p>
+            <p><span style={{color: '#00D4E4'}}>Contribuidores:</span> <strong>{data.collaborators_count.toLocaleString()}</strong></p>
+          </div>
+          {data.owner && (
+            <p className={styles.tooltipOwner}>
+              <span style={{color: '#6b7280'}}>Org:</span> {data.owner}
+            </p>
+          )}
+          <span className={styles.tooltipFooter}>click para filtrar · ctrl+click para comparar</span>
         </div>
       )
     }
@@ -696,18 +908,59 @@ export default function ChartsSection({ data }) {
   const CollaboratorTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
+      // Formatear lista de orgs
+      const orgsList = Array.isArray(data.organizations) 
+        ? data.organizations.map(o => typeof o === 'string' ? o : o?.login).filter(Boolean)
+        : []
       return (
         <div className={styles.customTooltip}>
-          <p className={styles.tooltipLabel}>
-            <span className={styles.tooltipMeasure}>👤</span> {data.name}
-          </p>
+          <div className={styles.tooltipHeader}>
+            {data.avatar_url && (
+              <img src={data.avatar_url} alt="" className={styles.tooltipAvatar} />
+            )}
+            <div>
+              <p className={styles.tooltipLabel}>{data.name}</p>
+              {data.name !== data.login && (
+                <span className={styles.tooltipHandle}>@{data.login}</span>
+              )}
+            </div>
+          </div>
           <div className={styles.tooltipStats}>
             <p><span style={{color: '#00D4E4'}}>Score:</span> <strong>{data.score.toLocaleString()}</strong></p>
             <p><span style={{color: '#9D6FDB'}}>Contribuciones:</span> <strong>{data.contributions.toLocaleString()}</strong></p>
             <p><span style={{color: '#F97316'}}>Repos:</span> <strong>{data.repos}</strong></p>
           </div>
+          {(data.commits > 0 || data.prs > 0 || data.reviews > 0) && (
+            <div className={styles.tooltipBreakdown}>
+              {data.commits > 0 && <span className={styles.tooltipBreakdownItem}>
+                <span style={{color: '#22C55E'}}>Commits</span> {data.commits.toLocaleString()}
+              </span>}
+              {data.prs > 0 && <span className={styles.tooltipBreakdownItem}>
+                <span style={{color: '#3B82F6'}}>PRs</span> {data.prs.toLocaleString()}
+              </span>}
+              {data.reviews > 0 && <span className={styles.tooltipBreakdownItem}>
+                <span style={{color: '#F59E0B'}}>Reviews</span> {data.reviews.toLocaleString()}
+              </span>}
+              {data.issues > 0 && <span className={styles.tooltipBreakdownItem}>
+                <span style={{color: '#EF4444'}}>Issues</span> {data.issues.toLocaleString()}
+              </span>}
+            </div>
+          )}
+          {orgsList.length > 0 && (
+            <div className={styles.tooltipOrgsList}>
+              <span className={styles.tooltipOrgsLabel}>Organizaciones:</span>
+              <div className={styles.tooltipOrgsChips}>
+                {orgsList.slice(0, 4).map((o, i) => (
+                  <span key={i} className={styles.tooltipOrgChip}>{o}</span>
+                ))}
+                {orgsList.length > 4 && (
+                  <span className={styles.tooltipOrgChip}>+{orgsList.length - 4}</span>
+                )}
+              </div>
+            </div>
+          )}
           <span className={styles.tooltipFooter}>
-            Score = √(contribuciones × repos × 100)
+            click para ver red de colaboración
           </span>
         </div>
       )
@@ -785,7 +1038,7 @@ export default function ChartsSection({ data }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
                 <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Tooltip content={<OrgTooltip />} cursor={false} />
                 <Bar 
                   dataKey="repositories" 
                   fill="#00D4E4"
@@ -815,7 +1068,7 @@ export default function ChartsSection({ data }) {
           
           {/* Hint para análisis de colaboración */}
           <p className={styles.chartHint}>
-            Ctrl+Click para seleccionar múltiples organizaciones y comparar
+            Click para ver detalles · Ctrl+Click para comparar
           </p>
         </div>
       </div>
@@ -892,9 +1145,9 @@ export default function ChartsSection({ data }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
                 <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Tooltip content={<RepoTooltip />} cursor={false} />
                 <Bar 
-                  dataKey={Object.keys(repoData[0] || {}).find(k => !['name', 'fullName', 'isSelected'].includes(k))}
+                  dataKey={repoMetricLabels[repoMetric]}
                   fill="#9D6FDB"
                   onClick={(data, index, event) => handleRepoClick(repoData[index], event)}
                   cursor="pointer"
@@ -922,7 +1175,7 @@ export default function ChartsSection({ data }) {
           
           {/* Hint para análisis de colaboración */}
           <p className={styles.chartHint}>
-            Ctrl+Click para seleccionar múltiples repos y ver usuarios compartidos
+            Click para ver detalles · Ctrl+Click para comparar
           </p>
         </div>
       </div>
@@ -1045,7 +1298,7 @@ export default function ChartsSection({ data }) {
           
           {/* Hint para análisis de colaboración */}
           <p className={styles.chartHint}>
-            Click en un usuario para ver su red de colaboración
+            Click para ver detalles · Ctrl+Click para ver red de colaboración
           </p>
         </div>
       </div>
@@ -1188,6 +1441,603 @@ export default function ChartsSection({ data }) {
           </>
         )}
       </div>
+
+      {/* Panel de detalle de entidad (aparece al click en barra) */}
+      {(detailEntity || detailClosing) && (() => {
+        const entity = detailEntity
+        if (!entity) return null
+        const { type, data } = entity
+
+        const typeConfig = {
+          org: { 
+            label: 'Organización', 
+            color: '#00D4E4', 
+            Icon: Building2,
+            github: `https://github.com/${data.name}` 
+          },
+          repo: { 
+            label: 'Repositorio', 
+            color: '#9D6FDB', 
+            Icon: GitFork,
+            github: `https://github.com/${data.fullName}` 
+          },
+          user: { 
+            label: 'Contribuidor', 
+            color: '#00ff9f', 
+            Icon: User,
+            github: `https://github.com/${data.login}` 
+          },
+        }
+        const config = typeConfig[type]
+        if (!config) return null
+        const TypeIcon = config.Icon
+
+        return (
+          <div 
+            className={`${styles.entityDetailOverlay} ${detailClosing ? styles.entityDetailOverlayClosing : ''}`}
+            onClick={closeEntityDetail}
+          >
+            <aside 
+              className={`${styles.entityDetailCard} ${detailClosing ? styles.entityDetailCardClosing : ''}`}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className={styles.entityDetailHeader} style={{ borderColor: config.color }}>
+                <div className={styles.entityDetailHeaderLeft}>
+                  {data.avatar_url ? (
+                    <img src={data.avatar_url} alt="" className={styles.entityDetailAvatar} />
+                  ) : (
+                    <div className={styles.entityDetailIconWrap} style={{ background: `${config.color}20` }}>
+                      <TypeIcon size={20} style={{ color: config.color }} />
+                    </div>
+                  )}
+                  <div>
+                    <h3 className={styles.entityDetailName}>
+                      {type === 'user' ? (data.name || data.login) : (data.displayName || data.fullName || data.name)}
+                    </h3>
+                    <span className={styles.entityDetailType} style={{ color: config.color }}>
+                      {config.label}
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.entityDetailActions}>
+                  <a 
+                    href={config.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.entityDetailGithubLink}
+                    title="Ver en GitHub"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                  <button className={styles.entityDetailClose} onClick={closeEntityDetail}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Description */}
+              {data.description && (
+                <p className={styles.entityDetailDesc}>{data.description}</p>
+              )}
+
+              {/* User bio */}
+              {type === 'user' && data.bio && (
+                <p className={styles.entityDetailDesc}>{data.bio}</p>
+              )}
+
+              {/* Badges row */}
+              {(() => {
+                const badges = []
+                if (type === 'org' && data.is_verified) badges.push({ icon: Shield, label: 'Verificada', color: '#22C55E' })
+                if (type === 'org' && data.is_quantum_focused) badges.push({ icon: Zap, label: 'Quantum Focus', color: '#F59E0B' })
+                if (type === 'repo' && data.is_fork) badges.push({ icon: GitFork, label: 'Fork', color: '#9D6FDB' })
+                if (type === 'repo' && data.is_archived) badges.push({ icon: Archive, label: 'Archivado', color: '#EF4444' })
+                if (type === 'user' && data.is_hireable) badges.push({ icon: Briefcase, label: 'Disponible', color: '#22C55E' })
+                if (type === 'user' && data.quantum_expertise_score > 0) badges.push({ icon: Cpu, label: `QE ${data.quantum_expertise_score.toFixed(1)}`, color: '#00D4E4' })
+                if (badges.length === 0) return null
+                return (
+                  <div className={styles.entityDetailBadges}>
+                    {badges.map((b, i) => (
+                      <span key={i} className={styles.entityDetailBadge} style={{ color: b.color, borderColor: `${b.color}40`, background: `${b.color}10` }}>
+                        <b.icon size={11} /> {b.label}
+                      </span>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Stats Grid */}
+              <div className={styles.entityDetailStats}>
+                {type === 'org' && (
+                  <>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.repositories || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Repos Quantum</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.stars || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Estrellas</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.total_unique_contributors || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Contributors</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.total_repositories_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Repos Totales</span>
+                    </div>
+                  </>
+                )}
+                {type === 'repo' && (
+                  <>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.stargazer_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Estrellas</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.fork_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Forks</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.collaborators_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Contribuidores</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.watchers_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Watchers</span>
+                    </div>
+                  </>
+                )}
+                {type === 'user' && (
+                  <>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.score || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Collab Score</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.contributions || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Contrib.</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.followers_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Followers</span>
+                    </div>
+                    <div className={styles.entityDetailStat}>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.public_repos_count || data.repos || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatLabel}>Repos</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* === ORG SPECIFIC SECTIONS === */}
+              {/* Org: Repos overview - always show when we have total_repositories_count */}
+              {type === 'org' && data.total_repositories_count > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Repositorios</h4>
+                  <div className={styles.entityDetailProgressRow}>
+                    <div className={styles.entityDetailProgressBar}>
+                      <div className={styles.entityDetailProgressFill} style={{ width: `${Math.min(100, ((data.repositories || 0) / data.total_repositories_count) * 100)}%` }} />
+                    </div>
+                    <span className={styles.entityDetailProgressValue}>
+                      {data.repositories || 0}<small>/{data.total_repositories_count}</small>
+                    </span>
+                  </div>
+                  <span className={styles.entityDetailProgressHint}>
+                    {data.repositories || 0} repos quantum de {data.total_repositories_count} totales
+                    {data.quantum_focus_score > 0 && ` · ${data.quantum_focus_score.toFixed(1)}% enfoque quantum`}
+                  </span>
+                </div>
+              )}
+
+              {/* Org: Info section - ALWAYS show, combine all org metadata */}
+              {type === 'org' && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Información</h4>
+                  {data.created_at && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> Creada</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{formatDetailDate(data.created_at)}{timeAgo(data.created_at) && <small> ({timeAgo(data.created_at)})</small>}</span>
+                    </div>
+                  )}
+                  {data.location && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> Ubicación</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.location}</span>
+                    </div>
+                  )}
+                  {data.email && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Mail size={12} /> Email</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.email}</span>
+                    </div>
+                  )}
+                  {data.total_unique_contributors > 0 && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Contributors</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.total_unique_contributors.toLocaleString()} contribuidores únicos en sus repos</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {type === 'org' && Array.isArray(data.top_languages) && data.top_languages.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes principales</h4>
+                  {/* Language bar visualization */}
+                  <div className={styles.entityDetailLangBarWrap}>
+                    <div className={styles.entityDetailLangBar}>
+                      {data.top_languages.slice(0, 6).map((lang, i) => {
+                        const langName = typeof lang === 'string' ? lang : lang?.name
+                        const pct = lang?.percentage || 0
+                        if (!langName || pct < 1) return null
+                        const langColors = { Python: '#3572A5', JavaScript: '#f1e05a', TypeScript: '#3178c6', 'C++': '#f34b7d', C: '#555555', Java: '#b07219', Julia: '#a270ba', Rust: '#dea584', Go: '#00ADD8', Ruby: '#701516', 'Jupyter Notebook': '#DA5B0B', HTML: '#e34c26', CSS: '#563d7c', Shell: '#89e051', Qiskit: '#6929C4' }
+                        return <div key={i} style={{ width: `${pct}%`, background: langColors[langName] || `hsl(${i * 55}, 60%, 55%)`, minWidth: '4px' }} title={`${langName}: ${pct.toFixed(1)}%`} />
+                      })}
+                    </div>
+                    <div className={styles.entityDetailLangLabels}>
+                      {data.top_languages.slice(0, 5).map((lang, i) => {
+                        const langName = typeof lang === 'string' ? lang : lang?.name
+                        const pct = lang?.percentage
+                        const count = lang?.repo_count
+                        if (!langName) return null
+                        return (
+                          <button key={i} className={styles.entityDetailLangItem} onClick={() => { setFilter('language', langName); closeEntityDetail() }}>
+                            <span className={styles.entityDetailLangName}>{langName}</span>
+                            {pct != null && <span className={styles.entityDetailLangPct}>{pct.toFixed(0)}%</span>}
+                            {count != null && <span className={styles.entityDetailLangCount}>{count} repos</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {type === 'org' && Array.isArray(data.top_quantum_contributors) && data.top_quantum_contributors.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Top contribuidores quantum ({data.top_quantum_contributors.length})</h4>
+                  <div className={styles.entityDetailContribList}>
+                    {data.top_quantum_contributors.map((c, i) => {
+                      const login = typeof c === 'string' ? c : c?.login
+                      if (!login) return null
+                      return (
+                        <button key={i} className={styles.entityDetailContribItem} onClick={() => { selectUserForAnalysis(login); closeEntityDetail() }}>
+                          <User size={12} />
+                          <span>{login}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* === ORG SOCIAL LINKS === */}
+              {type === 'org' && (data.website_url || data.twitter_username) && (
+                <div className={styles.entityDetailSection}>
+                  <div className={styles.entityDetailLinks}>
+                    {data.website_url && (
+                      <a href={data.website_url.startsWith('http') ? data.website_url : `https://${data.website_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
+                        <Globe size={13} /> Sitio web
+                      </a>
+                    )}
+                    {data.twitter_username && (
+                      <a href={`https://x.com/${data.twitter_username}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> @{data.twitter_username}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === REPO SPECIFIC SECTIONS === */}
+              {type === 'repo' && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Actividad del repositorio</h4>
+                  <div className={styles.entityDetailActivityGrid}>
+                    <div className={styles.entityDetailActivityItem}>
+                      <GitCommit size={13} style={{ color: '#22C55E' }} />
+                      <span className={styles.entityDetailActivityValue}>{(data.commits_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailActivityLabel}>Commits</span>
+                    </div>
+                    <div className={styles.entityDetailActivityItem}>
+                      <GitPullRequest size={13} style={{ color: '#3B82F6' }} />
+                      <span className={styles.entityDetailActivityValue}>{(data.pull_requests_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailActivityLabel}>PRs</span>
+                    </div>
+                    <div className={styles.entityDetailActivityItem}>
+                      <AlertCircle size={13} style={{ color: '#EF4444' }} />
+                      <span className={styles.entityDetailActivityValue}>{(data.issues_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailActivityLabel}>Issues</span>
+                    </div>
+                    <div className={styles.entityDetailActivityItem}>
+                      <Tag size={13} style={{ color: '#F59E0B' }} />
+                      <span className={styles.entityDetailActivityValue}>{(data.releases_count || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailActivityLabel}>Releases</span>
+                    </div>
+                  </div>
+                  {(data.merged_pull_requests_count > 0 || data.open_pull_requests_count > 0 || data.open_issues_count > 0) && (
+                    <div className={styles.entityDetailSubStats}>
+                      {data.merged_pull_requests_count > 0 && (
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#9D6FDB' }}>{data.merged_pull_requests_count}</span> merged</span>
+                      )}
+                      {data.open_pull_requests_count > 0 && (
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#22C55E' }}>{data.open_pull_requests_count}</span> PRs abiertos</span>
+                      )}
+                      {data.open_issues_count > 0 && (
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#F59E0B' }}>{data.open_issues_count}</span> issues abiertas</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {type === 'repo' && Array.isArray(data.repository_topics) && data.repository_topics.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Topics ({data.repository_topics.length})</h4>
+                  <div className={styles.entityDetailTopics}>
+                    {data.repository_topics.slice(0, 12).map((topic, i) => (
+                      <span key={i} className={styles.entityDetailTopic}>{topic}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {type === 'repo' && Array.isArray(data.languages) && data.languages.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes ({data.languages.length})</h4>
+                  <div className={styles.entityDetailLangBarWrap}>
+                    {(() => {
+                      const totalSize = data.languages.reduce((sum, l) => sum + (l.size || 0), 0)
+                      if (totalSize === 0) return null
+                      return (
+                        <>
+                          <div className={styles.entityDetailLangBar}>
+                            {data.languages.map((l, i) => {
+                              const pct = ((l.size || 0) / totalSize) * 100
+                              if (pct < 1) return null
+                              const langColors = { Python: '#3572A5', JavaScript: '#f1e05a', TypeScript: '#3178c6', 'C++': '#f34b7d', C: '#555555', Java: '#b07219', Julia: '#a270ba', Rust: '#dea584', Go: '#00ADD8', Ruby: '#701516', Jupyter: '#DA5B0B', HTML: '#e34c26', CSS: '#563d7c', Shell: '#89e051' }
+                              return <div key={i} style={{ width: `${pct}%`, background: langColors[l.name] || `hsl(${i * 60}, 60%, 55%)`, minWidth: '4px' }} title={`${l.name}: ${pct.toFixed(1)}%`} />
+                            })}
+                          </div>
+                          <div className={styles.entityDetailLangLabels}>
+                            {data.languages.filter(l => ((l.size || 0) / totalSize) * 100 >= 3).map((l, i) => (
+                              <button key={i} className={styles.entityDetailLangItem} onClick={() => { setFilter('language', l.name); closeEntityDetail() }}>
+                                <span className={styles.entityDetailLangName}>{l.name}</span>
+                                <span className={styles.entityDetailLangPct}>{(((l.size || 0) / totalSize) * 100).toFixed(1)}%</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Repo metadata */}
+              {type === 'repo' && (
+                <div className={styles.entityDetailSection}>
+                  {data.language && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Code size={12} /> Lenguaje principal</span>
+                      <button className={styles.entityDetailMetaValue} onClick={() => { setFilter('language', data.language); closeEntityDetail() }}>
+                        {data.language}
+                      </button>
+                    </div>
+                  )}
+                  {data.owner && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Building2 size={12} /> Organización</span>
+                      <button className={styles.entityDetailMetaValue} onClick={() => { setFilter('org', data.owner); closeEntityDetail() }}>
+                        {data.owner}
+                      </button>
+                    </div>
+                  )}
+                  {data.license_info?.name && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Scale size={12} /> Licencia</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.license_info.spdx_id || data.license_info.name}</span>
+                    </div>
+                  )}
+                  {data.default_branch && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><GitFork size={12} /> Branch</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.default_branch}</span>
+                    </div>
+                  )}
+                  {data.latest_release?.tag_name && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Tag size={12} /> Última release</span>
+                      <span className={styles.entityDetailMetaValuePlain}>
+                        {data.latest_release.tag_name}
+                        {data.latest_release.published_at && timeAgo(data.latest_release.published_at) && <small> ({timeAgo(data.latest_release.published_at)})</small>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Repo timeline */}
+              {type === 'repo' && (data.created_at || data.pushed_at) && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Cronología</h4>
+                  <div className={styles.entityDetailTimeline}>
+                    {data.created_at && (
+                      <div className={styles.entityDetailTimelineItem}>
+                        <Calendar size={11} />
+                        <span className={styles.entityDetailTimelineLabel}>Creado</span>
+                        <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.created_at)}</span>
+                      </div>
+                    )}
+                    {data.pushed_at && (
+                      <div className={styles.entityDetailTimelineItem}>
+                        <Clock size={11} />
+                        <span className={styles.entityDetailTimelineLabel}>Último push</span>
+                        <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.pushed_at)}{timeAgo(data.pushed_at) && <small> ({timeAgo(data.pushed_at)})</small>}</span>
+                      </div>
+                    )}
+                    {data.updated_at && (
+                      <div className={styles.entityDetailTimelineItem}>
+                        <Clock size={11} />
+                        <span className={styles.entityDetailTimelineLabel}>Actualizado</span>
+                        <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.updated_at)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === USER SPECIFIC SECTIONS === */}
+              {/* User contribution breakdown */}
+              {type === 'user' && (data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Desglose de contribuciones</h4>
+                  <div className={styles.entityDetailBreakdown}>
+                    {[
+                      { key: 'commits', label: 'Commits', color: '#22C55E', icon: GitCommit },
+                      { key: 'prs', label: 'Pull Requests', color: '#3B82F6', icon: GitPullRequest },
+                      { key: 'reviews', label: 'Reviews', color: '#F59E0B', icon: Eye },
+                      { key: 'issues', label: 'Issues', color: '#EF4444', icon: AlertCircle },
+                    ].filter(item => data[item.key] > 0).map(item => (
+                      <div key={item.key} className={styles.entityDetailBreakdownRow}>
+                        <span className={styles.entityDetailBreakdownLabel} style={{ color: item.color }}>
+                          <item.icon size={11} /> {item.label}
+                        </span>
+                        <div className={styles.entityDetailBreakdownBar}>
+                          <div style={{ width: `${data.contributions > 0 ? Math.min(100, (data[item.key] / data.contributions) * 100) : 0}%`, background: item.color }} />
+                        </div>
+                        <span className={styles.entityDetailBreakdownValue}>{data[item.key].toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* User profile info */}
+              {type === 'user' && (data.company || data.location || data.created_at || data.following_count > 0) && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Perfil</h4>
+                  {data.company && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Briefcase size={12} /> Empresa</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.company}</span>
+                    </div>
+                  )}
+                  {data.location && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> Ubicación</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.location}</span>
+                    </div>
+                  )}
+                  {data.created_at && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> Miembro desde</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{formatDetailDate(data.created_at)}</span>
+                    </div>
+                  )}
+                  {data.following_count > 0 && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Following</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.following_count.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* User top languages */}
+              {type === 'user' && Array.isArray(data.top_languages) && data.top_languages.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes principales</h4>
+                  <div className={styles.entityDetailLangList}>
+                    {data.top_languages.slice(0, 6).map((lang, i) => {
+                      const langName = typeof lang === 'string' ? lang : lang?.name
+                      if (!langName) return null
+                      return (
+                        <button key={i} className={styles.entityDetailLangItem} onClick={() => { setFilter('language', langName); closeEntityDetail() }}>
+                          <span className={styles.entityDetailLangName}>{langName}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* User organizations */}
+              {type === 'user' && Array.isArray(data.organizations) && data.organizations.length > 0 && (
+                <div className={styles.entityDetailSection}>
+                  <h4 className={styles.entityDetailSectionTitle}>Organizaciones ({data.organizations.length})</h4>
+                  <div className={styles.entityDetailOrgChips}>
+                    {data.organizations.map((org, i) => {
+                      const orgLogin = typeof org === 'string' ? org : org?.login
+                      if (!orgLogin) return null
+                      return (
+                        <button key={i} className={styles.entityDetailOrgChip} onClick={() => { setFilter('org', orgLogin); closeEntityDetail() }} title={`Filtrar por ${orgLogin}`}>
+                          {orgLogin}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* === SOCIAL LINKS (user/repo only — org links already in org section) === */}
+              {type !== 'org' && (data.website_url || data.twitter_username) && (
+                <div className={styles.entityDetailSection}>
+                  <div className={styles.entityDetailLinks}>
+                    {data.website_url && (
+                      <a href={data.website_url.startsWith('http') ? data.website_url : `https://${data.website_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
+                        <Globe size={13} /> Sitio web
+                      </a>
+                    )}
+                    {data.twitter_username && (
+                      <a href={`https://x.com/${data.twitter_username}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> @{data.twitter_username}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className={styles.entityDetailFooter}>
+                {type === 'org' && (
+                  <button 
+                    className={styles.entityDetailActionBtn}
+                    onClick={() => { setFilter('org', data.name); closeEntityDetail() }}
+                  >
+                    <Building2 size={14} /> Filtrar por esta organización
+                  </button>
+                )}
+                {type === 'repo' && (
+                  <div className={styles.entityDetailFooterButtons}>
+                    <button 
+                      className={styles.entityDetailActionBtn}
+                      onClick={() => { setFilter('repo', data.fullName); closeEntityDetail() }}
+                    >
+                      <BookOpen size={14} /> Filtrar por este repositorio
+                    </button>
+                    {data.homepage_url && (
+                      <a href={data.homepage_url.startsWith('http') ? data.homepage_url : `https://${data.homepage_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailActionBtnSecondary}>
+                        <Globe size={14} /> Sitio web
+                      </a>
+                    )}
+                  </div>
+                )}
+                {type === 'user' && (
+                  <button 
+                    className={styles.entityDetailActionBtn}
+                    onClick={() => { selectUserForAnalysis(data.login); closeEntityDetail() }}
+                  >
+                    <Users size={14} /> Ver red de colaboración
+                  </button>
+                )}
+              </div>
+            </aside>
+          </div>
+        )
+      })()}
     </section>
   )
 }

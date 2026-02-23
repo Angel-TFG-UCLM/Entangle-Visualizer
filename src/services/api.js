@@ -249,7 +249,11 @@ export async function analyzeCollaboration(params = {}) {
       queryParams.orgs = params.orgs;
     }
     
-    const response = await apiClient.post('/collaboration/analyze', null, { params: queryParams });
+    const response = await apiClient.post('/collaboration/analyze', null, { 
+      params: queryParams,
+      // FastAPI espera arrays como ?repos=a&repos=b (repeat), no ?repos[]=a&repos[]=b
+      paramsSerializer: { indexes: null }
+    });
     console.log(`🔗 Collaboration analysis: ${response.data.mode} mode`);
     return response.data;
   } catch (error) {
@@ -335,6 +339,200 @@ export async function findQuantumPath(source, target) {
     return response.data;
   } catch (error) {
     console.error('[findQuantumPath] Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// FAVORITOS Y VISTAS PERSONALIZADAS
+// ============================================================================
+
+/**
+ * Obtiene todos los favoritos guardados
+ */
+export async function getFavorites() {
+  try {
+    const response = await apiClient.get('/favorites');
+    return response.data.favorites || [];
+  } catch (error) {
+    console.error('[getFavorites] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Añade una entidad a favoritos
+ * @param {{ id: string, type: string, name: string, avatar_url?: string }} favorite
+ */
+export async function addFavorite(favorite) {
+  try {
+    const response = await apiClient.post('/favorites', favorite);
+    return response.data;
+  } catch (error) {
+    console.error('[addFavorite] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina un favorito por su ID
+ * @param {string} entityId
+ */
+export async function removeFavorite(entityId) {
+  try {
+    const response = await apiClient.delete(`/favorites/${encodeURIComponent(entityId)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[removeFavorite] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene todas las vistas personalizadas
+ */
+export async function getViews() {
+  try {
+    const response = await apiClient.get('/views');
+    return response.data.views || [];
+  } catch (error) {
+    console.error('[getViews] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Crea o actualiza una vista personalizada
+ * @param {{ id?: string, name: string, entity_ids: string[], color?: string }} view
+ */
+export async function saveView(view) {
+  try {
+    const response = await apiClient.post('/views', view);
+    return response.data;
+  } catch (error) {
+    console.error('[saveView] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina una vista personalizada
+ * @param {string} viewId
+ */
+export async function deleteView(viewId) {
+  try {
+    const response = await apiClient.delete(`/views/${viewId}`);
+    return response.data;
+  } catch (error) {
+    console.error('[deleteView] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene datos del dashboard filtrados para una vista
+ * @param {string} viewId
+ * @param {string[]} [entityIds] - IDs opcionales si no se quiere usar los de la vista guardada
+ */
+export async function getViewData(viewId, entityIds = null) {
+  try {
+    const body = entityIds ? { entity_ids: entityIds } : {};
+    const response = await apiClient.post(`/views/${viewId}/data`, body, {
+      timeout: 60000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[getViewData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Exporta favoritos y vistas como objeto JSON (para descarga)
+ */
+export async function exportUserData() {
+  try {
+    const [favorites, views] = await Promise.all([getFavorites(), getViews()]);
+    return {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      favorites,
+      views,
+    };
+  } catch (error) {
+    console.error('[exportUserData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Importa favoritos y vistas desde un objeto JSON
+ * @param {{ favorites: Array, views: Array }} data
+ */
+export async function importUserData(data) {
+  try {
+    const results = { favorites: 0, views: 0, errors: [] };
+    
+    if (data.favorites?.length) {
+      for (const fav of data.favorites) {
+        try {
+          await addFavorite(fav);
+          results.favorites++;
+        } catch (e) {
+          results.errors.push(`Favorito ${fav.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    if (data.views?.length) {
+      for (const view of data.views) {
+        try {
+          await saveView(view);
+          results.views++;
+        } catch (e) {
+          results.errors.push(`Vista ${view.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('[importUserData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Búsqueda unificada de entidades (usuarios, repos, orgs)
+ * Endpoint: GET /search/entities?q=...&limit=15
+ * @param {string} query - Texto de búsqueda (min 2 chars)
+ * @param {number} [limit=15] - Máximo de resultados
+ * @returns {Promise<{query: string, count: number, results: Array}>}
+ */
+export async function searchEntities(query, limit = 15) {
+  try {
+    const response = await apiClient.get('/search/entities', {
+      params: { q: query, limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[searchEntities] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los hijos jerárquicos de un favorito (org→repos, repo→users)
+ * Endpoint: GET /favorites/{entity_id}/children
+ * @param {string} entityId - ID con prefijo (org_login, repo_full_name)
+ * @returns {Promise<{parent_id: string, children: Array}>}
+ */
+export async function getFavoriteChildren(entityId) {
+  try {
+    const response = await apiClient.get(`/favorites/${encodeURIComponent(entityId)}/children`);
+    return response.data;
+  } catch (error) {
+    console.error('[getFavoriteChildren] Error:', error);
     throw error;
   }
 }

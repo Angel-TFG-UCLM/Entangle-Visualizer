@@ -28,10 +28,24 @@ import { organizations, users, repositories } from '../data/mockData'
  * Representa "sin filtros aplicados" - vista global con datos mock
  */
 const initialState = {
-  selectedOrg: null,        // string | null - login de la organización
+  selectedOrg: null,        // string | null - login de la organización (filtro simple)
   selectedLanguage: null,   // string | null - lenguaje de programación
-  selectedRepo: null,       // string | null - full_name del repositorio
+  selectedRepo: null,       // string | null - full_name del repositorio (filtro simple)
   dataSource: 'mock',       // 'mock' | 'backend' - origen de los datos actuales
+  
+  // === SELECCIÓN MÚLTIPLE PARA ANÁLISIS DE COLABORACIÓN ===
+  selectedRepos: [],        // string[] - repos seleccionados para comparación
+  selectedOrgs: [],         // string[] - orgs seleccionadas para comparación
+  selectedUser: null,       // string | null - usuario seleccionado para ver su red
+  collaborationMode: null,  // 'user' | 'repos' | 'orgs' | null - modo de análisis activo
+  collaborationData: null,  // Resultado del análisis de colaboración
+  isAnalyzing: false,       // Estado de carga del análisis
+  
+  // === AUTO-DISCOVERY DE COLABORACIÓN ===
+  collaborationAvailable: false,   // bool - si se detectó colaboración real
+  collaborationDiscovery: null,    // Resultado completo del discover endpoint
+  showCollaborationGraph: false,   // bool - si mostrar la vista fullscreen del grafo
+  isDiscovering: false,            // Estado de carga del discovery
   
   // Datos legacy (mockData para fallback offline)
   data: {
@@ -119,7 +133,7 @@ export const useDashboardStore = create(
           // También actualizar data legacy para compatibilidad con componentes existentes
           // Usamos los datos de graph como "data" para que los componentes funcionen
           const legacyData = {
-            organizations: stats.graph?.organizations || stats.charts?.organizations || [],
+            organizations: stats.graph?.organizations || (Array.isArray(stats.charts?.organizations) ? stats.charts.organizations : []),
             users: normalizeUserOrgs(stats.graph?.users || stats.charts?.users || []),
             repositories: stats.graph?.repositories || stats.charts?.repositories || [],
           }
@@ -138,8 +152,12 @@ export const useDashboardStore = create(
           }, false, 'loadFullData/success')
           
           console.log(`✅ Métricas cargadas: ${stats.kpis?.totalRepos} repos, ${stats.kpis?.totalUsers} users, ${stats.kpis?.totalOrgs} orgs`)
-          console.log(`   📊 Charts: ${stats.charts?.organizations?.length} orgs, ${stats.charts?.repositories?.length} repos`)
+          console.log(`   📊 Charts: organizations=${typeof stats.charts?.organizations === 'object' ? Object.keys(stats.charts.organizations).join(',') : '?'}, repos keys=${typeof stats.charts?.repositories === 'object' ? Object.keys(stats.charts.repositories).join(',') : '?'}`)
           console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
+          
+          // Auto-detectar colaboración después de cargar datos
+          // Si es forceRefresh, forzar también recalculación del grafo
+          setTimeout(() => get().discoverCollaboration(forceRefresh), 500)
           
           return true
         } catch (error) {
@@ -154,10 +172,21 @@ export const useDashboardStore = create(
       },
 
       /**
-       * Refresca las métricas forzando recálculo en el backend.
-       * Útil después de ingestas/enriquecimientos.
+       * Refresca las métricas forzando invalidación de TODAS las cachés
+       * del backend y recálculo completo.
+       * 
+       * Flujo: POST /dashboard/refresh-metrics (invalida) → loadFullData(true) (recalcula)
        */
       refreshMetrics: async () => {
+        // 1. Invalidar todas las cachés del backend (discover, network-metrics, stats, counts)
+        try {
+          const { refreshDashboardMetrics } = await import('../services/api')
+          await refreshDashboardMetrics()
+          console.log('🧹 Todas las cachés del backend invalidadas')
+        } catch (e) {
+          console.warn('⚠️ Error al invalidar cachés (continuando con recálculo):', e.message)
+        }
+        // 2. Recargar datos frescos (fuerza recálculo en backend)
         return get().loadFullData(true)
       },
 
@@ -223,6 +252,16 @@ export const useDashboardStore = create(
           selectedLanguage: newLanguage,
           selectedRepo: newRepo,
         }, false, `setFilter/${filterType}/${value}`)
+        
+        // Si hay una vista activa, los filtros se aplican localmente en ChartsSection
+        // No necesitamos llamar al backend — los datos de la vista ya están en memoria
+        try {
+          const favStore = (await import('./favoritesStore')).default
+          if (favStore.getState().activeViewId) {
+            console.log(`🔍 Vista activa: filtro local aplicado (${filterType}=${shouldClear ? 'null' : value})`)
+            return
+          }
+        } catch { /* continuar con flujo normal */ }
         
         // Recargar datos del backend con los nuevos filtros
         const hasFilters = newOrg || newLanguage || newRepo
@@ -313,6 +352,16 @@ export const useDashboardStore = create(
           isFiltering: true,
         }, false, 'resetFilters')
         
+        // Si hay vista activa, los filtros se aplican localmente → no recargar backend
+        try {
+          const favStore = (await import('./favoritesStore')).default
+          if (favStore.getState().activeViewId) {
+            set({ isFiltering: false }, false, 'resetFilters/viewLocal')
+            console.log('🔍 Vista activa: filtros locales limpiados')
+            return
+          }
+        } catch { /* continuar */ }
+        
         // Recargar datos base
         try {
           const { getDashboardStats } = await import('../services/api')
@@ -340,6 +389,293 @@ export const useDashboardStore = create(
           console.warn('Error restaurando datos:', error)
           set({ isFiltering: false }, false, 'resetFilters/error')
         }
+      },
+
+      // ============================================================================
+      // ANÁLISIS DE COLABORACIÓN - SELECCIÓN MÚLTIPLE
+      // ============================================================================
+
+      /**
+       * Toggle selección de repo para análisis de colaboración
+       * Permite seleccionar múltiples repos para comparar usuarios compartidos
+       * 
+       * @param {string} repoFullName - full_name del repositorio (owner/name)
+       */
+      toggleRepoSelection: (repoFullName) => {
+        const state = get()
+        const currentSelection = state.selectedRepos
+        
+        const isSelected = currentSelection.includes(repoFullName)
+        const newSelection = isSelected
+          ? currentSelection.filter(r => r !== repoFullName)
+          : [...currentSelection, repoFullName]
+        
+        set({
+          selectedRepos: newSelection,
+          collaborationMode: newSelection.length >= 2 ? 'repos' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedOrgs: newSelection.length > 0 ? [] : state.selectedOrgs,
+          selectedUser: newSelection.length > 0 ? null : state.selectedUser,
+        }, false, `toggleRepoSelection/${repoFullName}`)
+      },
+
+      /**
+       * Toggle selección de org para análisis de colaboración  
+       * Permite seleccionar múltiples orgs para comparar usuarios compartidos
+       * 
+       * @param {string} orgLogin - login de la organización
+       */
+      toggleOrgSelection: (orgLogin) => {
+        const state = get()
+        const currentSelection = state.selectedOrgs
+        
+        const isSelected = currentSelection.includes(orgLogin)
+        const newSelection = isSelected
+          ? currentSelection.filter(o => o !== orgLogin)
+          : [...currentSelection, orgLogin]
+        
+        set({
+          selectedOrgs: newSelection,
+          collaborationMode: newSelection.length >= 2 ? 'orgs' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedRepos: newSelection.length > 0 ? [] : state.selectedRepos,
+          selectedUser: newSelection.length > 0 ? null : state.selectedUser,
+        }, false, `toggleOrgSelection/${orgLogin}`)
+      },
+
+      /**
+       * Seleccionar un usuario para ver su red de colaboración
+       * 
+       * @param {string|null} userLogin - login del usuario o null para limpiar
+       */
+      selectUserForAnalysis: (userLogin) => {
+        const state = get()
+        
+        // Toggle: si ya está seleccionado, deseleccionar
+        const newUser = state.selectedUser === userLogin ? null : userLogin
+        
+        set({
+          selectedUser: newUser,
+          collaborationMode: newUser ? 'user' : null,
+          // Limpiar otras selecciones de colaboración
+          selectedRepos: newUser ? [] : state.selectedRepos,
+          selectedOrgs: newUser ? [] : state.selectedOrgs,
+        }, false, `selectUserForAnalysis/${userLogin}`)
+        
+        // Auto-trigger análisis si hay usuario
+        if (newUser) {
+          get().analyzeCollaboration()
+        } else {
+          set({ collaborationData: null }, false, 'clearCollaborationData')
+        }
+      },
+
+      /**
+       * Ejecuta el análisis de colaboración basado en las selecciones actuales
+       */
+      analyzeCollaboration: async () => {
+        const state = get()
+        
+        // Determinar qué analizar
+        const hasRepos = state.selectedRepos.length >= 2
+        const hasOrgs = state.selectedOrgs.length >= 2
+        const hasUser = !!state.selectedUser
+        
+        if (!hasRepos && !hasOrgs && !hasUser) {
+          console.log('⚠️ Nada que analizar - no hay selecciones válidas')
+          return
+        }
+        
+        set({ isAnalyzing: true }, false, 'analyzeCollaboration/start')
+        
+        try {
+          const { analyzeCollaboration } = await import('../services/api')
+          
+          let result
+          if (hasUser) {
+            result = await analyzeCollaboration({ user: state.selectedUser })
+          } else if (hasRepos) {
+            result = await analyzeCollaboration({ repos: state.selectedRepos })
+          } else if (hasOrgs) {
+            result = await analyzeCollaboration({ orgs: state.selectedOrgs })
+          }
+          
+          set({
+            collaborationData: result,
+            collaborationMode: result?.mode || null,
+            isAnalyzing: false,
+          }, false, 'analyzeCollaboration/success')
+          
+          console.log(`✅ Análisis de colaboración: ${result?.mode} - ${result?.shared_users?.length || 0} usuarios compartidos`)
+        } catch (error) {
+          console.error('Error en análisis de colaboración:', error)
+          set({ isAnalyzing: false, collaborationData: null }, false, 'analyzeCollaboration/error')
+        }
+      },
+
+      /**
+       * Limpia todas las selecciones de colaboración
+       */
+      clearCollaborationSelections: () => {
+        set({
+          selectedRepos: [],
+          selectedOrgs: [],
+          selectedUser: null,
+          collaborationMode: null,
+          collaborationData: null,
+          isAnalyzing: false,
+        }, false, 'clearCollaborationSelections')
+      },
+
+      // ============================================================================
+      // AUTO-DISCOVERY DE COLABORACIÓN
+      // ============================================================================
+
+      /**
+       * Auto-detecta patrones de colaboración analizando toda la BBDD.
+       * Se llama automáticamente después de loadFullData() si el backend está online.
+       * 
+       * Si encuentra colaboración real, establece collaborationAvailable = true
+       * y el banner aparecerá en la UI invitando al usuario a explorar el grafo.
+       */
+      discoverCollaboration: async (forceRefresh = false) => {
+        set({ isDiscovering: true }, false, 'discoverCollaboration/start')
+        
+        try {
+          const { discoverCollaboration } = await import('../services/api')
+          const result = await discoverCollaboration(forceRefresh)
+          
+          set({
+            collaborationAvailable: result.available,
+            collaborationDiscovery: result,
+            isDiscovering: false,
+          }, false, 'discoverCollaboration/success')
+          
+          if (result.available) {
+            console.log(`🔍 ¡Colaboración detectada! ${result.summary}`)
+          } else {
+            console.log('🔍 No se detectó colaboración entre los datos actuales')
+          }
+          
+          return result.available
+        } catch (error) {
+          console.warn('⚠️ Error en auto-discovery de colaboración:', error.message)
+          set({
+            collaborationAvailable: false,
+            collaborationDiscovery: null,
+            isDiscovering: false,
+          }, false, 'discoverCollaboration/error')
+          return false
+        }
+      },
+
+      /**
+       * Abre la vista fullscreen del grafo de colaboración
+       */
+      openCollaborationGraph: () => {
+        set({ showCollaborationGraph: true }, false, 'openCollaborationGraph')
+      },
+
+      /**
+       * Cierra la vista fullscreen del grafo de colaboración
+       */
+      closeCollaborationGraph: () => {
+        set({ showCollaborationGraph: false }, false, 'closeCollaborationGraph')
+      },
+
+      // ============================================================================
+      // ANÁLISIS DE RED & LENTES ANALÍTICAS
+      // ============================================================================
+      
+      // Estado de lentes y métricas de red
+      activeLens: null,              // null | 'centrality' | 'communities' | 'busFactor' | 'intensity'
+      networkMetrics: null,          // Resultado completo de /collaboration/network-metrics
+      isLoadingMetrics: false,
+      metricsError: null,
+      metricsLoadAttempted: false,   // Evita reintentos infinitos
+      
+      // Quantum Tunneling state
+      tunnelingPath: null,           // Resultado del path finding
+      isLoadingTunneling: false,
+      
+      /**
+       * Carga métricas de red completas (centralidad, comunidades, bus factor, etc.)
+       * @param {boolean} forceRefresh - Forzar recálculo del backend
+       */
+      loadNetworkMetrics: async (forceRefresh = false) => {
+        if (get().isLoadingMetrics) return
+        set({ isLoadingMetrics: true, metricsError: null, metricsLoadAttempted: true }, false, 'loadNetworkMetrics/start')
+        
+        try {
+          const { getNetworkMetrics } = await import('../services/api')
+          const metrics = await getNetworkMetrics(forceRefresh)
+          set({ 
+            networkMetrics: metrics, 
+            isLoadingMetrics: false 
+          }, false, 'loadNetworkMetrics/success')
+          return true
+        } catch (error) {
+          console.error('[loadNetworkMetrics] Error:', error)
+          set({ 
+            isLoadingMetrics: false, 
+            metricsError: error.message || 'Error al cargar métricas de red'
+          }, false, 'loadNetworkMetrics/error')
+          return false
+        }
+      },
+      
+      /**
+       * Activa/desactiva una lente analítica en el universo
+       * Si se pulsa la lente activa, se desactiva (toggle)
+       * @param {'centrality'|'communities'|'busFactor'|'intensity'|null} lens
+       */
+      setActiveLens: (lens) => {
+        const current = get().activeLens
+        const newLens = current === lens ? null : lens
+        set({ activeLens: newLens }, false, `setActiveLens/${newLens || 'none'}`)
+      },
+      
+      /**
+       * Encuentra el camino más corto entre dos entidades (Quantum Tunneling)
+       * @param {string} source - ID del nodo origen
+       * @param {string} target - ID del nodo destino
+       */
+      findQuantumPath: async (source, target) => {
+        if (!source || !target) return
+        set({ isLoadingTunneling: true }, false, 'findQuantumPath/start')
+        
+        try {
+          const { findQuantumPath } = await import('../services/api')
+          const result = await findQuantumPath(source, target)
+          set({ 
+            tunnelingPath: result, 
+            isLoadingTunneling: false 
+          }, false, 'findQuantumPath/success')
+          return result
+        } catch (error) {
+          console.error('[findQuantumPath] Error:', error)
+          set({ isLoadingTunneling: false }, false, 'findQuantumPath/error')
+          return null
+        }
+      },
+      
+      /**
+       * Limpia el camino de tunneling activo
+       */
+      clearTunneling: () => {
+        set({ tunnelingPath: null }, false, 'clearTunneling')
+      },
+
+      /**
+       * Verifica si el modo de análisis de colaboración está activo
+       */
+      isCollaborationModeActive: () => {
+        const state = get()
+        return !!(
+          state.selectedRepos.length >= 2 ||
+          state.selectedOrgs.length >= 2 ||
+          state.selectedUser
+        )
       },
 
       // ============================================================================

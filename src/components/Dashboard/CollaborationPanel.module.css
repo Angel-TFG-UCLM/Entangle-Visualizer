@@ -1,0 +1,602 @@
+/**
+ * CollaborationPanel Styles - Vista Fullscreen
+ * Overlay con grafo heroico y sidebar de información
+ */
+
+/* === OVERLAY === */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: linear-gradient(
+    135deg,
+    rgba(8, 8, 22, 0.98) 0%,
+    rgba(12, 12, 30, 0.99) 50%,
+    rgba(6, 6, 18, 0.99) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: scale(0.97);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.overlayVisible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* === HEADER === */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(0, 212, 228, 0.12);
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.headerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 189, 0, 0.15);
+  border-radius: var(--radius-md);
+  color: #ffbd00;
+}
+
+.headerText h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+}
+
+.headerSummary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.closeBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-error);
+}
+
+.closeBtn span {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+/* === LAYOUT === */
+.layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* === GRAPH AREA === */
+.graphArea {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.graphWrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 212, 228, 0.02) 0%,
+    transparent 50%
+  );
+}
+
+.collaborationSvg {
+  width: 100%;
+  height: 100%;
+  max-width: 800px;
+  max-height: 800px;
+}
+
+.graphEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-muted);
+  gap: var(--spacing-md);
+}
+
+.graphEmpty p {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+/* === ATOMIC NUCLEUS === */
+.atomicNucleus {
+  opacity: 0;
+  animation: fadeIn 1s ease-out 0.4s forwards;
+}
+
+.nucleusHalo {
+  animation: nucleusPulse 4s ease-in-out infinite;
+}
+
+.nucleusCore {
+  animation: corePulse 2s ease-in-out infinite;
+}
+
+.orbit {
+  transform-origin: 400px 400px;
+  animation: orbitRotate 20s linear infinite;
+}
+
+.electron {
+  opacity: 0.7;
+}
+
+@keyframes orbitRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes nucleusPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes corePulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* === LINKS === */
+.linksGroup {
+  pointer-events: none;
+}
+
+.link {
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.link.animate {
+  animation: linkFadeIn 0.4s ease-out forwards;
+}
+
+@keyframes linkFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* === NODES === */
+.nodesGroup {
+  pointer-events: auto;
+}
+
+.node {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.node.animate {
+  animation: nodePopIn 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+.nodeCircle {
+  transition: all 0.2s ease;
+}
+
+.nodeRing {
+  animation: ringPulse 1.5s ease-in-out infinite;
+}
+
+.bridgeRing {
+  animation: bridgeRingPulse 3s ease-in-out infinite;
+}
+
+@keyframes nodePopIn {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ringPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes bridgeRingPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.15; transform: scale(1.1); }
+}
+
+/* === PULSES === */
+.pulsesGroup {
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.pulsesGroup.pulsesHidden {
+  opacity: 0.15;
+}
+
+.pulseWrapper {
+  pointer-events: none;
+}
+
+.pulseTrail {
+  opacity: 0;
+  animation: pulseTrailFade 1.5s ease-out forwards;
+}
+
+.pulseDot {
+  opacity: 0;
+  animation: pulseDotGlow 1.5s ease-out forwards;
+}
+
+@keyframes pulseTrailFade {
+  0% { opacity: 0; stroke-dasharray: 0 2000; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.2; stroke-dasharray: 800 2000; }
+  100% { opacity: 0; }
+}
+
+@keyframes pulseDotGlow {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* === TOOLTIP === */
+.tooltip {
+  pointer-events: none;
+  animation: tooltipIn 0.15s ease-out;
+}
+
+@keyframes tooltipIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* === LEGEND === */
+.legend {
+  position: absolute;
+  bottom: var(--spacing-lg);
+  left: var(--spacing-lg);
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(15, 15, 35, 0.85);
+  border: 1px solid rgba(0, 212, 228, 0.1);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(8px);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* === SIDEBAR === */
+.sidebar {
+  width: 360px;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(0, 212, 228, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 228, 0.3) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 228, 0.3);
+  border-radius: 3px;
+}
+
+/* === SIDE SECTIONS === */
+.sideSection {
+  margin-bottom: var(--spacing-xl);
+}
+
+.sideSection h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sideHint {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* === METRICS GRID === */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.metricCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-xs);
+  background: rgba(0, 212, 228, 0.04);
+  border: 1px solid rgba(0, 212, 228, 0.08);
+  border-radius: var(--radius-md);
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.metricCard:hover {
+  background: rgba(0, 212, 228, 0.08);
+  border-color: rgba(0, 212, 228, 0.15);
+}
+
+.metricValue {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+}
+
+.metricLabel {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* === BRIDGE USERS LIST === */
+.bridgeList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bridgeItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bridgeItem:hover {
+  background: rgba(255, 189, 0, 0.08);
+  border-color: rgba(255, 189, 0, 0.2);
+  transform: translateX(3px);
+}
+
+.bridgeAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 189, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.bridgeAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bridgeInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bridgeName {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bridgeLogin {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.bridgeMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.bridgeBadge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #ffbd00;
+  background: rgba(255, 189, 0, 0.12);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.crossOrgBadge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: #00f7ff;
+  background: rgba(0, 247, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+/* === CONNECTED PAIRS === */
+.pairsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pairItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.pairItem:hover {
+  background: rgba(157, 111, 219, 0.08);
+  border-color: rgba(157, 111, 219, 0.15);
+}
+
+.pairRepos {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  min-width: 0;
+}
+
+.pairRepos span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.pairLinkIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.pairCount {
+  font-size: 10px;
+  color: var(--color-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1024px) {
+  .layout {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    max-height: 40vh;
+    border-left: none;
+    border-top: 1px solid rgba(0, 212, 228, 0.1);
+  }
+  
+  .metricsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .headerText h2 {
+    font-size: var(--font-size-md);
+  }
+  
+  .legend {
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    bottom: var(--spacing-sm);
+    left: var(--spacing-sm);
+  }
+}

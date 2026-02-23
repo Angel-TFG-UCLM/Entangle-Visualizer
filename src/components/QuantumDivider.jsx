@@ -1,5 +1,5 @@
 /**
- * QuantumDivider — Separador de onda de probabilidad cuántica
+ * QuantumDivider - Separador de onda de probabilidad cuántica
  * ============================================================
  * SVG animado que simula una función de onda ψ(x) entre secciones.
  * Referencia visual al mundo cuántico: ondas de probabilidad que
@@ -65,7 +65,7 @@ export default function QuantumDivider({ variant = 'default' }) {
           </linearGradient>
         </defs>
 
-        {/* Onda principal — ψ(x) */}
+        {/* Onda principal - ψ(x) */}
         <path
           d={wavePath}
           fill="none"
@@ -74,7 +74,7 @@ export default function QuantumDivider({ variant = 'default' }) {
           className={styles.waveLine}
         />
 
-        {/* Onda de interferencia — φ(x), desfasada */}
+        {/* Onda de interferencia - φ(x), desfasada */}
         <path
           d={wavePath2}
           fill="none"

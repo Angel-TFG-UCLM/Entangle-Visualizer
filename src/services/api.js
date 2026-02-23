@@ -222,5 +222,335 @@ export async function getOrganizations(params = {}) {
   }
 }
 
+// === COLLABORATION ANALYSIS ===
+
+/**
+ * Analizar colaboraciones entre repos, orgs o de un usuario específico
+ * 
+ * Modos:
+ * 1. user: Ver red de colaboración de un usuario (con quién trabaja y dónde)
+ * 2. repos: Encontrar usuarios compartidos entre 2+ repos
+ * 3. orgs: Encontrar usuarios compartidos entre 2+ organizaciones
+ * 
+ * @param {Object} params - { user?, repos?, orgs? }
+ * @returns {Promise<Object>} { mode, shared_users, collaboration_graph, metrics }
+ */
+export async function analyzeCollaboration(params = {}) {
+  try {
+    const queryParams = {};
+    
+    if (params.user) {
+      queryParams.user = params.user;
+    }
+    if (params.repos && params.repos.length >= 2) {
+      queryParams.repos = params.repos;
+    }
+    if (params.orgs && params.orgs.length >= 2) {
+      queryParams.orgs = params.orgs;
+    }
+    
+    const response = await apiClient.post('/collaboration/analyze', null, { 
+      params: queryParams,
+      // FastAPI espera arrays como ?repos=a&repos=b (repeat), no ?repos[]=a&repos[]=b
+      paramsSerializer: { indexes: null }
+    });
+    console.log(`🔗 Collaboration analysis: ${response.data.mode} mode`);
+    return response.data;
+  } catch (error) {
+    console.error('[analyzeCollaboration] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener red de colaboración de un usuario específico (shortcut GET)
+ * @param {string} userLogin - Login del usuario
+ * @returns {Promise<Object>} Red de colaboración del usuario
+ */
+export async function getUserCollaborationNetwork(userLogin) {
+  try {
+    const response = await apiClient.get(`/collaboration/user/${userLogin}`);
+    console.log(`🔗 User collaboration network: ${userLogin}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getUserCollaborationNetwork] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Auto-descubre patrones de colaboración analizando toda la BBDD.
+ * Busca bridge users, repos conectados, colaboración cross-org.
+ * 
+ * @param {boolean} forceRefresh - Si true, ignora caché y recalcula el grafo
+ * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs }
+ */
+export async function discoverCollaboration(forceRefresh = false) {
+  try {
+    const params = forceRefresh ? { force: true } : {};
+    const response = await apiClient.get('/collaboration/discover', {
+      params,
+      timeout: 120000, // 2 min - la construcción del grafo completo puede tardar
+    });
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}`);
+    return response.data;
+  } catch (error) {
+    console.error('[discoverCollaboration] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene métricas de red de colaboración (centralidad, comunidades, bus factor).
+ * Timeout extendido: la computación de grafos con ~30K nodos puede tardar ~90s.
+ * 
+ * @param {boolean} forceRefresh - Si forzar recálculo
+ * @returns {Promise<Object>} { node_metrics, communities, global_metrics }
+ */
+export async function getNetworkMetrics(forceRefresh = false) {
+  try {
+    const response = await apiClient.get('/collaboration/network-metrics', {
+      params: { force_refresh: forceRefresh },
+      timeout: 180000, // 3 minutos - la computación de NetworkX es pesada
+    });
+    console.log(`📊 Network metrics: ${Object.keys(response.data.node_metrics || {}).length} nodes analyzed`);
+    return response.data;
+  } catch (error) {
+    console.error('[getNetworkMetrics] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Encuentra el camino más corto entre dos entidades de la red (Quantum Tunneling).
+ * Timeout extendido: construye grafo completo para cada búsqueda.
+ * 
+ * @param {string} source - ID del nodo origen (ej: user_octocat)
+ * @param {string} target - ID del nodo destino (ej: repo_qiskit/qiskit)
+ * @returns {Promise<Object>} { found, path, edges, length, description }
+ */
+export async function findQuantumPath(source, target) {
+  try {
+    const response = await apiClient.get('/collaboration/quantum-tunneling', {
+      params: { source, target },
+      timeout: 120000, // 2 minutos - reconstruye el grafo
+    });
+    console.log(`🔮 Quantum tunneling: ${source} → ${target}, found=${response.data.found}`);
+    return response.data;
+  } catch (error) {
+    console.error('[findQuantumPath] Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// FAVORITOS Y VISTAS PERSONALIZADAS
+// ============================================================================
+
+/**
+ * Obtiene todos los favoritos guardados
+ */
+export async function getFavorites() {
+  try {
+    const response = await apiClient.get('/favorites');
+    return response.data.favorites || [];
+  } catch (error) {
+    console.error('[getFavorites] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Añade una entidad a favoritos
+ * @param {{ id: string, type: string, name: string, avatar_url?: string }} favorite
+ */
+export async function addFavorite(favorite) {
+  try {
+    const response = await apiClient.post('/favorites', favorite);
+    return response.data;
+  } catch (error) {
+    console.error('[addFavorite] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina un favorito por su ID
+ * @param {string} entityId
+ */
+export async function removeFavorite(entityId) {
+  try {
+    const response = await apiClient.delete(`/favorites/${encodeURIComponent(entityId)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[removeFavorite] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene todas las vistas personalizadas
+ */
+export async function getViews() {
+  try {
+    const response = await apiClient.get('/views');
+    return response.data.views || [];
+  } catch (error) {
+    console.error('[getViews] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Crea o actualiza una vista personalizada
+ * @param {{ id?: string, name: string, entity_ids: string[], color?: string }} view
+ */
+export async function saveView(view) {
+  try {
+    const response = await apiClient.post('/views', view);
+    return response.data;
+  } catch (error) {
+    console.error('[saveView] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina una vista personalizada
+ * @param {string} viewId
+ */
+export async function deleteView(viewId) {
+  try {
+    const response = await apiClient.delete(`/views/${viewId}`);
+    return response.data;
+  } catch (error) {
+    console.error('[deleteView] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene datos del dashboard filtrados para una vista
+ * @param {string} viewId
+ * @param {string[]} [entityIds] - IDs opcionales si no se quiere usar los de la vista guardada
+ */
+export async function getViewData(viewId, entityIds = null) {
+  try {
+    const body = entityIds ? { entity_ids: entityIds } : {};
+    const response = await apiClient.post(`/views/${viewId}/data`, body, {
+      timeout: 60000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[getViewData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Exporta favoritos y vistas como objeto JSON (para descarga)
+ */
+export async function exportUserData() {
+  try {
+    const [favorites, views] = await Promise.all([getFavorites(), getViews()]);
+    return {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      favorites,
+      views,
+    };
+  } catch (error) {
+    console.error('[exportUserData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Importa favoritos y vistas desde un objeto JSON
+ * @param {{ favorites: Array, views: Array }} data
+ */
+export async function importUserData(data) {
+  try {
+    const results = { favorites: 0, views: 0, errors: [] };
+    
+    if (data.favorites?.length) {
+      for (const fav of data.favorites) {
+        try {
+          await addFavorite(fav);
+          results.favorites++;
+        } catch (e) {
+          results.errors.push(`Favorito ${fav.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    if (data.views?.length) {
+      for (const view of data.views) {
+        try {
+          await saveView(view);
+          results.views++;
+        } catch (e) {
+          results.errors.push(`Vista ${view.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('[importUserData] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Búsqueda unificada de entidades (usuarios, repos, orgs)
+ * Endpoint: GET /search/entities?q=...&limit=15
+ * @param {string} query - Texto de búsqueda (min 2 chars)
+ * @param {number} [limit=15] - Máximo de resultados
+ * @returns {Promise<{query: string, count: number, results: Array}>}
+ */
+export async function searchEntities(query, limit = 15) {
+  try {
+    const response = await apiClient.get('/search/entities', {
+      params: { q: query, limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[searchEntities] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los detalles completos de una entidad por su ID con prefijo
+ * @param {string} entityId - ID con prefijo (user_login, repo_owner/name, org_login)
+ * @returns {Promise<Object>} Datos completos de la entidad desde la BBDD
+ */
+export async function getEntityDetail(entityId) {
+  try {
+    const response = await apiClient.get(`/search/entity/${encodeURIComponent(entityId)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getEntityDetail] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los hijos jerárquicos de un favorito (org→repos, repo→users)
+ * Endpoint: GET /favorites/{entity_id}/children
+ * @param {string} entityId - ID con prefijo (org_login, repo_full_name)
+ * @returns {Promise<{parent_id: string, children: Array}>}
+ */
+export async function getFavoriteChildren(entityId) {
+  try {
+    const response = await apiClient.get(`/favorites/${encodeURIComponent(entityId)}/children`);
+    return response.data;
+  } catch (error) {
+    console.error('[getFavoriteChildren] Error:', error);
+    throw error;
+  }
+}
+
 // Exportar la instancia de axios por si se necesita usar directamente
 export default apiClient;

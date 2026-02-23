@@ -12,16 +12,29 @@
  * Si está offline, usa datos simulados (mockData) como fallback.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
-import { Server, RefreshCw } from 'lucide-react'
-import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle } from 'react-icons/fa'
+import { Server, RefreshCw, Star } from 'lucide-react'
+import { FaExclamationTriangle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
+import useFavoritesStore from './store/favoritesStore'
 import KPISection from './components/Dashboard/KPISection'
 import ChartsSection from './components/Dashboard/ChartsSection'
 import NetworkGraph from './components/Dashboard/NetworkGraph'
+import ContributorSankey from './components/Dashboard/ContributorSankey'
+import BridgeUsersTable from './components/Dashboard/BridgeUsersTable'
+import OrgComparisonRadar from './components/Dashboard/OrgComparisonRadar'
+import TechStackMap from './components/Dashboard/TechStackMap'
 import DetailTable from './components/Dashboard/DetailTable'
 import DashboardNav from './components/Dashboard/DashboardNav'
+import CollaborationBanner from './components/Dashboard/CollaborationBanner'
+import FavoritesPanel from './components/Dashboard/FavoritesPanel'
+import ViewBar from './components/Dashboard/ViewBar'
+import DevMenu from './components/Dashboard/DevMenu'
+import { useDevStore } from './store/devStore'
+
+// Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
+const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
 import QuantumBackground from './components/QuantumBackground'
 import QuantumDivider from './components/QuantumDivider'
 
@@ -44,12 +57,50 @@ function App() {
   // === ZUSTAND STORE ===
   // Datos del ecosistema (con valores por defecto)
   const store = useDashboardStore()
-  const data = store.data || { organizations: [], users: [], repositories: [] }
+  const globalData = store.data || { organizations: [], users: [], repositories: [] }
   const loadFullData = store.loadFullData
   const refreshMetrics = store.refreshMetrics
 
   // Estado para refresh manual
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Favorites & Views
+  const [showFavoritesPanel, setShowFavoritesPanel] = useState(false)
+  const initFavorites = useFavoritesStore(s => s.initialize)
+  const activeViewId = useFavoritesStore(s => s.activeViewId)
+  const activeViewData = useFavoritesStore(s => s.activeViewData)
+  const favoritesCount = useFavoritesStore(s => s.favorites.length)
+
+  // Dev features
+  const devFeatures = useDevStore(s => s.features)
+
+  // Cuando hay una vista activa, usar sus datos filtrados; si no, datos globales
+  const data = (activeViewId && activeViewData) 
+    ? (() => {
+        // charts.organizations puede ser un objeto {byRepos, byStars, ...} o un array
+        const rawOrgs = activeViewData.charts?.organizations
+        const orgsArray = Array.isArray(rawOrgs) 
+          ? rawOrgs 
+          : (rawOrgs?.byRepos || rawOrgs?.byStars || [])
+        // charts.repositories puede ser un objeto {byStars, byForks, ...} o un array
+        const rawRepos = activeViewData.charts?.repositories
+        const reposArray = Array.isArray(rawRepos)
+          ? rawRepos
+          : [...new Map([
+              ...(rawRepos?.byStars || []),
+              ...(rawRepos?.byForks || []),
+              ...(rawRepos?.byCollaborators || []),
+            ].map(r => [r.full_name || r.name, r])).values()]
+        return {
+          organizations: orgsArray,
+          users: activeViewData.charts?.users || [],
+          repositories: reposArray,
+          kpis: activeViewData.kpis,
+          charts: activeViewData.charts,
+          tables: activeViewData.tables,
+        }
+      })()
+    : globalData
 
   console.log('[App] Store data:', data)
 
@@ -106,6 +157,8 @@ function App() {
           
           if (metricsLoaded) {
             console.log('🔬 Usando métricas REALES del backend (pre-calculadas)')
+            // Cargar favoritos y vistas del usuario
+            initFavorites().catch(() => {})
           } else {
             console.log('🧪 Usando datos de PRUEBA (mockData)')
           }
@@ -113,7 +166,7 @@ function App() {
           // Éxito: mostrar check verde
           setLoadingResult('success')
           
-          // Esperar 800ms para que se aprecie el check, luego salir
+          // Esperar a que la animación SVG se dibuje (~0.85s) + tiempo de lectura
           setTimeout(() => {
             if (isMounted) {
               setIsExiting(true)
@@ -123,11 +176,11 @@ function App() {
                 }
               }, 500)
             }
-          }, 800)
+          }, 2000)
         } else {
-          // Backend offline — reintentar con backoff incremental
+          // Backend offline - reintentar con backoff incremental
           if (attempt < MAX_RETRIES) {
-            console.warn(`⚠️ Backend offline — reintento ${attempt}/${MAX_RETRIES} en ${RETRY_DELAY / 1000}s...`)
+            console.warn(`⚠️ Backend offline - reintento ${attempt}/${MAX_RETRIES} en ${RETRY_DELAY / 1000}s...`)
             setRetryCount(attempt)
             retryTimeout = setTimeout(() => {
               loadData(attempt + 1)
@@ -146,7 +199,7 @@ function App() {
                   }
                 }, 500)
               }
-            }, 800)
+            }, 2500)
           }
         }
       } catch (err) {
@@ -177,7 +230,7 @@ function App() {
                 }
               }, 500)
             }
-          }, 800)
+          }, 2500)
         }
       }
     }
@@ -207,8 +260,13 @@ function App() {
           <p className={styles.loadingSubtitle}>Quantum Software Ecosystem Analysis</p>
           
           <div className={styles.loadingSpinner}>
-            {loadingResult === null && (
-              <svg className={styles.atomSpinner} viewBox="0 0 120 120" width="80" height="80">
+            {/* Átomo SVG que se transforma en resultado */}
+            <div className={`${styles.atomContainer} ${loadingResult ? styles.atomDone : ''}`}>
+              {/* Átomo orbital - se desvanece al completar */}
+              <svg
+                className={`${styles.atomSpinner} ${loadingResult ? styles.atomFadeOut : ''}`}
+                viewBox="0 0 120 120" width="80" height="80"
+              >
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 212, 228, 0.3)" strokeWidth="1.5" className={styles.atomOrbit1} />
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(157, 111, 219, 0.3)" strokeWidth="1.5" className={styles.atomOrbit2} />
                 <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 255, 159, 0.25)" strokeWidth="1.5" className={styles.atomOrbit3} />
@@ -230,18 +288,41 @@ function App() {
                   </filter>
                 </defs>
               </svg>
-            )}
-            {loadingResult === 'success' && (
-              <FaCheckCircle className={styles.successIcon} size={60} />
-            )}
-            {loadingResult === 'error' && (
-              <FaTimesCircle className={styles.errorIcon} size={60} />
-            )}
+              {/* Indicador de resultado - aparece encima del átomo */}
+              {loadingResult === 'success' && (
+                <div className={styles.resultIndicator}>
+                  <svg viewBox="0 0 52 52" width="52" height="52" className={styles.resultSvg}>
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(16, 185, 129, 0.2)" strokeWidth="2" />
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="#10b981" strokeWidth="2"
+                      strokeDasharray="151" strokeDashoffset="151" className={styles.resultCircle} />
+                    <path fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      d="M15 27l7 7 15-15" strokeDasharray="40" strokeDashoffset="40" className={styles.resultCheck} />
+                  </svg>
+                </div>
+              )}
+              {loadingResult === 'error' && (
+                <div className={styles.resultIndicator}>
+                  <svg viewBox="0 0 52 52" width="52" height="52" className={styles.resultSvg}>
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(239, 68, 68, 0.2)" strokeWidth="2" />
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="#ef4444" strokeWidth="2"
+                      strokeDasharray="151" strokeDashoffset="151" className={styles.resultCircle} />
+                    <path fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+                      d="M18 18l16 16" strokeDasharray="23" strokeDashoffset="23" className={styles.resultCrossA} />
+                    <path fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+                      d="M34 18l-16 16" strokeDasharray="23" strokeDashoffset="23" className={styles.resultCrossB} />
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
           
-          <p className={styles.loadingText}>
-            {loadingResult === 'success' && '¡Conexión exitosa!'}
-            {loadingResult === 'error' && 'Error de conexión — Decoherencia detectada'}
+          <p className={`${styles.loadingText} ${loadingResult ? styles.loadingTextResult : ''}`}>
+            {loadingResult === 'success' && (
+              <span className={styles.resultText}>Coherencia cuántica establecida</span>
+            )}
+            {loadingResult === 'error' && (
+              <span className={`${styles.resultText} ${styles.resultTextError}`}>Decoherencia detectada - modo simulación</span>
+            )}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
                 {isRefreshing ? 'Recalculando métricas...' : QUANTUM_PHRASES[quantumPhrase]}
@@ -265,6 +346,7 @@ function App() {
     
     setIsRefreshing(true)
     setIsLoading(true)
+    setIsExiting(false)
     setLoadingResult(null)
     setQuantumPhrase(0)
     
@@ -274,7 +356,7 @@ function App() {
       
       setLoadingResult('success')
       
-      // Esperar un momento para mostrar el éxito
+      // Esperar a que se aprecie el resultado
       setTimeout(() => {
         setIsExiting(true)
         setTimeout(() => {
@@ -282,7 +364,7 @@ function App() {
           setIsExiting(false)
           setIsRefreshing(false)
         }, 500)
-      }, 800)
+      }, 2000)
     } catch (error) {
       console.error('Error al refrescar métricas:', error)
       setLoadingResult('error')
@@ -293,7 +375,7 @@ function App() {
           setIsExiting(false)
           setIsRefreshing(false)
         }, 500)
-      }, 1500)
+      }, 2500)
     }
   }
   
@@ -303,10 +385,10 @@ function App() {
   return (
     <div className={`${styles.app} ${styles.fadeInApp}`}>
       {/* FONDO DE PARTÍCULAS CUÁNTICAS */}
-      <QuantumBackground />
+      {devFeatures.quantumBackground !== false && <QuantumBackground />}
 
       {/* HEADER */}
-      <header className={`${styles.header} ${styles.fadeInStagger1}`}>
+      {devFeatures.header !== false && <header className={`${styles.header} ${styles.fadeInStagger1}`}>
         <div className={styles.headerContent}>
           <div className={styles.branding}>
             <img 
@@ -326,8 +408,20 @@ function App() {
             </div>
           </div>
 
-          {/* Controles del header: refresh + status */}
+          {/* Controles del header: favoritos + refresh + status */}
           <div className={styles.headerControls}>
+            {/* Botón de favoritos */}
+            {apiStatus.status === 'online' && (
+              <button 
+                className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
+                onClick={() => setShowFavoritesPanel(prev => !prev)}
+                title="Favoritos & Vistas personalizadas"
+              >
+                <Star size={16} fill={favoritesCount > 0 ? '#ffd93d' : 'none'} color={favoritesCount > 0 ? '#ffd93d' : 'currentColor'} />
+                {favoritesCount > 0 && <span className={styles.favoritesCount}>{favoritesCount}</span>}
+              </button>
+            )}
+
             {/* Botón de refresh métricas */}
             {apiStatus.status === 'online' && (
               <button 
@@ -341,7 +435,7 @@ function App() {
               </button>
             )}
 
-            {/* Indicador de estado del backend — notación cuántica */}
+            {/* Indicador de estado del backend - notación cuántica */}
             <div className={styles.statusBadge} data-status={apiStatus.status}>
               <span className={styles.statusQubit}>
                 {apiStatus.status === 'online' && '|1⟩'}
@@ -358,10 +452,19 @@ function App() {
             </div>
           </div>
         </div>
-      </header>
+      </header>}
 
-      {/* Banner offline — efecto decoherencia */}
-      {apiStatus.status === 'offline' && (
+      {/* Barra de vista activa */}
+      {devFeatures.viewBar !== false && <ViewBar />}
+
+      {/* Panel de favoritos */}
+      {devFeatures.favoritesPanel !== false && <FavoritesPanel 
+        isOpen={showFavoritesPanel} 
+        onClose={() => setShowFavoritesPanel(false)} 
+      />}
+
+      {/* Banner offline - efecto decoherencia */}
+      {devFeatures.offlineBanner !== false && apiStatus.status === 'offline' && (
         <div className={styles.offlineBanner}>
           <span className={styles.offlinePulse} />
           <span className={styles.decoherenceText}><FaExclamationTriangle className={styles.decoherenceIcon} /> Decoherencia detectada - Backend offline - Los datos mostrados son <strong>simulados</strong></span>
@@ -369,13 +472,13 @@ function App() {
       )}
 
       {/* NAV DE SECCIONES */}
-      <DashboardNav />
+      {devFeatures.dashboardNav !== false && <DashboardNav />}
 
       {/* MAIN CONTENT */}
       <main className={styles.main}>
         <div className={styles.container}>
           {/* Hero compacto + KPIs integrados para overview inmediato */}
-          <section className={`${styles.heroCompact} ${styles.fadeInStagger2}`}>
+          {devFeatures.heroKpis !== false && <section className={`${styles.heroCompact} ${styles.fadeInStagger2}`}>
             <div className={styles.heroHeader}>
               <div className={styles.heroTitleContainer}>
                 <span className={styles.heroKet}>|</span>
@@ -398,28 +501,35 @@ function App() {
             <p className={styles.heroFooter}>
               <span className={styles.heroEquation}>iℏ ∂/∂t |ψ⟩ = Ĥ |ψ⟩</span>
             </p>
-          </section>
+          </section>}
 
-          <QuantumDivider />
+          {devFeatures.quantumDividers !== false && <QuantumDivider />}
 
           {/* Gráficos interactivos con drill-down */}
-          <div id="section-charts" className={styles.sectionAnchor}>
+          {devFeatures.chartsSection !== false && <div id="section-charts" className={styles.sectionAnchor}>
             <ChartsSection data={data} />
-          </div>
+          </div>}
 
-          <QuantumDivider variant="large" />
+          {devFeatures.quantumDividers !== false && <QuantumDivider variant="large" />}
 
-          {/* Grafo de redes de colaboración */}
+          {/* Banner portal al universo - justo antes de la sección de red */}
+          {devFeatures.collabBanner !== false && <CollaborationBanner />}
+
+          {/* Análisis de colaboración y ecosistema */}
           <div id="section-network" className={`${styles.sectionAnchor} ${styles.fadeInStagger4}`}>
-            <NetworkGraph />
+            {devFeatures.networkGraph !== false && <NetworkGraph />}
+            {devFeatures.contributorSankey !== false && <ContributorSankey />}
+            {devFeatures.bridgeUsersTable !== false && <BridgeUsersTable />}
+            {devFeatures.orgComparisonRadar !== false && <OrgComparisonRadar />}
+            {devFeatures.techStackMap !== false && <TechStackMap />}
           </div>
 
-          <QuantumDivider />
+          {devFeatures.quantumDividers !== false && <QuantumDivider />}
 
           {/* Tablas de detalle: Top Repos y Top Users */}
-          <div id="section-tables" className={`${styles.sectionAnchor} ${styles.fadeInStagger5}`}>
+          {devFeatures.detailTables !== false && <div id="section-tables" className={`${styles.sectionAnchor} ${styles.fadeInStagger5}`}>
             <DetailTable />
-          </div>
+          </div>}
 
           {/* Mensaje de alerta si el backend está offline */}
           {apiStatus.status === 'offline' && (
@@ -439,8 +549,23 @@ function App() {
         </div>
       </main>
 
+      {/* Universo 3D de Colaboración - lazy loaded */}
+      {devFeatures.universeView !== false && store.showCollaborationGraph && (
+        <Suspense fallback={
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 50%, #0a0e14 100%)',
+          }} />
+        }>
+          <UniverseView />
+        </Suspense>
+      )}
+
+      {/* DEV MENU */}
+      <DevMenu />
+
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
-      <footer className={styles.footer}>
+      {devFeatures.footer !== false && <footer className={styles.footer}>
         {/* Separador ondulado */}
         <div className={styles.footerWave}>
           <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
@@ -502,7 +627,7 @@ function App() {
               {/* Estado final Bell */}
               <text x="570" y="32" fill="rgba(0, 212, 228, 0.4)" fontSize="9" fontFamily="var(--font-family-mono)" textAnchor="start">|Φ⁺⟩</text>
             </svg>
-            <p className={styles.circuitLabel}>Circuito de Par de Bell — Estado máximamente entrelazado</p>
+            <p className={styles.circuitLabel}>Circuito de Par de Bell - Estado máximamente entrelazado</p>
           </div>
 
           {/* Info del proyecto */}
@@ -521,7 +646,7 @@ function App() {
             </div>
           </div>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }

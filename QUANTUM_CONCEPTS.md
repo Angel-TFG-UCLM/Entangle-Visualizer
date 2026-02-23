@@ -146,4 +146,22 @@ Modelo donde electrones orbitan un núcleo central en niveles de energía discre
 
 ---
 
+## 16. Decoherencia cuántica (Quantum Decoherence)
+
+Proceso irreversible por el cual un sistema cuántico pierde sus propiedades cuánticas (superposición, entrelazamiento) al interactuar con su entorno. La información cuántica se "dispersa" en los grados de libertad del entorno, y el sistema pasa a comportarse de manera clásica. Es el mecanismo que explica por qué no observamos superposiciones en el mundo macroscópico.
+
+**En ENTANGLE →** Al cerrar el Universo 3D (ESC o botón de cierre), se reproduce una secuencia cinematográfica de "Wavefunction Collapse" que simula la decoherencia completa del sistema cuántico en 7 fases visuales superpuestas (~1.8s total):
+
+1. **UI Fade** (0.5s): Los controles de la interfaz se difuminan (blur 6px) y encogen ligeramente — la "instrumentación" deja de funcionar primero.
+2. **Universe Collapse** (1.8s): El contenedor principal incrementa su brillo (1→3) simulando una cascada energética, luego colapsa a oscuridad con desenfoque.
+3. **Canvas Implosion** (1.7s): La escena 3D se contrae hacia el centro con una ligera rotación (0→5°), como si el espacio-tiempo se plegase sobre sí mismo.
+4. **Singularity Pulse** (1.8s): Un punto blanco central crece hasta 8× su tamaño con halos cian/púrpura concéntricos — la singularidad donde converge toda la energía.
+5. **Shockwave Expand** (1.5s + 1.4s): Dos ondas expansivas de decoherencia (anillos cian y púrpura) emanan de la singularidad con escala 0→40×, simulando la dispersión de la coherencia cuántica.
+6. **Particle Burst** (1.6s): Fragmentos radiales de luz (cian, púrpura, verde, blanco) se dispersan desde el centro — los "restos" de la función de onda desintegrada.
+7. **Collapse Flash** (1.8s): Un flash blanco radial con blend-mode screen cierra la transición — el momento exacto del colapso total.
+
+Todas las animaciones son CSS puro (compositor GPU), sin impactar el render loop de Three.js. El desmontaje real del componente ocurre después de completarse la secuencia.
+
+---
+
 *Documento de referencia para la memoria del TFG — ENTANGLE*

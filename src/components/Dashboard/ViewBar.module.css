@@ -1,0 +1,122 @@
+/* ============================================================================
+ * ViewBar - Barra de Vista Activa  
+ * ============================================================================ */
+
+.viewBar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(90deg,
+    rgba(0, 212, 228, 0.06) 0%,
+    rgba(157, 111, 219, 0.04) 50%,
+    rgba(0, 212, 228, 0.06) 100%
+  );
+  border-bottom: 1px solid rgba(0, 212, 228, 0.12);
+  backdrop-filter: blur(12px);
+  animation: viewBarIn 0.3s ease-out;
+}
+
+@keyframes viewBarIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-100%); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.viewBarContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 8px 24px;
+}
+
+.viewBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewBarDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.viewBarIcon {
+  color: rgba(0, 212, 228, 0.6);
+}
+
+.viewBarLabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.viewBarName {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.viewBarCount {
+  font-size: 11px;
+  color: rgba(0, 212, 228, 0.6);
+  background: rgba(0, 212, 228, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.viewBarSpinner {
+  color: rgba(0, 212, 228, 0.5);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.viewBarClose {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewBarClose:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .viewBarContent {
+    padding: 6px 16px;
+  }
+
+  .viewBarLabel {
+    display: none;
+  }
+}

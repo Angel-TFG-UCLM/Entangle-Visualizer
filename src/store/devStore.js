@@ -35,10 +35,10 @@ export const FEATURE_DEFINITIONS = {
     features: {
       collabBanner:       { label: 'Collab Banner',        default: true },
       networkGraph:       { label: 'Network Graph',        default: true },
-      contributorSankey:  { label: 'Contributor Sankey',   default: true },
-      bridgeUsersTable:   { label: 'Bridge Users Table',   default: true },
-      orgComparisonRadar: { label: 'Org Comparison Radar', default: true },
-      techStackMap:       { label: 'Tech Stack Map',       default: true },
+      contributorSankey:  { label: 'Contributor Sankey',   default: false },
+      bridgeUsersTable:   { label: 'Bridge Users Table',   default: false },
+      orgComparisonRadar: { label: 'Org Comparison Radar', default: false },
+      techStackMap:       { label: 'Tech Stack Map',       default: false },
     },
   },
   especial: {
@@ -124,7 +124,23 @@ export const useDevStore = create(
     }),
     {
       name: 'entangle-dev-features',
+      version: 1,
       partialize: (state) => ({ features: state.features }),
+      migrate: (persisted, version) => {
+        // v0 → v1: Deshabilitar por defecto las 4 features avanzadas
+        if (version === 0 || version === undefined) {
+          const FORCE_DISABLED = [
+            'contributorSankey',
+            'bridgeUsersTable',
+            'orgComparisonRadar',
+            'techStackMap',
+          ]
+          const features = { ...persisted.features }
+          FORCE_DISABLED.forEach(k => { features[k] = false })
+          return { ...persisted, features }
+        }
+        return persisted
+      },
     }
   )
 )

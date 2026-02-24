@@ -186,7 +186,12 @@ export const useDashboardStore = create(
         } catch (e) {
           console.warn('⚠️ Error al invalidar cachés (continuando con recálculo):', e.message)
         }
-        // 2. Recargar datos frescos (fuerza recálculo en backend)
+        // 2. Invalidar caché local de vistas
+        try {
+          const { useFavoritesStore } = await import('./favoritesStore')
+          useFavoritesStore.getState().clearViewDataCache()
+        } catch (_) { /* si falla, no bloquea */ }
+        // 3. Recargar datos frescos (fuerza recálculo en backend)
         return get().loadFullData(true)
       },
 

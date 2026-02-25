@@ -196,20 +196,20 @@ function computePopulationStats(entityType, universeData, networkMetrics, idx) {
 }
 
 self.onmessage = function (e) {
-  const { selectedEntity, universeData, networkMetrics } = e.data
-  if (!selectedEntity) { self.postMessage({ phase: 1, data: null }); return }
+  const { selectedEntity, universeData, networkMetrics, requestId } = e.data
+  if (!selectedEntity) { self.postMessage({ phase: 1, data: null, requestId }); return }
 
   // Phase 1 - core data + DNA (fast, <50ms)
   const core = computeCoreData(selectedEntity, universeData, networkMetrics)
-  self.postMessage({ phase: 1, data: core })
+  self.postMessage({ phase: 1, data: core, requestId })
 
   // Phase 2 - impact simulations + collab matrix (medium)
   const medium = computeMediumData(selectedEntity, universeData, networkMetrics, core)
-  self.postMessage({ phase: 2, data: medium })
+  self.postMessage({ phase: 2, data: medium, requestId })
 
   // Phase 3 - similar entities (heavy - O(N) over all same-type nodes)
   const heavy = computeHeavyData(selectedEntity, universeData, networkMetrics, core)
-  self.postMessage({ phase: 3, data: heavy })
+  self.postMessage({ phase: 3, data: heavy, requestId })
 }
 
 // ============================================================================

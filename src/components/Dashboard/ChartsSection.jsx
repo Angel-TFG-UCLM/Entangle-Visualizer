@@ -57,6 +57,27 @@ const CHART_COLORS = [
 ]
 
 /**
+ * Tick customizado para ejes X con labels escalonados (alternando arriba/abajo)
+ * Evita solapamiento sin rotar el texto a 45°
+ */
+function StaggeredTick({ x, y, payload, index, fill }) {
+  const offset = index % 2 === 0 ? 0 : 18
+  const name = payload?.value || ''
+  const displayName = name.length > 16 ? name.slice(0, 14) + '…' : name
+  return (
+    <text
+      x={x}
+      y={y + 12 + offset}
+      textAnchor="middle"
+      fill={fill || '#9ca3af'}
+      style={{ fontSize: '12px' }}
+    >
+      {displayName}
+    </text>
+  )
+}
+
+/**
  * Hook para animaciones de scroll con Intersection Observer
  * Devuelve [ref, isVisible] - cuando el elemento entra en el viewport, isVisible se vuelve true
  */
@@ -213,6 +234,9 @@ export default function ChartsSection({ data }) {
   const [orgMetric, setOrgMetric] = useState('quantum_focus_score')
   const [isOrgMetricDropdownOpen, setIsOrgMetricDropdownOpen] = useState(false)
   const orgMetricDropdownRef = useRef(null)
+  const [userMetric, setUserMetric] = useState('score') // 'score' (colaboración) o 'repos' (multi-repo)
+  const [isUserMetricDropdownOpen, setIsUserMetricDropdownOpen] = useState(false)
+  const userMetricDropdownRef = useRef(null)
   const [hoveredPieIndex, setHoveredPieIndex] = useState(null)
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null)
   const [showOthersPanel, setShowOthersPanel] = useState(false) // Panel para "Otros" lenguajes
@@ -398,25 +422,40 @@ export default function ChartsSection({ data }) {
   }, [selectedRepo, chartRepos])
 
   // Efecto para recargar colaboradores cuando cambia collabType o includeBots
+  // También re-aplica filtros locales cuando cambian los filtros globales (org, language, repo)
   const isFirstRenderRef = useRef(true)
   const prevLocalFiltersRef = useRef({ collabType, includeBots })
+  const prevGlobalFiltersRef = useRef({ selectedOrg, selectedLanguage, selectedRepo })
   
   useEffect(() => {
     // Skip la primera ejecución: los datos iniciales ya los cargó loadFullData()
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false
       prevLocalFiltersRef.current = { collabType, includeBots }
+      prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo }
       return
     }
     
     // Detectar si cambiaron los filtros LOCALES (collabType o includeBots)
     const localChanged = prevLocalFiltersRef.current.collabType !== collabType ||
                           prevLocalFiltersRef.current.includeBots !== includeBots
-    prevLocalFiltersRef.current = { collabType, includeBots }
     
-    // Si los filtros locales no cambiaron, no hacer nada
-    // Los filtros globales (org, language, repo) los maneja el store con setFilter()
-    if (!localChanged) return
+    // Detectar si cambiaron los filtros GLOBALES (org, language, repo)
+    const globalChanged = prevGlobalFiltersRef.current.selectedOrg !== selectedOrg ||
+                          prevGlobalFiltersRef.current.selectedLanguage !== selectedLanguage ||
+                          prevGlobalFiltersRef.current.selectedRepo !== selectedRepo
+    
+    prevLocalFiltersRef.current = { collabType, includeBots }
+    prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo }
+    
+    // Determinar si hay filtros locales activos (no-default)
+    const hasActiveLocalFilters = collabType !== 'all' || includeBots
+    
+    // Disparar si:
+    // 1. Cambiaron filtros locales, O
+    // 2. Cambiaron filtros globales Y hay filtros locales activos
+    //    (para re-aplicar collabType/includeBots con el nuevo org/language/repo)
+    if (!localChanged && !(globalChanged && hasActiveLocalFilters)) return
 
     // Si hay vista activa, no llamar al backend (datos locales)
     if (viewActive) return
@@ -446,14 +485,17 @@ export default function ChartsSection({ data }) {
         const stats = await getDashboardStats(false, filters)
         
         if (!cancelled) {
-          // Actualizar solo los usuarios en el store
+          // Actualizar solo los usuarios en el store (soporta dict y array)
           useDashboardStore.setState(state => ({
             charts: {
               ...state.charts,
-              users: stats.charts?.users || []
+              users: stats.charts?.users || state.charts?.users || {}
             }
           }))
-          console.log('✅ Contribuidores actualizados:', stats.charts?.users?.length || 0, 'usuarios')
+          const usersCount = Array.isArray(stats.charts?.users) 
+            ? stats.charts.users.length 
+            : (stats.charts?.users?.byContributions?.length || 0)
+          console.log('✅ Contribuidores actualizados:', usersCount, 'usuarios')
         }
       } catch (error) {
         console.warn('Error cargando colaboradores filtrados:', error)
@@ -478,6 +520,24 @@ export default function ChartsSection({ data }) {
     }
   }, [selectedRepo])
 
+  // Auto-reset métricas de análisis cruzado cuando los datos están vacíos
+  // Solo si NO hay un filtro activo (evitar que al hacer click en una barra se resetee la métrica)
+  useEffect(() => {
+    if (selectedOrg || selectedRepo || selectedLanguage) return
+    if (!charts?.organizations || Array.isArray(charts.organizations)) return
+    if (orgMetric === 'shared_users_count' && (!charts.organizations.bySharedUsers || charts.organizations.bySharedUsers.length === 0)) {
+      setOrgMetric('quantum_focus_score')
+    }
+  }, [charts?.organizations, orgMetric, selectedOrg, selectedRepo, selectedLanguage])
+  
+  useEffect(() => {
+    if (selectedOrg || selectedRepo || selectedLanguage) return
+    if (!charts?.repositories || Array.isArray(charts.repositories)) return
+    if (repoMetric === 'shared_collaborators_count' && (!charts.repositories.bySharedCollaborators || charts.repositories.bySharedCollaborators.length === 0)) {
+      setRepoMetric('stargazer_count')
+    }
+  }, [charts?.repositories, repoMetric, selectedOrg, selectedRepo, selectedLanguage])
+
   // GRÁFICO 1: Top Organizaciones por número de repos
   // Usa datos pre-calculados si están disponibles
   // Métricas disponibles para organizaciones
@@ -486,6 +546,7 @@ export default function ChartsSection({ data }) {
     repositories: 'Repos Quantum',
     stars: 'Estrellas',
     total_unique_contributors: 'Contribuidores',
+    shared_users_count: 'Colaborativos',
   }
 
   const orgData = useMemo(() => {
@@ -497,6 +558,7 @@ export default function ChartsSection({ data }) {
       repositories: 'byRepos',
       stars: 'byStars',
       total_unique_contributors: 'byContributors',
+      shared_users_count: 'bySharedUsers',
     }
     
     // El backend envía un objeto {byRepos, byStars, byQuantumFocus, byContributors}
@@ -506,7 +568,12 @@ export default function ChartsSection({ data }) {
       if (Array.isArray(charts.organizations)) {
         sourceOrgs = charts.organizations
       } else {
-        sourceOrgs = charts.organizations[orgMetricToKey[orgMetric]] || charts.organizations.byRepos || []
+        const orgKey = orgMetricToKey[orgMetric]
+        sourceOrgs = charts.organizations[orgKey] || []
+        // Solo fallback a byRepos si la métrica no es de análisis cruzado
+        if (sourceOrgs.length === 0 && orgKey !== 'bySharedUsers') {
+          sourceOrgs = charts.organizations.byRepos || []
+        }
       }
     }
     
@@ -530,6 +597,7 @@ export default function ChartsSection({ data }) {
         total_repositories_count: org.total_repositories_count || 0,
         total_members_count: org.total_members_count || 0,
         total_unique_contributors: org.total_unique_contributors || 0,
+        shared_users_count: org.shared_users_count || 0,
         top_languages: org.top_languages || [],
         is_quantum_focused: org.is_quantum_focused || false,
         top_quantum_contributors: org.top_quantum_contributors || [],
@@ -537,6 +605,10 @@ export default function ChartsSection({ data }) {
       }))
     } else {
       // Fallback: calcular desde datos raw (solo con mockData o pocos datos)
+      // No aplica para métricas de análisis cruzado (no tienen datos raw equivalentes)
+      if (orgMetric === 'shared_users_count') {
+        mapped = []
+      } else {
       mapped = organizations.map(org => {
         const orgRepos = repositories.filter(r => 
           r.owner?.login === org.login || r.organization?.login === org.login
@@ -566,6 +638,7 @@ export default function ChartsSection({ data }) {
           isSelected: selectedOrg === org.login,
         }
       })
+      }
     }
 
     // El backend ya envía top 10 ordenado por la métrica correcta,
@@ -581,6 +654,7 @@ export default function ChartsSection({ data }) {
     stargazer_count: 'Estrellas',
     fork_count: 'Forks',
     collaborators_count: 'Contribuidores',
+    shared_collaborators_count: 'Colaborativos',
   }
   const repoData = useMemo(() => {
     const metricLabels = repoMetricLabels
@@ -590,6 +664,7 @@ export default function ChartsSection({ data }) {
       stargazer_count: 'byStars',
       fork_count: 'byForks',
       collaborators_count: 'byCollaborators',
+      shared_collaborators_count: 'bySharedCollaborators',
     }
     
     // SIMPLIFICADO: El backend ya devuelve datos filtrados
@@ -604,8 +679,8 @@ export default function ChartsSection({ data }) {
       }
     }
     
-    // Fallback si no hay datos
-    if (sourceRepos.length === 0) {
+    // Fallback si no hay datos (no aplicable para métricas de colaboración cruzada)
+    if (sourceRepos.length === 0 && repoMetric !== 'shared_collaborators_count') {
       sourceRepos = chartRepos
     }
 
@@ -620,6 +695,7 @@ export default function ChartsSection({ data }) {
         stargazer_count: (repo.stargazer_count ?? 0) || 0,
         fork_count: (repo.fork_count ?? 0) || 0,
         collaborators_count: (repo.collaborators_count ?? 0) || 0,
+        shared_collaborators_count: (repo.shared_collaborators_count ?? 0) || 0,
         [metricLabels[repoMetric]]: (repo[repoMetric] ?? 0) || 0,
         url: repo.url || null,
         homepage_url: repo.homepage_url || null,
@@ -647,10 +723,27 @@ export default function ChartsSection({ data }) {
       .slice(0, 10)
   }, [charts?.repositories, chartRepos, repoMetric, selectedRepo])
 
-  // GRÁFICO 3: Top Usuarios por score de colaboración (contribuciones × diversidad de repos)
+  // GRÁFICO 3: Top Usuarios por score de colaboración o por multi-repo
+  const userMetricLabels = {
+    score: 'Colaboración',
+    repos: 'Multi-repo',
+  }
+
   const userData = useMemo(() => {
-    // SIMPLIFICADO: El backend ya devuelve datos filtrados
-    const sourceUsers = Array.isArray(charts?.users) ? charts.users : chartUsers
+    // Backend puede enviar dict {byContributions, byRepos} o array (legacy/views)
+    let sourceUsers = []
+    if (charts?.users) {
+      if (Array.isArray(charts.users)) {
+        sourceUsers = charts.users
+      } else {
+        // Dict format: seleccionar según métrica
+        const userMetricToKey = { score: 'byContributions', repos: 'byRepos' }
+        sourceUsers = charts.users[userMetricToKey[userMetric]] || charts.users.byContributions || []
+      }
+    }
+    if (sourceUsers.length === 0) {
+      sourceUsers = chartUsers
+    }
 
     const usersWithScore = sourceUsers.map(user => {
       // Soportar múltiples formatos de campos (backend real vs mockData)
@@ -673,7 +766,7 @@ export default function ChartsSection({ data }) {
         name: user.name || user.login,
         displayName: user.login,
         avatar_url: user.avatar_url || null,
-        score: collaborationScore,
+        score: userMetric === 'repos' ? repos : collaborationScore,
         contributions,
         repos,
         organizations: user.organizations || [],
@@ -703,7 +796,7 @@ export default function ChartsSection({ data }) {
     return usersWithScore
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
-  }, [charts?.users, chartUsers, selectedUser])
+  }, [charts?.users, chartUsers, selectedUser, userMetric])
 
   // GRÁFICO 4: Distribución de lenguajes (Top 6 + "Otros")
   // Guardamos también los lenguajes que componen "Otros" para el tooltip
@@ -814,7 +907,7 @@ export default function ChartsSection({ data }) {
 
         const isHovered = hoveredPieIndex === index
         const isSelected = selectedLanguage === entry.name
-        const baseColor = CHART_COLORS[index % CHART_COLORS.length]
+        const baseColor = PIE_COLORS[index] || PIE_COLORS[PIE_COLORS.length - 1]
 
         let opacity = 0.85
         if (hasSelectedLanguage) {
@@ -1222,6 +1315,21 @@ export default function ChartsSection({ data }) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [showComparisonResults, closeComparison])
 
+  // Bloquear scroll del dashboard cuando el panel de comparación está abierto
+  useEffect(() => {
+    if (showComparisonResults) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }, [showComparisonResults])
+
   return (
     <section className={styles.chartsSection}>
       {/* ═══ Indicador flotante de selección (Ctrl+Click) ═══ */}
@@ -1372,7 +1480,7 @@ export default function ChartsSection({ data }) {
                         <span className={styles.comparisonMetricValue} style={{ color: '#9D6FDB' }}>
                           {filteredMetrics.shared_users_count ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Compartidos</span>
+                        <span className={styles.comparisonMetricLabel}>En común (≥2)</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue} style={{ color: '#00D4E4' }}>
@@ -1401,7 +1509,11 @@ export default function ChartsSection({ data }) {
                       {collaborationData.mode === 'user_focus' ? (
                         <><Network size={14} /> Top co-colaboradores ({filteredSharedUsers.length}{(filteredMetrics.total_co_collaborators ?? 0) > filteredSharedUsers.length ? ` de ${filteredMetrics.total_co_collaborators}` : ''})</>
                       ) : (
-                        <><FiUsers size={14} /> Usuarios en común ({filteredSharedUsers.length})</>
+                        <><FiUsers size={14} /> Usuarios en común ({filteredSharedUsers.length})
+                          <span className={styles.comparisonSharedHint}>
+                            contribuyen a ≥2 {collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs'} seleccionadas
+                          </span>
+                        </>
                       )}
                       {excludeBotsComparison && collaborationData.shared_users?.length !== filteredSharedUsers.length && (
                         <span className={styles.comparisonBotFilteredHint}>
@@ -1447,7 +1559,9 @@ export default function ChartsSection({ data }) {
                               </>
                             ) : (
                               <span className={styles.comparisonUserShared}>
-                                {user.shared_count} {collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs'}
+                                en {user.shared_count} de {collaborationData.mode === 'repos_comparison'
+                                  ? (filteredMetrics.total_repos_analyzed ?? '?')
+                                  : (filteredMetrics.total_orgs_analyzed ?? '?')} {collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs'}
                               </span>
                             )}
                             {user.quantum_expertise_score > 0 && (
@@ -1520,6 +1634,7 @@ export default function ChartsSection({ data }) {
                 {orgMetric === 'repositories' && <FiPackage size={14} />}
                 {orgMetric === 'stars' && <FiStar size={14} />}
                 {orgMetric === 'total_unique_contributors' && <FiUsers size={14} />}
+                {orgMetric === 'shared_users_count' && <Network size={14} />}
               </span>
               <span>{orgMetricLabels[orgMetric]}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isOrgMetricDropdownOpen ? styles.chevronOpen : ''}`} />
@@ -1531,6 +1646,7 @@ export default function ChartsSection({ data }) {
                   { value: 'repositories', label: 'Repos Quantum', Icon: FiPackage },
                   { value: 'stars', label: 'Estrellas', Icon: FiStar },
                   { value: 'total_unique_contributors', label: 'Contribuidores', Icon: FiUsers },
+                  { value: 'shared_users_count', label: 'Colaborativos', Icon: Network },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -1560,9 +1676,9 @@ export default function ChartsSection({ data }) {
           {orgChartVisible ? (
             <div ref={orgBarContainerRef}>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={orgData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <BarChart data={orgData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <XAxis dataKey="name" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis 
                   stroke="#6b7280" 
                   tick={{ fill: '#9ca3af' }} 
@@ -1599,7 +1715,11 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            Click para filtrar · Shift+Click para detalles · Ctrl+Click para comparar
+            <span><span className={styles.kbdKey}>Click</span> filtrar</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> detalles</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> comparar</span>
           </p>
         </div>
       </div>
@@ -1633,8 +1753,9 @@ export default function ChartsSection({ data }) {
                 {repoMetric === 'stargazer_count' && <FiStar size={14} />}
                 {repoMetric === 'fork_count' && <FiGitBranch size={14} />}
                 {repoMetric === 'collaborators_count' && <FiUserCheck size={14} />}
+                {repoMetric === 'shared_collaborators_count' && <Network size={14} />}
               </span>
-              <span>{repoMetric === 'stargazer_count' ? 'Estrellas' : repoMetric === 'fork_count' ? 'Forks' : 'Contribuidores'}</span>
+              <span>{repoMetricLabels[repoMetric]}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isMetricDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
             {isMetricDropdownOpen && (
@@ -1643,6 +1764,7 @@ export default function ChartsSection({ data }) {
                   { value: 'stargazer_count', label: 'Estrellas', Icon: FiStar },
                   { value: 'fork_count', label: 'Forks', Icon: FiGitBranch },
                   { value: 'collaborators_count', label: 'Contribuidores', Icon: FiUserCheck },
+                  { value: 'shared_collaborators_count', label: 'Colaborativos', Icon: Network },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -1672,9 +1794,9 @@ export default function ChartsSection({ data }) {
           {repoChartVisible ? (
             <div ref={repoBarContainerRef}>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={repoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <BarChart data={repoData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-                <XAxis dataKey="name" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <XAxis dataKey="name" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <Tooltip content={<RepoTooltip />} cursor={false} />
                 <Bar 
@@ -1706,7 +1828,11 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            Click para filtrar · Shift+Click para detalles · Ctrl+Click para comparar
+            <span><span className={styles.kbdKey}>Click</span> filtrar</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> detalles</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> comparar</span>
           </p>
         </div>
       </div>
@@ -1722,8 +1848,50 @@ export default function ChartsSection({ data }) {
           </h3>
         </div>
         
-        {/* Selector de tipo de colaborador - siempre visible */}
+        {/* Selector de métrica de ordenación + tipo de colaborador */}
         <div className={styles.subtitleRow}>
+          <p className={styles.chartSubtitleInline}>Ordenados por</p>
+          <div className={styles.metricDropdown} ref={userMetricDropdownRef}>
+            <button
+              className={styles.metricDropdownTrigger}
+              onClick={() => setIsUserMetricDropdownOpen(prev => !prev)}
+              onBlur={(e) => {
+                if (!userMetricDropdownRef.current?.contains(e.relatedTarget)) {
+                  setIsUserMetricDropdownOpen(false)
+                }
+              }}
+            >
+              <span className={styles.metricDropdownIcon}>
+                {userMetric === 'score' && <Zap size={14} />}
+                {userMetric === 'repos' && <Network size={14} />}
+              </span>
+              <span>{userMetricLabels[userMetric]}</span>
+              <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isUserMetricDropdownOpen ? styles.chevronOpen : ''}`} />
+            </button>
+            {isUserMetricDropdownOpen && (
+              <div className={styles.metricDropdownMenu}>
+                {[
+                  { value: 'score', label: 'Colaboración', Icon: Zap },
+                  { value: 'repos', label: 'Multi-repo', Icon: Network },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`${styles.metricDropdownItem} ${userMetric === opt.value ? styles.metricDropdownItemActive : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setUserMetric(opt.value)
+                      setIsUserMetricDropdownOpen(false)
+                    }}
+                  >
+                    <span className={styles.metricDropdownItemIcon}><opt.Icon size={14} /></span>
+                    <span>{opt.label}</span>
+                    {userMetric === opt.value && <span className={styles.metricDropdownCheck}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ margin: '0 4px', color: 'rgba(156,163,175,0.5)' }}>·</span>
           <p className={styles.chartSubtitleInline}>Mostrar</p>
           <div className={styles.metricDropdown} ref={collabDropdownRef}>
             <button
@@ -1798,15 +1966,15 @@ export default function ChartsSection({ data }) {
           
           {userChartVisible ? (
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
-                <XAxis dataKey="displayName" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <XAxis dataKey="displayName" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <Tooltip content={<CollaboratorTooltip />} cursor={false} />
                 <Bar 
                   dataKey="score" 
                   radius={[4, 4, 0, 0]} 
-                  name="Score Colaboración"
+                  name={userMetric === 'repos' ? 'Repos' : 'Score Colaboración'}
                   isAnimationActive={true} 
                   animationBegin={0} 
                   animationDuration={600} 
@@ -1831,7 +1999,9 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            Click para detalles · Ctrl+Click para red de colaboración
+            <span><span className={styles.kbdKey}>Click</span> detalles</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> red de colaboración</span>
           </p>
         </div>
       </div>
@@ -2096,10 +2266,17 @@ export default function ChartsSection({ data }) {
                       <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.total_unique_contributors || 0).toLocaleString()}</span>
                       <span className={styles.entityDetailStatLabel}>Contributors</span>
                     </div>
-                    <div className={styles.entityDetailStat}>
-                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.total_repositories_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Repos Totales</span>
-                    </div>
+                    {data.shared_users_count > 0 ? (
+                      <div className={styles.entityDetailStat}>
+                        <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.shared_users_count || 0).toLocaleString()}</span>
+                        <span className={styles.entityDetailStatLabel}>Cross-org</span>
+                      </div>
+                    ) : (
+                      <div className={styles.entityDetailStat}>
+                        <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.total_repositories_count || 0).toLocaleString()}</span>
+                        <span className={styles.entityDetailStatLabel}>Repos Totales</span>
+                      </div>
+                    )}
                   </>
                 )}
                 {type === 'repo' && (
@@ -2116,10 +2293,17 @@ export default function ChartsSection({ data }) {
                       <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.collaborators_count || 0).toLocaleString()}</span>
                       <span className={styles.entityDetailStatLabel}>Contribuidores</span>
                     </div>
-                    <div className={styles.entityDetailStat}>
-                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.watchers_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Watchers</span>
-                    </div>
+                    {data.shared_collaborators_count > 0 ? (
+                      <div className={styles.entityDetailStat}>
+                        <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.shared_collaborators_count || 0).toLocaleString()}</span>
+                        <span className={styles.entityDetailStatLabel}>Cross-repo</span>
+                      </div>
+                    ) : (
+                      <div className={styles.entityDetailStat}>
+                        <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.watchers_count || 0).toLocaleString()}</span>
+                        <span className={styles.entityDetailStatLabel}>Watchers</span>
+                      </div>
+                    )}
                   </>
                 )}
                 {type === 'user' && (
@@ -2137,7 +2321,7 @@ export default function ChartsSection({ data }) {
                       <span className={styles.entityDetailStatLabel}>Followers</span>
                     </div>
                     <div className={styles.entityDetailStat}>
-                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.public_repos_count || data.repos || 0).toLocaleString()}</span>
+                      <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.repos_count || data.public_repos_count || data.repos || 0).toLocaleString()}</span>
                       <span className={styles.entityDetailStatLabel}>Repos</span>
                     </div>
                   </>

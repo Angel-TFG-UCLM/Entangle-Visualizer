@@ -11,7 +11,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiX } from 'react-icons/fi'
 import styles from './CollaborationBanner.module.css'
 
 export default function CollaborationBanner() {
@@ -23,7 +22,6 @@ export default function CollaborationBanner() {
   } = useDashboardStore()
   
   const [visible, setVisible] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
   const [inView, setInView] = useState(false)
   const wrapperRef = useRef(null)
   
@@ -40,25 +38,21 @@ export default function CollaborationBanner() {
   }, [])
   
   useEffect(() => {
-    if (collaborationAvailable && !dismissed) {
+    if (collaborationAvailable) {
       const timer = setTimeout(() => setVisible(true), 400)
       return () => clearTimeout(timer)
     } else {
       setVisible(false)
     }
-  }, [collaborationAvailable, dismissed])
+  }, [collaborationAvailable])
   
-  const shouldShow = collaborationAvailable && !dismissed && !isDiscovering
+  const shouldShow = collaborationAvailable && !isDiscovering
   const revealed = shouldShow && visible && inView
   
   const metrics = collaborationDiscovery?.metrics
   
   const handleClick = () => openCollaborationGraph()
   
-  const handleDismiss = (e) => {
-    e.stopPropagation()
-    setDismissed(true)
-  }
   
   return (
     <div ref={wrapperRef} className={`${styles.wrapper} ${revealed ? styles.wrapperVisible : ''}`}>
@@ -134,10 +128,6 @@ export default function CollaborationBanner() {
         <div className={styles.ctaGlow} />
       </div>
       
-      {/* Cerrar */}
-      <button className={styles.dismissBtn} onClick={handleDismiss} aria-label="Descartar">
-        <FiX size={14} />
-      </button>
     </div>
     </div>
   )

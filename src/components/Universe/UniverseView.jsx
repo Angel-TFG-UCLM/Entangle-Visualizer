@@ -15,7 +15,7 @@
  * Stack: Three.js + React Three Fiber + drei + postprocessing (Bloom)
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
@@ -23,6 +23,8 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
 import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink } from 'react-icons/fi'
+import BlackHoleExit from './BlackHoleExit'
+import BigBangEntry from './BigBangEntry'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -976,6 +978,10 @@ function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed }) {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
     return g
   }, [repoNodes, positions])
+  // Dispose geometry anterior cuando deps cambian + cleanup en unmount
+  useEffect(() => () => geometry?.dispose(), [geometry])
+
+  const blochColor = useMemo(() => new THREE.Color('#bd00ff').multiplyScalar(0.8), [])
 
   useFrame(() => {
     if (matRef.current) matRef.current.opacity = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0) * (dimmed ? 0.04 : 1)
@@ -987,7 +993,7 @@ function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed }) {
     <lineSegments geometry={geometry}>
       <lineBasicMaterial
         ref={matRef}
-        color={new THREE.Color('#bd00ff').multiplyScalar(0.8)}
+        color={blochColor}
         transparent
         opacity={0}
         depthWrite={false}
@@ -1137,7 +1143,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 // PARTÍCULAS CUÁNTICAS (Users) - 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
-function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity }) {
+function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity, multiOrgColors }) {
   const ref = useRef()
   const glowMap = useMemo(() => createGlowTexture(), [])
 
@@ -1179,6 +1185,8 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     g.setAttribute('aDensity', new THREE.BufferAttribute(density, 1))
     return g
   }, [allUsers, positions, userDensity])
+  // Dispose geometry anterior cuando deps cambian + cleanup en unmount
+  useEffect(() => () => geo?.dispose(), [geo])
 
   // ShaderMaterial - toda animación en GPU
   const mat = useMemo(() => new THREE.ShaderMaterial({
@@ -1207,6 +1215,22 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
   const lensBlendCurrent = useRef(0)
   const lensRevealTime = useRef(0) // time when color animation should start
   const LENS_BLEND_SPEED = 0.04
+
+  // Pre-compute multi-org index: para cada user con ≥2 colores de org,
+  // almacenar su índice en allUsers + seed aleatorio para timing
+  const multiOrgIndex = useMemo(() => {
+    if (!multiOrgColors) return null
+    const index = []
+    for (let i = 0; i < allUsers.length; i++) {
+      const colors = multiOrgColors[allUsers[i].id]
+      if (colors) {
+        // Seed aleatorio por user para que la velocidad de transición varíe
+        const seed = ((i * 7919 + 1013) % 997) / 997 // pseudo-random determinístico
+        index.push({ idx: i, colors, seed })
+      }
+    }
+    return index.length > 0 ? index : null
+  }, [allUsers, multiOrgColors])
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progressRef.current[progressKey]
@@ -1245,6 +1269,45 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
       if (Math.abs(target - lensBlendCurrent.current) < 0.005) lensBlendCurrent.current = target
     }
     mat.uniforms.uLensActive.value = lensBlendCurrent.current
+
+    // Multi-org color cycling: transicionar entre colores de las orgs del user
+    // Solo cuando la lente de comunidades está activa (lensBlendCurrent > 0.5)
+    if (multiOrgIndex && lensBlendCurrent.current > 0.5) {
+      const t = clock.getElapsedTime()
+      const colors = geo.attributes.aLensColor
+      let anyChanged = false
+      for (let k = 0; k < multiOrgIndex.length; k++) {
+        const { idx, colors: orgColors, seed } = multiOrgIndex[k]
+        // Periodo de transición aleatorio: entre 2.5s y 5.5s por user
+        const period = 2.5 + seed * 3.0
+        // Fase desplazada por seed para que no todos cambien a la vez
+        const phase = (t + seed * 100) / period
+        const totalColors = orgColors.length
+        // Índice del color actual y siguiente
+        const ci = Math.floor(phase) % totalColors
+        const ni = (ci + 1) % totalColors
+        // Factor de blend dentro de la transición (smooth ease)
+        const raw = phase - Math.floor(phase)
+        // 70% del tiempo quieto en un color, 30% transicionando
+        const holdFraction = 0.7
+        let blend
+        if (raw < holdFraction) {
+          blend = 0
+        } else {
+          const tt = (raw - holdFraction) / (1 - holdFraction)
+          blend = tt * tt * (3 - 2 * tt) // smoothstep
+        }
+        const c0 = orgColors[ci], c1 = orgColors[ni]
+        const r = c0.r + (c1.r - c0.r) * blend
+        const g = c0.g + (c1.g - c0.g) * blend
+        const b = c0.b + (c1.b - c0.b) * blend
+        colors.array[idx * 3]     = r
+        colors.array[idx * 3 + 1] = g
+        colors.array[idx * 3 + 2] = b
+        anyChanged = true
+      }
+      if (anyChanged) colors.needsUpdate = true
+    }
 
     // Highlight: solo cuando cambia la selección
     const hlChanged = lastHighlight.current !== highlightSet
@@ -1416,6 +1479,8 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
     })
     return { geo: g, mat: m }
   }, [bonds])
+  // Dispose geometry + material anterior cuando deps cambian + cleanup en unmount
+  useEffect(() => () => { geo?.dispose(); mat?.dispose() }, [geo, mat])
 
   // Solo 3 uniforms por frame - CPU ≈ 0%
   useFrame(({ clock }) => {
@@ -1537,6 +1602,8 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     g.setAttribute('aStrength', new THREE.BufferAttribute(strArr, 1))
     return { geo: g, maxStrength: maxS }
   }, [arcs])
+  // Dispose geometry anterior cuando deps cambian + cleanup en unmount
+  useEffect(() => () => geo?.dispose(), [geo])
 
   const mat = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: ARC_VERTEX,
@@ -1693,7 +1760,7 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
   // Material de shader personalizado - GPU calcula posiciones desde atributos + uniforms
   const shaderMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
-      uColor: { value: new THREE.Color('#ffbd00').multiplyScalar(1.5) },
+      uColor: { value: new THREE.Color('#00d4e4').multiplyScalar(1.5) },
       uOpacity: { value: 0 },
       uTime: { value: 0 },
       uDrawProgress: { value: 0 },
@@ -1710,7 +1777,7 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
     if (!ref.current || connections.length === 0) return
     const p = easeOutCubic(progressRef.current[progressKey])
 
-    const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? 0.05 : 0.55))
+    const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? (highlightSet ? 0.4 : 0.05) : 0.55))
     shaderMat.uniforms.uOpacity.value = baseOpacity
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
     shaderMat.uniforms.uDrawProgress.value = p
@@ -1884,48 +1951,171 @@ function InterferenceField({ progressRef, progressKey }) {
 }
 
 // ============================================================================
-// QUANTUM GENESIS - explosión inicial tipo Big Bang
+// QUANTUM GENESIS - explosión inicial tipo Big Bang (enhanced)
 // ============================================================================
 
 function QuantumGenesis({ progressRef, progressKey }) {
   const flashRef = useRef()
-  const waveRef = useRef()
+  const wave1Ref = useRef()
+  const wave2Ref = useRef()
+  const wave3Ref = useRef()
+  const innerGlowRef = useRef()
+  const burstRef = useRef()
 
-  useFrame(() => {
+  // Pre-compute burst particle positions (radial explosion)
+  const burstData = useMemo(() => {
+    const count = 200
+    const positions = new Float32Array(count * 3)
+    const velocities = new Float32Array(count * 3)
+    const sizes = new Float32Array(count)
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = 0
+      positions[i * 3 + 1] = 0
+      positions[i * 3 + 2] = 0
+      // Random direction, varying speed
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      const speed = 30 + Math.random() * 120
+      velocities[i * 3]     = Math.sin(phi) * Math.cos(theta) * speed
+      velocities[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * speed
+      velocities[i * 3 + 2] = Math.cos(phi) * speed
+      sizes[i] = 0.8 + Math.random() * 2.0
+    }
+    return { positions, velocities, sizes, count }
+  }, [])
+
+  useFrame((_, delta) => {
     const p = progressRef.current[progressKey]
     const done = p >= 1
+
+    // Central flash sphere — bright, expanding fast, fading
     if (flashRef.current) {
       if (done || p < 0.001) {
         flashRef.current.visible = false
       } else {
         flashRef.current.visible = true
-        const s = easeOutCubic(Math.min(p * 3, 1)) * 18
+        const s = easeOutCubic(Math.min(p * 3, 1)) * 22
         flashRef.current.scale.setScalar(Math.max(s, 0.001))
-        flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.85
+        flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.90
       }
     }
-    if (waveRef.current) {
+
+    // Inner glow sphere — warm core that persists longer
+    if (innerGlowRef.current) {
       if (done || p < 0.001) {
-        waveRef.current.visible = false
+        innerGlowRef.current.visible = false
       } else {
-        waveRef.current.visible = true
-        const s = easeOutCubic(p) * 450
-        waveRef.current.scale.setScalar(Math.max(s, 0.001))
-        waveRef.current.material.opacity = Math.max(0, 0.2 * (1 - p))
+        innerGlowRef.current.visible = true
+        const s = easeOutCubic(Math.min(p * 2, 1)) * 8
+        innerGlowRef.current.scale.setScalar(Math.max(s, 0.001))
+        innerGlowRef.current.material.opacity = Math.max(0, 0.6 * (1 - p * 1.2))
+      }
+    }
+
+    // Wave 1 — primary shockwave (fast, large)
+    if (wave1Ref.current) {
+      if (done || p < 0.001) {
+        wave1Ref.current.visible = false
+      } else {
+        wave1Ref.current.visible = true
+        const s = easeOutCubic(p) * 500
+        wave1Ref.current.scale.setScalar(Math.max(s, 0.001))
+        wave1Ref.current.material.opacity = Math.max(0, 0.25 * (1 - p))
+      }
+    }
+
+    // Wave 2 — secondary shockwave (delayed, different shape)
+    if (wave2Ref.current) {
+      const wp = Math.max(0, (p - 0.1) / 0.9)
+      if (done || wp <= 0) {
+        wave2Ref.current.visible = false
+      } else {
+        wave2Ref.current.visible = true
+        const s = easeOutCubic(wp) * 350
+        wave2Ref.current.scale.setScalar(Math.max(s, 0.001))
+        wave2Ref.current.material.opacity = Math.max(0, 0.18 * (1 - wp))
+      }
+    }
+
+    // Wave 3 — tertiary ring (most delayed, slow)
+    if (wave3Ref.current) {
+      const wp = Math.max(0, (p - 0.25) / 0.75)
+      if (done || wp <= 0) {
+        wave3Ref.current.visible = false
+      } else {
+        wave3Ref.current.visible = true
+        const s = easeOutCubic(wp) * 250
+        wave3Ref.current.scale.setScalar(Math.max(s, 0.001))
+        wave3Ref.current.material.opacity = Math.max(0, 0.15 * (1 - wp))
+      }
+    }
+
+    // Particle burst — points exploding outward
+    if (burstRef.current) {
+      if (done || p < 0.001) {
+        burstRef.current.visible = false
+      } else {
+        burstRef.current.visible = true
+        const geo = burstRef.current.geometry
+        const pos = geo.attributes.position
+        const { velocities, count } = burstData
+        const cappedDelta = Math.min(delta, 0.05)
+        const drag = 0.97
+        const fadeStart = 0.4
+        for (let i = 0; i < count; i++) {
+          if (p < 0.01) {
+            pos.array[i * 3] = 0
+            pos.array[i * 3 + 1] = 0
+            pos.array[i * 3 + 2] = 0
+          } else {
+            const slowdown = Math.pow(drag, p * 60)
+            pos.array[i * 3]     += velocities[i * 3]     * cappedDelta * slowdown
+            pos.array[i * 3 + 1] += velocities[i * 3 + 1] * cappedDelta * slowdown
+            pos.array[i * 3 + 2] += velocities[i * 3 + 2] * cappedDelta * slowdown
+          }
+        }
+        pos.needsUpdate = true
+        burstRef.current.material.opacity = p > fadeStart
+          ? Math.max(0, 0.7 * (1 - (p - fadeStart) / (1 - fadeStart)))
+          : Math.min(0.7, p * 10)
       }
     }
   })
 
   return (
     <group>
+      {/* Central flash — bright white-cyan sphere */}
       <mesh ref={flashRef} visible={false}>
         <sphereGeometry args={[1, 32, 32]} />
-        <meshBasicMaterial color={new THREE.Color('#88ccff').multiplyScalar(5)} toneMapped={false} transparent opacity={0} />
+        <meshBasicMaterial color="#aaddff" toneMapped={false} transparent opacity={0} />
       </mesh>
-      <mesh ref={waveRef} visible={false}>
+      {/* Inner warm glow */}
+      <mesh ref={innerGlowRef} visible={false}>
+        <sphereGeometry args={[1, 24, 24]} />
+        <meshBasicMaterial color="#00e5ff" toneMapped={false} transparent opacity={0} />
+      </mesh>
+      {/* Wave 1 — primary wireframe shockwave (icosahedron) */}
+      <mesh ref={wave1Ref} visible={false}>
         <icosahedronGeometry args={[1, 1]} />
         <meshBasicMaterial color="#00f7ff" wireframe transparent opacity={0} toneMapped={false} />
       </mesh>
+      {/* Wave 2 — secondary shockwave (different geometry for variety) */}
+      <mesh ref={wave2Ref} visible={false}>
+        <octahedronGeometry args={[1, 1]} />
+        <meshBasicMaterial color="#9D6FDB" wireframe transparent opacity={0} toneMapped={false} />
+      </mesh>
+      {/* Wave 3 — tertiary slow ring (smooth sphere wireframe) */}
+      <mesh ref={wave3Ref} visible={false}>
+        <sphereGeometry args={[1, 12, 8]} />
+        <meshBasicMaterial color="#00ff9f" wireframe transparent opacity={0} toneMapped={false} />
+      </mesh>
+      {/* Particle burst — points flying outward */}
+      <points ref={burstRef} visible={false} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={burstData.positions.slice()} itemSize={3} count={burstData.count} />
+        </bufferGeometry>
+        <pointsMaterial color="#88ddff" size={1.5} transparent opacity={0} toneMapped={false} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} />
+      </points>
     </group>
   )
 }
@@ -1957,7 +2147,7 @@ function TunnelingPulses({ connections, startAnimation, dimmed }) {
 
   const geo = useMemo(() => new THREE.SphereGeometry(0.18, 6, 6), [])
   const mat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#ffbd00').multiplyScalar(4),
+    color: new THREE.Color('#aaddff').multiplyScalar(4),
     toneMapped: false, transparent: true, opacity: 0,
   }), [])
   const fadeRef = useRef(0) // opacity fade-in tracker
@@ -2231,7 +2421,12 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     return () => canvas.removeEventListener('pointerdown', cancelFly)
   }, [gl])
 
-  // ── Zoom libre: cámara + target viajan JUNTOS por el universo ──
+  // ── Zoom libre: comportamiento depende de si hay entidad seleccionada ──
+  // Sin selección: cámara + target viajan JUNTOS (navegación libre por el universo)
+  // Con selección: solo la cámara se acerca/aleja del target fijo (zoom orbital)
+  const selectedRef = useRef(selectedEntity)
+  selectedRef.current = selectedEntity
+
   useEffect(() => {
     const canvas = gl.domElement
     const mouse = new THREE.Vector2()
@@ -2244,29 +2439,28 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
       // Cancelar cualquier fly-to activo
       flying.current = false
 
-      // Coordenadas normalizadas del ratón
-      const rect = canvas.getBoundingClientRect()
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-
-      raycaster.setFromCamera(mouse, camera)
       const currentTarget = controlsRef.current.target
       const dist = camera.position.distanceTo(currentTarget)
-
       const zoomIn = e.deltaY < 0
-
-      // Velocidad lineal proporcional a distancia cámara→target
       const speed = Math.max(dist * 0.12, 3)
       const delta = zoomIn ? speed : -speed
 
-      // Dirección del rayo bajo el cursor
-      const direction = raycaster.ray.direction.clone()
-
-      // ★ AMBOS, cámara Y target, se mueven en la misma dirección
-      //   → la "esfera orbital" de OrbitControls viaja con la cámara
-      //   → no hay límite artificial de movimiento
-      camera.position.addScaledVector(direction, delta)
-      currentTarget.addScaledVector(direction, delta)
+      if (selectedRef.current) {
+        // ★ Con entidad seleccionada: zoom orbital puro
+        //   La cámara se acerca/aleja del target (que permanece fijo en la entidad)
+        const dir = camera.position.clone().sub(currentTarget).normalize()
+        camera.position.addScaledVector(dir, -delta)
+      } else {
+        // ★ Sin selección: navegación libre
+        //   AMBOS, cámara Y target, viajan juntos por el universo
+        const rect = canvas.getBoundingClientRect()
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+        raycaster.setFromCamera(mouse, camera)
+        const direction = raycaster.ray.direction.clone()
+        camera.position.addScaledVector(direction, delta)
+        currentTarget.addScaledVector(direction, delta)
+      }
 
       controlsRef.current.update()
     }
@@ -2275,10 +2469,13 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     return () => canvas.removeEventListener('wheel', handleWheel)
   }, [camera, gl])
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!flying.current || !controlsRef.current) return
-    controlsRef.current.target.lerp(target.current, 0.045)
-    camera.position.lerp(goal.current, 0.045)
+    // Damping exponencial independiente del frame rate:
+    // a 60fps → t≈0.072, a 30fps → t≈0.139 (compensa frames largos automáticamente)
+    const t = 1 - Math.exp(-4.5 * delta)
+    controlsRef.current.target.lerp(target.current, t)
+    camera.position.lerp(goal.current, t)
     controlsRef.current.update()
     if (camera.position.distanceTo(goal.current) < 0.5) flying.current = false
   })
@@ -2289,7 +2486,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
       enableDamping
       dampingFactor={0.08}
       enableZoom={false}
-      enablePan
+      enablePan={!selectedEntity}
       panSpeed={1.2}
       rotateSpeed={0.6}
       minDistance={0.5}
@@ -2299,25 +2496,166 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
 }
 
 // ============================================================================
+// VIEWPORT LABELS - labels automáticos para entidades visibles al rotar con foco
+// ============================================================================
+
+const _projVec = new THREE.Vector3()
+const AUTO_LABEL_COLORS = { org: '#00f7ff', repo: '#bd00ff', user: '#00ff9f' }
+const AUTO_LABEL_ICONS = { org: '◈', repo: '⬡', user: '●' }
+
+function ViewportLabels({ universeData, selectedEntity }) {
+  const { camera } = useThree()
+  const [visibleEntities, setVisibleEntities] = useState([])
+  const lastUpdateRef = useRef(0)
+
+  // Recopilar entidades relacionadas (las del highlightSet) UNA vez al cambiar selección
+  const relatedEntities = useMemo(() => {
+    if (!selectedEntity || !universeData) return []
+    const { orgNodes, repoNodes, userNodes, orgRepos, repoUsers, positions } = universeData
+    const entities = []
+    const highlightIds = computeRelatedIds(selectedEntity, universeData)
+    if (!highlightIds) return []
+
+    // Excluir la propia entidad seleccionada (ya tiene FocusHighlight)
+    const selId = selectedEntity.id
+
+    for (const node of orgNodes) {
+      if (node.id !== selId && highlightIds.has(node.id) && positions[node.id])
+        entities.push({ id: node.id, type: 'org', name: node.name || node.login || node.id, pos: positions[node.id] })
+    }
+    for (const node of repoNodes) {
+      if (node.id !== selId && highlightIds.has(node.id) && positions[node.id])
+        entities.push({ id: node.id, type: 'repo', name: node.name || node.full_name || node.id, stars: node.stars, pos: positions[node.id] })
+    }
+    for (const node of userNodes) {
+      if (node.id !== selId && highlightIds.has(node.id) && positions[node.id])
+        entities.push({ id: node.id, type: 'user', name: node.login || node.id, isBridge: node.isBridge, pos: positions[node.id] })
+    }
+    return entities
+  }, [selectedEntity, universeData])
+
+  // Actualizar las entidades visibles periódicamente (cada ~250ms, no cada frame)
+  useFrame(() => {
+    const now = performance.now()
+    if (now - lastUpdateRef.current < 250) return
+    lastUpdateRef.current = now
+    if (relatedEntities.length === 0) { setVisibleEntities([]); return }
+
+    const visible = []
+    const hw = window.innerWidth / 2
+    const hh = window.innerHeight / 2
+
+    for (let i = 0; i < relatedEntities.length; i++) {
+      const ent = relatedEntities[i]
+      _projVec.set(ent.pos.x, ent.pos.y, ent.pos.z)
+      _projVec.project(camera)
+
+      // Filtrar: dentro del viewport (con margen) y delante de la cámara
+      if (_projVec.z > 1 || _projVec.z < -1) continue
+      if (_projVec.x < -0.9 || _projVec.x > 0.9 || _projVec.y < -0.85 || _projVec.y > 0.85) continue
+
+      // Distancia a la cámara para ordenar (más cerca = más prioridad)
+      const dist = camera.position.distanceTo(ent.pos)
+
+      // Coordenadas de pantalla para detección de overlap
+      const sx = (1 + _projVec.x) * hw
+      const sy = (1 - _projVec.y) * hh
+
+      visible.push({ ...ent, screenDist: dist, sx, sy, ndc: { x: _projVec.x, y: _projVec.y, z: _projVec.z } })
+    }
+
+    // Ordenar: orgs primero, luego repos, luego users; dentro de cada tipo, por cercanía
+    visible.sort((a, b) => {
+      const typeOrder = { org: 0, repo: 1, user: 2 }
+      const td = (typeOrder[a.type] || 3) - (typeOrder[b.type] || 3)
+      if (td !== 0) return td
+      return a.screenDist - b.screenDist
+    })
+
+    // Limitar cantidad y eliminar overlaps (distancia mínima en pantalla entre labels)
+    const MAX_LABELS = 8
+    const MIN_SCREEN_DIST = 70 // px mínimos entre labels
+    const filtered = []
+    for (const ent of visible) {
+      if (filtered.length >= MAX_LABELS) break
+      const overlaps = filtered.some(f => {
+        const dx = f.sx - ent.sx, dy = f.sy - ent.sy
+        return dx * dx + dy * dy < MIN_SCREEN_DIST * MIN_SCREEN_DIST
+      })
+      if (!overlaps) filtered.push(ent)
+    }
+
+    setVisibleEntities(filtered)
+  })
+
+  if (visibleEntities.length === 0) return null
+
+  return (
+    <group>
+      {visibleEntities.map(ent => (
+        <Html key={ent.id} position={[ent.pos.x, ent.pos.y, ent.pos.z]} center
+          style={{ pointerEvents: 'none', transition: 'opacity 0.2s ease' }}
+          zIndexRange={[0, 0]}
+        >
+          <div className={styles.autoLabel}>
+            <span className={styles.autoLabelIcon} style={{ color: AUTO_LABEL_COLORS[ent.type] }}>
+              {AUTO_LABEL_ICONS[ent.type]}
+            </span>
+            <span className={styles.autoLabelName}>{ent.name}</span>
+            {ent.type === 'repo' && ent.stars > 0 && (
+              <span className={styles.autoLabelStars}>⭐{ent.stars}</span>
+            )}
+            {ent.isBridge && <span className={styles.autoLabelBridge}>⚛</span>}
+          </div>
+        </Html>
+      ))}
+    </group>
+  )
+}
+
+// ============================================================================
 // LABEL FLOTANTE - estilo cuántico
 // ============================================================================
 
 function FloatingLabel({ entity, position }) {
-  if (!entity || !position) return null
-  const name = entity.name || entity.login || entity.full_name || entity.id
-  const typeMap = { org: 'Procesador Cuántico', repo: 'Qubit', user: 'Partícula' }
+  const [phase, setPhase] = useState('hidden') // hidden | show | exit
+  const dataRef = useRef(null)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    if (entity && position) {
+      clearTimeout(timerRef.current)
+      dataRef.current = { entity, position }
+      setPhase('show')
+    } else if (dataRef.current) {
+      setPhase('exit')
+      timerRef.current = setTimeout(() => setPhase('hidden'), 160)
+    }
+    return () => clearTimeout(timerRef.current)
+  }, [entity, position])
+
+  if (phase === 'hidden' || !dataRef.current) return null
+
+  const { entity: ent, position: pos } = dataRef.current
+  const name = ent.name || ent.login || ent.full_name || ent.id
+  const typeMap = { org: 'Organización (Procesador)', repo: 'Repositorio (Qubit)', user: 'Usuario (Partícula)' }
   const colorMap = { org: '#00f7ff', repo: '#bd00ff', user: '#00ff9f' }
 
+  // Offset Y en unidades 3D para posicionar el label ENCIMA de la entidad
+  // Org: hitbox r=6, torus R=4 → necesita ~7; Repo: hitbox r=2.5 → ~3.5; User: sprite → ~2
+  const yOffset = ent.type === 'org' ? 7 : ent.type === 'repo' ? 3.5 : 2
+  const offsetPos = [pos.x ?? pos[0] ?? 0, (pos.y ?? pos[1] ?? 0) + yOffset, pos.z ?? pos[2] ?? 0]
+
   return (
-    <Html position={position} center style={{ pointerEvents: 'none' }}>
-      <div className={styles.label3d}>
-        <span className={styles.label3dType} style={{ color: colorMap[entity.type] }}>
-          {typeMap[entity.type] || ''}
+    <Html position={offsetPos} center={false} style={{ pointerEvents: 'none', transform: 'translate(-50%, -100%)' }}>
+      <div className={`${styles.label3d} ${phase === 'show' ? styles.label3dEnter : styles.label3dExit}`}>
+        <span className={styles.label3dType} style={{ color: colorMap[ent.type] }}>
+          {typeMap[ent.type] || ''}
         </span>
         <span className={styles.label3dName}>{name}</span>
-        {entity.stars > 0 && <span className={styles.label3dMeta}>⭐ {entity.stars}</span>}
-        {entity.isBridge && (
-          <span className={styles.label3dBridge}>⚛ Entrelazada · {entity.repos_count} qubits</span>
+        {ent.stars > 0 && <span className={styles.label3dMeta}>⭐ {ent.stars}</span>}
+        {ent.isBridge && (
+          <span className={styles.label3dBridge}>⚛ Bridge User · {ent.repos_count} repos</span>
         )}
       </div>
     </Html>
@@ -2459,6 +2797,9 @@ function ZoneBoundary({ radius, color, label, count, visible }) {
   const wireRef = useRef()
   const labelRef = useRef()
   const blendRef = useRef(0) // 0=hidden, 1=fully visible
+  // Memoizar wireframe geometry para evitar recrearla en cada render
+  const wireGeo = useMemo(() => new THREE.SphereGeometry(radius, 24, 16), [radius])
+  useEffect(() => () => wireGeo?.dispose(), [wireGeo])
 
   useFrame((_, delta) => {
     // Smooth blend hacia target (visible ? 1 : 0)
@@ -2500,7 +2841,7 @@ function ZoneBoundary({ radius, color, label, count, visible }) {
       </mesh>
       {/* Wireframe superpuesto */}
       <lineSegments ref={wireRef}>
-        <wireframeGeometry args={[new THREE.SphereGeometry(radius, 24, 16)]} />
+        <wireframeGeometry args={[wireGeo]} />
         <lineBasicMaterial color={color} transparent opacity={0} depthWrite={false} />
       </lineSegments>
       {/* Label flotante en la parte superior */}
@@ -2562,6 +2903,11 @@ function ZoneBoundaries({ zoneMeta, visible }) {
 // Rayo de energía curvado + fotones viajando + halos en nodos intermedios
 
 const _tunnelDummy = new THREE.Object3D()
+// Colores pre-allocados para evitar crear objetos en useFrame (GC pressure)
+const _haloColorA = new THREE.Color('#00f7ff')
+const _haloColorB = new THREE.Color('#00ff9f')
+const _haloColorC = new THREE.Color('#bd00ff')
+const _haloResult = new THREE.Color()
 
 function QuantumTunnelBeam({ tunnelPath, positions }) {
   const tubeRef = useRef()
@@ -2595,6 +2941,8 @@ function QuantumTunnelBeam({ tunnelPath, positions }) {
     const segments = Math.max(64, Math.floor(totalLength * 2))
     return new THREE.TubeGeometry(curve, segments, 0.4, 10, false)
   }, [curve, totalLength])
+  // Dispose geometry anterior cuando cambia el tunnel path
+  useEffect(() => () => tubeGeo?.dispose(), [tubeGeo])
 
   // Geometría del tubo glow exterior (más grueso)
   const glowGeo = useMemo(() => {
@@ -2602,6 +2950,8 @@ function QuantumTunnelBeam({ tunnelPath, positions }) {
     const segments = Math.max(48, Math.floor(totalLength * 1.5))
     return new THREE.TubeGeometry(curve, segments, 1.2, 10, false)
   }, [curve, totalLength])
+  // Dispose geometry anterior cuando cambia el tunnel path
+  useEffect(() => () => glowGeo?.dispose(), [glowGeo])
 
   // Shader fragment compartido: degradado animado cyan ↔ verde ↔ morado + draw-on
   const TUNNEL_FRAG = `
@@ -2713,12 +3063,14 @@ function QuantumTunnelBeam({ tunnelPath, positions }) {
 
   const haloGeo = useMemo(() => new THREE.RingGeometry(1.5, 3.5, 24), [])
 
-  // Resetear progreso cuando cambia el path
+  // Resetear progreso cuando cambia el path (en useEffect, no en render body)
   const pathId = tunnelPath?.path?.map(n => n.id).join('-') || ''
-  if (pathId !== prevPathId.current) {
-    prevPathId.current = pathId
-    progressRef.current = 0
-  }
+  useEffect(() => {
+    if (pathId !== prevPathId.current) {
+      prevPathId.current = pathId
+      progressRef.current = 0
+    }
+  }, [pathId])
 
   useFrame(({ clock }, delta) => {
     if (!curve) return
@@ -2748,14 +3100,16 @@ function QuantumTunnelBeam({ tunnelPath, positions }) {
     // Halos en nodos — aparecen progresivamente con el draw-on
     if (halosRef.current && fade > 0.01 && pathPoints.length > 0) {
       haloMat.opacity = fade * 0.4
-      // Ciclar color del halo con el tiempo
+      // Ciclar color del halo con el tiempo (sin allocs por frame)
       const hueShift = (t * 0.15) % 1
-      const haloColor = hueShift < 0.33
-        ? new THREE.Color('#00f7ff').lerp(new THREE.Color('#00ff9f'), hueShift / 0.33)
-        : hueShift < 0.66
-          ? new THREE.Color('#00ff9f').lerp(new THREE.Color('#bd00ff'), (hueShift - 0.33) / 0.33)
-          : new THREE.Color('#bd00ff').lerp(new THREE.Color('#00f7ff'), (hueShift - 0.66) / 0.34)
-      haloMat.color.copy(haloColor).multiplyScalar(3)
+      if (hueShift < 0.33) {
+        _haloResult.copy(_haloColorA).lerp(_haloColorB, hueShift / 0.33)
+      } else if (hueShift < 0.66) {
+        _haloResult.copy(_haloColorB).lerp(_haloColorC, (hueShift - 0.33) / 0.33)
+      } else {
+        _haloResult.copy(_haloColorC).lerp(_haloColorA, (hueShift - 0.66) / 0.34)
+      }
+      haloMat.color.copy(_haloResult).multiplyScalar(3)
 
       pathPoints.forEach((pt, i) => {
         // Cada halo aparece cuando el draw-on llega a su posición
@@ -2795,27 +3149,45 @@ const SCENE_READY_STAGE = 5 // Señalizar "listo" tras montar lo esencial (orgs+
 // Los stages 5-8 (channels, arcs, effects) se montan MIENTRAS el loader se desvanece
 // Sus animaciones no empiezan hasta 5.5-6.5s después del Big Bang
 
-function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, tunnelPath }) {
+const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, tunnelPath, favoriteIdSet, multiOrgColors }) {
   // === PROGRESO VIA REF - CERO re-renders de React desde el render-loop ===
   // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
   const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
   const pointerDownPos = useRef({ x: 0, y: 0, dragged: false })
+  const isDraggingRef = useRef(false)
   const lod = useLOD()
 
   // Drag detection: registrar posición al presionar, marcar como drag si se mueve > 5px
+  // Ocultar cursor durante rotación para UX más limpia
+  // isDraggingRef suprime hover durante arrastre → evita re-renders (16 componentes × 60fps)
   const { gl } = useThree()
   useEffect(() => {
     const dom = gl.domElement
-    const onDown = (e) => { pointerDownPos.current = { x: e.clientX, y: e.clientY, dragged: false } }
+    const onDown = (e) => {
+      pointerDownPos.current = { x: e.clientX, y: e.clientY, dragged: false }
+      isDraggingRef.current = false
+      if (e.button === 0) dom.style.cursor = 'none'
+    }
     const onMove = (e) => {
+      if (e.buttons === 0) return // Solo rastrear drag con botón pulsado
       const dp = pointerDownPos.current
       const dx = e.clientX - dp.x, dy = e.clientY - dp.y
-      if (dx * dx + dy * dy > 25) dp.dragged = true
+      if (dx * dx + dy * dy > 25) {
+        dp.dragged = true
+        if (!isDraggingRef.current) {
+          isDraggingRef.current = true
+          // Limpiar hover al iniciar arrastre: elimina FloatingLabel y evita
+          // que el último hover quede "congelado" durante la rotación
+          setHovered(null)
+        }
+      }
     }
+    const onUp = () => { isDraggingRef.current = false; dom.style.cursor = '' }
     dom.addEventListener('pointerdown', onDown)
     dom.addEventListener('pointermove', onMove)
-    return () => { dom.removeEventListener('pointerdown', onDown); dom.removeEventListener('pointermove', onMove) }
-  }, [gl])
+    window.addEventListener('pointerup', onUp)
+    return () => { dom.removeEventListener('pointerdown', onDown); dom.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
+  }, [gl, setHovered])
 
   // ===== MONTAJE PROGRESIVO - cada stage monta un grupo de componentes =====
   // Esto evita que el hilo principal se bloquee al alocar todas las geometrías de golpe
@@ -2862,6 +3234,19 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
     return ids
   }, [entityFilter, universeData])
 
+  // Combinar filtro de tipo con filtro de favoritos
+  const combinedFilterSet = useMemo(() => {
+    if (!filterHighlightSet && !favoriteIdSet) return null
+    if (filterHighlightSet && !favoriteIdSet) return filterHighlightSet
+    if (!filterHighlightSet && favoriteIdSet) return favoriteIdSet
+    // Ambos activos: intersección
+    const intersection = new Set()
+    for (const id of filterHighlightSet) {
+      if (favoriteIdSet.has(id)) intersection.add(id)
+    }
+    return intersection
+  }, [filterHighlightSet, favoriteIdSet])
+
   // Set de IDs del tunnel path para highlight selectivo
   const tunnelHighlightSet = useMemo(() => {
     if (!tunnelPath?.found || !tunnelPath.path) return null
@@ -2871,32 +3256,50 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
   }, [tunnelPath])
 
   // Set de IDs relacionados para dimming selectivo
-  // Prioridad: selectedEntity > searchHighlightSet > tunnelPath > entityFilter
+  // Prioridad: selectedEntity > searchHighlightSet > tunnelPath > entityFilter/favorites
+  // Si hay selectedEntity + entityFilter activo, intersectar para que los filtros se apliquen
   const highlightSet = useMemo(() => {
     const entitySet = computeRelatedIds(selectedEntity, universeData)
+    // Combinar selección con filtro de tipo: intersectar para que solo se muestren
+    // las entidades relacionadas Y del tipo filtrado
+    if (entitySet && combinedFilterSet) {
+      const intersection = new Set()
+      // Siempre incluir la propia entidad seleccionada para que no desaparezca
+      if (selectedEntity) intersection.add(selectedEntity.id)
+      for (const id of entitySet) {
+        if (combinedFilterSet.has(id)) intersection.add(id)
+      }
+      return intersection
+    }
     if (entitySet) return entitySet
     if (searchHighlightSet) return searchHighlightSet
     if (tunnelHighlightSet) return tunnelHighlightSet
-    return filterHighlightSet
-  }, [selectedEntity, universeData, searchHighlightSet, tunnelHighlightSet, filterHighlightSet])
-  const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0 || lensData !== null || tunnelPath?.found
+    return combinedFilterSet
+  }, [selectedEntity, universeData, searchHighlightSet, tunnelHighlightSet, combinedFilterSet])
+  const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0 || lensData !== null || tunnelPath?.found || favoriteIdSet !== null
 
   const handleHover = useCallback((entity, pos) => {
+    // ── Suprimir hover durante arrastre de cámara ──
+    // R3F dispara raycasting en cada pointermove → hits → setHovered → re-render
+    // del padre (UniverseView) con ~16 hijos no-memoizados. Bloquear aquí elimina
+    // esos re-renders innecesarios y el stuttering al rotar con entidad seleccionada.
+    if (isDraggingRef.current) return
     // Bloquear interacción hasta que la animación de aparición haya terminado por completo
     if (bpRef.current.entanglement < 1.0) {
       setHovered(null)
       document.body.style.cursor = 'auto'
       return
     }
-    // Bloquear hover sobre entidades no resaltadas por el filtro activo
-    if (entity && filterHighlightSet && !filterHighlightSet.has(entity.id)) {
+    // Bloquear hover sobre entidades no resaltadas cuando hay dimming activo
+    // (lente, filtro de tipo, favoritos, búsqueda, tunneling, selección)
+    if (entity && highlightSet && !highlightSet.has(entity.id)) {
       setHovered(null)
       document.body.style.cursor = 'auto'
       return
     }
     setHovered(entity ? { entity, pos } : null)
     document.body.style.cursor = entity ? 'pointer' : 'auto'
-  }, [setHovered, filterHighlightSet])
+  }, [setHovered, highlightSet])
 
   // Wrapper de onSelect que bloquea selección durante animación y durante drag (rotación orbital)
   const guardedSelect = useCallback((entity, pos) => {
@@ -2977,7 +3380,7 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
 
       {/* Stage 4: Partículas (users) - 27K+ vertices × 6 atributos (MÁS PESADO) */}
       {mountStage >= 4 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} />
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} multiOrgColors={multiOrgColors} />
       )}
 
       {/* Stage 5: Bonds (user-repo connections) */}
@@ -3003,9 +3406,6 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
         <FocusHighlight position={focusTarget} entityType={selectedEntity.type} />
       )}
 
-      {/* Label flotante */}
-      {hovered && <FloatingLabel entity={hovered.entity} position={hovered.pos} />}
-
       {/* === QUANTUM TUNNEL BEAM - rayo 3D del shortest path === */}
       {tunnelPath?.found && positions && (
         <QuantumTunnelBeam tunnelPath={tunnelPath} positions={positions} />
@@ -3029,7 +3429,7 @@ function QuantumScene({ universeData, onSelect, hovered, setHovered, focusTarget
       </EffectComposer>
     </>
   )
-}
+})
 
 // ============================================================================
 // PROCESAMIENTO ASÍNCRONO DE RESULTADOS DEL WORKER
@@ -3119,9 +3519,11 @@ export default function UniverseView() {
   // Favoritos
   const toggleFavorite = useFavoritesStore(s => s.toggleFavorite)
   const isFavorite = useFavoritesStore(s => s.isFavorite)
+  const favorites = useFavoritesStore(s => s.favorites)
 
   const [entering, setEntering] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
+  const canvasWrapperRef = useRef(null)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [detailExpanded, setDetailExpanded] = useState(false)
   const [detailTab, setDetailTab] = useState('info') // 'info' | 'red' | 'explorer'
@@ -3150,6 +3552,7 @@ export default function UniverseView() {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef(null)
   const [entityFilter, setEntityFilter] = useState(new Set()) // Set of 'org' | 'repo' | 'user-bridge' | 'user-normal'
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
   // Cerrar dropdown de ajustes al hacer clic fuera
   useEffect(() => {
@@ -3183,18 +3586,17 @@ export default function UniverseView() {
     setSearchEntity(null)
   }, [])
 
-  // === Quantum Decoherence Exit ===
+  // === Black Hole Gravitational Collapse Exit ===
   const handleExit = useCallback(() => {
     if (isExiting) return
     setIsExiting(true)
-    // Fase 1: UI fade + canvas implosion (CSS handles it)
-    // Fase 2: After animation completes, actually unmount
-    setTimeout(() => {
-      closeCollaborationGraph()
-      // Reset for next open
-      setIsExiting(false)
-    }, 1800)
-  }, [isExiting, closeCollaborationGraph])
+    // BlackHoleExit Canvas component handles all visuals + calls onComplete
+  }, [isExiting])
+
+  const handleExitComplete = useCallback(() => {
+    closeCollaborationGraph()
+    setIsExiting(false)
+  }, [closeCollaborationGraph])
 
   // === Lens transition state ===
   const [lensTransitioning, setLensTransitioning] = useState(false)
@@ -3228,6 +3630,31 @@ export default function UniverseView() {
   const layoutRequestIdRef = useRef(0)
   const [universeData, setUniverseData] = useState(null)
 
+  // Set de IDs de favoritos para filtrado rápido
+  // Herencia: si una org es favorita, sus repos y users también se incluyen
+  const favoriteIdSet = useMemo(() => {
+    if (!showFavoritesOnly || favorites.length === 0) return null
+    const ids = new Set(favorites.map(f => f.id))
+    if (universeData) {
+      // Expandir orgs favoritas → sus repos → sus users
+      // type puede ser 'organization' o 'org' según la fuente
+      favorites.filter(f => f.type === 'organization' || f.type === 'org').forEach(fav => {
+        const orgRepos = universeData.orgRepos?.[fav.id] || []
+        orgRepos.forEach(repo => {
+          ids.add(repo.id)
+          const users = universeData.repoUsers?.[repo.id] || []
+          users.forEach(u => ids.add(u.id))
+        })
+      })
+      // Expandir repos favoritos → sus users
+      favorites.filter(f => f.type === 'repo' || f.type === 'repository').forEach(fav => {
+        const users = universeData.repoUsers?.[fav.id] || []
+        users.forEach(u => ids.add(u.id))
+      })
+    }
+    return ids
+  }, [showFavoritesOnly, favorites, universeData])
+
   // Crear/destruir Web Worker
   useEffect(() => {
     const worker = new Worker(
@@ -3248,15 +3675,19 @@ export default function UniverseView() {
   }, [])
 
   // Enviar datos al worker cuando cambian las dependencias del grafo
+  // IMPORTANTE: esperar a que las métricas se carguen antes de computar el layout
+  // para evitar doble computación (sin métricas → con métricas) que cambia posiciones
   useEffect(() => {
     if (!filteredGraph?.nodes?.length) { setUniverseData(null); return }
+    // Si las métricas se están cargando o aún no se ha intentado cargarlas, esperar
+    if (isLoadingMetrics || (!networkMetrics && !metricsLoadAttempted)) return
     const id = ++layoutRequestIdRef.current
     layoutWorkerRef.current?.postMessage({
       graph: filteredGraph,
       nodeMetrics: networkMetrics?.node_metrics ?? null,
       requestId: id,
     })
-  }, [filteredGraph, networkMetrics])
+  }, [filteredGraph, networkMetrics, isLoadingMetrics, metricsLoadAttempted])
 
   useEffect(() => {
     if (showCollaborationGraph) {
@@ -3304,9 +3735,11 @@ export default function UniverseView() {
   }, [])
 
   // ─── Cierre animado del panel ───
+  const closePanelTimerRef = useRef(null)
   const handleClosePanel = useCallback(() => {
     setPanelClosing(true)
-    setTimeout(() => {
+    if (closePanelTimerRef.current) clearTimeout(closePanelTimerRef.current)
+    closePanelTimerRef.current = setTimeout(() => {
       setSelectedEntity(null)
       setResetTrigger(t => t + 1)
       setNavHistory([])
@@ -3315,8 +3748,11 @@ export default function UniverseView() {
       setPinnedData(null)
       setPanelClosing(false)
       setDetailExpanded(false)
+      closePanelTimerRef.current = null
     }, 280)
   }, [])
+  // Cleanup del timer de cierre en unmount
+  useEffect(() => () => { if (closePanelTimerRef.current) clearTimeout(closePanelTimerRef.current) }, [])
 
   useEffect(() => {
     if (!showCollaborationGraph) return
@@ -3381,12 +3817,15 @@ export default function UniverseView() {
 
   // ─── WEB WORKER: computation off-main-thread (progressive) ───
   const [detailData, setDetailData] = useState(null)
+  const detailRequestIdRef = useRef(0)
   useEffect(() => {
     const w = new Worker(
       new URL('./computeDetailData.worker.js', import.meta.url)
     )
     w.onmessage = (e) => {
-      const { phase, data } = e.data
+      const { phase, data, requestId } = e.data
+      // Descartar resultados obsoletos si el usuario seleccionó otra entidad
+      if (requestId !== detailRequestIdRef.current) return
       if (phase === 1) {
         // Core data + DNA - show panel immediately
         setDetailData(data)
@@ -3407,7 +3846,8 @@ export default function UniverseView() {
     if (!selectedEntity) { setDetailData(null); setDetailLoading(false); return }
     setDetailLoading(true)
     setDetailData(null)
-    detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics })
+    const id = ++detailRequestIdRef.current
+    detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics, requestId: id })
   }, [selectedEntity, universeData, networkMetrics])
   // Pin / unpin para modo comparación
   const handlePinToggle = useCallback(() => {
@@ -3466,7 +3906,7 @@ export default function UniverseView() {
   }, [showCollaborationGraph, networkMetrics, isLoadingMetrics, metricsLoadAttempted, loadNetworkMetrics])
 
   // === LENS TRANSITION HANDLER ===
-  const LENS_NAMES = { communities: 'Comunidades', centrality: 'Centralidad', busFactor: 'Bus Factor', intensity: 'Intensidad' }
+  const LENS_NAMES = { communities: 'Comunidades', centrality: 'Centralidad', busFactor: 'Resiliencia', intensity: 'Intensidad' }
   const LENS_COLORS = { communities: '#6c5ce7', centrality: '#00b4d8', busFactor: '#ff6b6b', intensity: '#ffd166' }
 
   const handleLensClick = useCallback(async (lensId) => {
@@ -3502,28 +3942,29 @@ export default function UniverseView() {
         : `Renderizando ${LENS_NAMES[lensId] || lensId}...`
     )
 
-    // Wait for CSS fade-out transition (500ms)
-    await new Promise(r => setTimeout(r, 550))
+    try {
+      // Wait for CSS fade-out transition (500ms)
+      await new Promise(r => setTimeout(r, 550))
 
-    // Ensure metrics are loaded
-    if (!networkMetrics) {
-      setLensLoadingLabel('Procesando estructura de red...')
-      const success = await loadNetworkMetrics()
-      if (!success) {
-        setLensTransitioning(false)
-        setLensLoadingLabel('')
-        lensTransitionRef.current = false
-        return
+      // Ensure metrics are loaded
+      if (!networkMetrics) {
+        setLensLoadingLabel('Procesando estructura de red...')
+        const success = await loadNetworkMetrics()
+        if (!success) {
+          return
+        }
+        setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
+        await new Promise(r => setTimeout(r, 300))
       }
-      setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
-      await new Promise(r => setTimeout(r, 300))
-    }
 
-    // Apply lens AND reveal simultaneously - color animation starts after canvas de-blurs
-    setActiveLens(lensId)
-    setLensTransitioning(false)
-    setLensLoadingLabel('')
-    lensTransitionRef.current = false
+      // Apply lens AND reveal simultaneously - color animation starts after canvas de-blurs
+      setActiveLens(lensId)
+    } finally {
+      // Garantizar reset del estado incluso si hay excepción
+      setLensTransitioning(false)
+      setLensLoadingLabel('')
+      lensTransitionRef.current = false
+    }
   }, [activeLens, networkMetrics, loadNetworkMetrics, setActiveLens])
 
   // Compute per-node lens color data based on active lens
@@ -3570,13 +4011,13 @@ export default function UniverseView() {
         map[id] = { r: b * 0.7, g: b * 0.95, b: b }
       })
     } else if (activeLens === 'busFactor') {
-      // Bus Factor: repos colored by risk level with true hue colors
+      // Resiliencia: repos colored by contributor distribution level
       // Material lerps to white when lens active, so these colors appear as-is
       const riskBrightness = {
-        critical: { r: 1.8, g: 0.2, b: 0.15 },   // bright red
-        high:     { r: 1.8, g: 0.9, b: 0.1 },     // orange
-        medium:   { r: 1.6, g: 1.5, b: 0.15 },    // yellow
-        low:      { r: 0.2, g: 1.6, b: 0.4 },     // green
+        critical: { r: 1.8, g: 0.2, b: 0.15 },   // pilar clave (1 contributor)
+        high:     { r: 1.8, g: 0.9, b: 0.1 },     // núcleo reducido (2)
+        medium:   { r: 1.6, g: 1.5, b: 0.15 },    // equilibrado (3-4)
+        low:      { r: 0.2, g: 1.6, b: 0.4 },     // alta resiliencia (5+)
       }
       Object.entries(nm).forEach(([id, m]) => {
         if (m.bus_factor_risk && riskBrightness[m.bus_factor_risk]) {
@@ -3613,6 +4054,40 @@ export default function UniverseView() {
     }
     return Object.keys(map).length > 0 ? map : null
   }, [activeLens, networkMetrics])
+
+  // ====================================================================
+  // MULTI-ORG COLOR MAP: users que participan en ≥2 orgs → colores de comunidad
+  // Para animar transición entre colores de cada org en la lente de comunidades
+  // ====================================================================
+  const multiOrgColors = useMemo(() => {
+    if (activeLens !== 'communities' || !universeData || !networkMetrics?.node_metrics) return null
+    const nm = networkMetrics.node_metrics
+    const { orgRepos, repoUsers } = universeData
+    // Construir user → Set<orgId>
+    const userOrgMap = {}
+    Object.entries(orgRepos).forEach(([orgId, repos]) => {
+      repos.forEach(r => {
+        (repoUsers[r.id] || []).forEach(u => {
+          if (!userOrgMap[u.id]) userOrgMap[u.id] = new Set()
+          userOrgMap[u.id].add(orgId)
+        })
+      })
+    })
+    const hexToRgb = (hex) => { const c = new THREE.Color(hex); return { r: c.r, g: c.g, b: c.b } }
+    const result = {}
+    Object.entries(userOrgMap).forEach(([userId, orgSet]) => {
+      if (orgSet.size < 2) return
+      const colors = []
+      const seen = new Set()
+      orgSet.forEach(orgId => {
+        const orgMetric = nm[orgId]
+        const hex = orgMetric?.community_color
+        if (hex && !seen.has(hex)) { seen.add(hex); colors.push(hexToRgb(hex)) }
+      })
+      if (colors.length >= 2) result[userId] = colors
+    })
+    return Object.keys(result).length > 0 ? result : null
+  }, [activeLens, universeData, networkMetrics])
 
   // ====================================================================
   // AUTOCOMPLETE: construido desde universeData (siempre disponible)
@@ -3764,17 +4239,11 @@ export default function UniverseView() {
 
   return (
     <div className={`${styles.universe} ${entering ? styles.universeVisible : ''} ${isExiting ? styles.universeExiting : ''}`}>
-      {/* Quantum Decoherence Exit Overlay */}
-      {isExiting && (
-        <div className={styles.exitOverlay}>
-          <div className={styles.exitSingularity} />
-          <div className={styles.exitShockwave} />
-          <div className={styles.exitShockwave2} />
-          <div className={styles.exitParticles} />
-          <div className={styles.exitFlash} />
-        </div>
-      )}
-      <div className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''} ${isExiting ? styles.canvasExiting : ''}`}>
+      {/* Black Hole Gravitational Collapse — Canvas2D particle simulation */}
+      <BlackHoleExit active={isExiting} onComplete={handleExitComplete} wrapperRef={canvasWrapperRef} />
+      {/* Big Bang Genesis — Canvas2D particle explosion overlay */}
+      <BigBangEntry active={animationStarted && !isExiting} wrapperRef={canvasWrapperRef} />
+      <div ref={canvasWrapperRef} className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''}`}>
         {canvasMounted && (
         <Canvas
           camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 8000 }}
@@ -3787,7 +4256,6 @@ export default function UniverseView() {
           <QuantumScene
             universeData={universeData}
             onSelect={handleSelect}
-            hovered={hovered}
             setHovered={setHovered}
             focusTarget={focusTarget}
             resetTrigger={resetTrigger}
@@ -3800,7 +4268,15 @@ export default function UniverseView() {
             showZones={showZones}
             entityFilter={entityFilter}
             tunnelPath={tunnelingPath}
+            favoriteIdSet={favoriteIdSet}
+            multiOrgColors={multiOrgColors}
           />
+          {/* Label flotante - fuera de QuantumScene para no causar re-renders de la escena 3D */}
+          <FloatingLabel entity={hovered?.entity ?? null} position={hovered?.pos ?? null} />
+          {/* Auto-labels de viewport: muestran entidades relacionadas visibles al rotar con foco */}
+          {selectedEntity && universeData && (
+            <ViewportLabels universeData={universeData} selectedEntity={selectedEntity} />
+          )}
         </Canvas>
         )}
       </div>
@@ -3964,6 +4440,16 @@ export default function UniverseView() {
                       <span className={`${styles.settingsToggleIndicator} ${showBots ? styles.settingsToggleOn : ''}`} />
                     </button>
                   )}
+                  {favorites.length > 0 && (
+                    <button
+                      className={`${styles.settingsItem} ${showFavoritesOnly ? styles.settingsItemActive : ''}`}
+                      onClick={() => setShowFavoritesOnly(f => !f)}
+                    >
+                      <FiStar size={12} />
+                      <span>{showFavoritesOnly ? `Solo favoritos (${favorites.length})` : `Filtrar favoritos (${favorites.length})`}</span>
+                      <span className={`${styles.settingsToggleIndicator} ${showFavoritesOnly ? styles.settingsToggleOn : ''}`} />
+                    </button>
+                  )}
                 </div>
                 <div className={styles.settingsDivider} />
                 <div className={styles.settingsSection}>
@@ -4028,7 +4514,7 @@ export default function UniverseView() {
           )}
         </div>
         {searchFocused && searchResults.length > 0 && (() => {
-          const typeLabels = { org: 'Procesadores (Orgs)', repo: 'Qubits (Repos)', user: 'Partículas (Users)' }
+          const typeLabels = { org: 'Organizaciones (Procesadores)', repo: 'Repositorios (Qubits)', user: 'Usuarios (Partículas)' }
           const typeIcons = { org: '⊛', repo: '◉', user: '•' }
           let lastType = null
           return (
@@ -4075,7 +4561,7 @@ export default function UniverseView() {
         {[
           { id: 'communities', icon: <FiLayers size={13} />, name: 'Comunidades', color: '#6c5ce7' },
           { id: 'centrality', icon: <FiActivity size={13} />, name: 'Centralidad', color: '#00b4d8' },
-          { id: 'busFactor', icon: <FiShield size={13} />, name: 'Bus Factor', color: '#ff6b6b' },
+          { id: 'busFactor', icon: <FiShield size={13} />, name: 'Resiliencia', color: '#ff6b6b' },
           { id: 'intensity', icon: <FiZap size={13} />, name: 'Intensidad', color: '#ffd166' },
         ].map(lens => (
           <button
@@ -4283,18 +4769,18 @@ export default function UniverseView() {
       {/* Leyenda cuántica */}
       <div className={styles.legend}>
         <div className={styles.legendCard}>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} /><span>Procesadores</span><span className={styles.legendType}>Org</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} /><span>Qubits</span><span className={styles.legendType}>Repo</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} /><span>Partículas</span><span className={styles.legendType}>User</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} /><span>Entrelazadas</span><span className={styles.legendType}>Bridge</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} /><span>Orgs</span><span className={styles.legendType}>Procesadores</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} /><span>Repos</span><span className={styles.legendType}>Qubits</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} /><span>Users</span><span className={styles.legendType}>Partículas</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} /><span>Bridge</span><span className={styles.legendType}>Entrelazadas</span></div>
           <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #00d4e4, #bd70db)' }} /><span>Canales</span><span className={styles.legendType}>Collab</span></div>
         </div>
       </div>
 
       {/* Métricas - conteos reales del grafo renderizado */}
       <div className={styles.metricsFloat}>
-        <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>qubits</span></div>
-        <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>partículas</span></div>
+        <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>repos</span></div>
+        <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>users</span></div>
         <div className={styles.metricPill}><FiGitBranch size={11} /><span className={styles.metricValue2}>{metrics?.connected_repo_pairs || 0}</span><span className={styles.metricLabel2}>canales</span></div>
         <div className={styles.metricPill}><FiZap size={11} style={{ color: '#ffbd00' }} /><span className={styles.metricValue2}>{metrics?.bridge_users_count || 0}</span><span className={styles.metricLabel2}>bridge</span></div>
       </div>
@@ -4392,7 +4878,7 @@ export default function UniverseView() {
             <div className={styles.detailHeaderText}>
               <h3>{selectedEntity.name || selectedEntity.login || selectedEntity.full_name}</h3>
               <span className={styles.detailType} style={{ color: entityColor }}>
-                {{ org: 'Procesador Cuántico', repo: 'Qubit', user: 'Partícula Cuántica' }[selectedEntity.type]}
+                {{ org: 'Organización (Procesador)', repo: 'Repositorio (Qubit)', user: 'Usuario (Partícula)' }[selectedEntity.type]}
               </span>
             </div>
           </div>
@@ -4417,7 +4903,7 @@ export default function UniverseView() {
             <div className={styles.detailBridge}
               data-tip="Un usuario 'puente' contribuye a repositorios de múltiples organizaciones, conectando equipos que de otra forma no colaborarían">
               <FiZap size={12} />
-              <span>Partícula Entrelazada</span>
+              <span>Bridge User (Entrelazada)</span>
               <span className={styles.detailBridgeHint}>Conecta {userOrgs.length} organizaciones</span>
             </div>
           )}
@@ -5004,8 +5490,8 @@ export default function UniverseView() {
                     <div className={`${styles.busFactor} ${styles[`busFactor${nm.bus_factor_risk.charAt(0).toUpperCase() + nm.bus_factor_risk.slice(1)}`]}`}>
                       <div className={styles.busFactorHeader}>
                         <FiShield size={12} />
-                        <span>Bus Factor: {nm.bus_factor}</span>
-                        <span className={styles.busFactorRisk}>{nm.bus_factor_risk.toUpperCase()}</span>
+                        <span>Resiliencia: {nm.bus_factor} {nm.bus_factor === 1 ? 'pilar clave' : nm.bus_factor <= 2 ? 'núcleo reducido' : nm.bus_factor <= 4 ? 'equilibrado' : 'alta resiliencia'}</span>
+                        <span className={styles.busFactorRisk}>{{ critical: 'PILAR CLAVE', high: 'NÚCLEO', medium: 'EQUILIBRADO', low: 'DISTRIBUIDO' }[nm.bus_factor_risk] || nm.bus_factor_risk.toUpperCase()}</span>
                       </div>
                       {nm.top_contributors && nm.top_contributors.length > 0 && (
                         <div className={styles.busFactorContribs}>
@@ -5139,7 +5625,7 @@ export default function UniverseView() {
                   {/* Orgs entrelazadas */}
                   {orgEntangledOrgs.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Orgs entrelazadas <span className={styles.detailCount}>{orgEntangledOrgs.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Orgs conectadas <span className={styles.detailCount}>{orgEntangledOrgs.length}</span></p>
                       <div className={styles.detailUserList}>
                         {orgEntangledOrgs.slice(0, detailExpanded ? 20 : 8).map(o => (
                           <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
@@ -5400,15 +5886,15 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.12)', color: '#00f7ff' }}>⊛</div>
                   <div>
-                    <h4>Procesadores Cuánticos <span className={styles.helpCardTag}>Organizaciones</span></h4>
-                    <p>Los <strong>anillos rotando</strong> representan organizaciones de GitHub. Como un procesador cuántico real, cada organización contiene y gestiona qubits (repositorios). Sus <em>torus concéntricos</em> giran a diferentes velocidades, simulando los campos magnéticos de un procesador real. El <strong>núcleo central</strong> brilla con la firma cromática de la organización.</p>
+                    <h4>Organizaciones <span className={styles.helpCardTag}>Procesadores Cuánticos</span></h4>
+                    <p>Los <strong>anillos rotando</strong> representan organizaciones de GitHub. Como un procesador cuántico real, cada organización contiene y gestiona repositorios (qubits). Sus <em>torus concéntricos</em> giran a diferentes velocidades, simulando los campos magnéticos de un procesador real. El <strong>núcleo central</strong> brilla con la firma cromática de la organización.</p>
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.12)', color: '#bd00ff' }}>◉</div>
                   <div>
-                    <h4>Qubits <span className={styles.helpCardTag}>Repositorios</span></h4>
+                    <h4>Repositorios <span className={styles.helpCardTag}>Qubits</span></h4>
                     <p>Las <strong>esferas violetas</strong> son repositorios - la unidad de información del ecosistema. El qubit es la unidad de información cuántica; análogamente, cada repositorio almacena el conocimiento del proyecto. Las <em>nubes de probabilidad</em> que los rodean representan su campo de influencia, y su tamaño varía según la actividad del repositorio.</p>
                   </div>
                 </div>
@@ -5416,7 +5902,7 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>•</div>
                   <div>
-                    <h4>Partículas Cuánticas <span className={styles.helpCardTag}>Desarrolladores</span></h4>
+                    <h4>Desarrolladores <span className={styles.helpCardTag}>Partículas Cuánticas</span></h4>
                     <p>Los <strong>puntos verdes</strong> son desarrolladores que <em>orbitan</em> los repositorios a los que contribuyen, como electrones orbitando un átomo. Su posición orbital no es fija - vibran constantemente (principio de incertidumbre de Heisenberg). El radio orbital refleja su nivel de actividad en el repositorio.</p>
                   </div>
                 </div>
@@ -5424,7 +5910,7 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⚛</div>
                   <div>
-                    <h4>Partículas Entrelazadas <span className={styles.helpCardTag}>Bridge Users</span></h4>
+                    <h4>Bridge Users <span className={styles.helpCardTag}>Partículas Entrelazadas</span></h4>
                     <p>Los <strong>puntos dorados</strong> que destellan simultáneamente son <em>bridge users</em> - desarrolladores que trabajan en repositorios de <strong>múltiples organizaciones</strong>. Su destello sincronizado visualiza el entrelazamiento cuántico: correlación instantánea sin importar la distancia. Son las entidades más valiosas del ecosistema porque transfieren conocimiento entre organizaciones.</p>
                   </div>
                 </div>
@@ -5433,7 +5919,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,212,228,0.12)', color: '#00d4e4' }}>∿</div>
                   <div>
                     <h4>Canales de Entrelazamiento <span className={styles.helpCardTag}>Colaboraciones</span></h4>
-                    <p>Las <strong>ondas sinuosas</strong> entre entidades representan relaciones de colaboración directa. Como canales cuánticos que transmiten qubits entre procesadores, estas líneas ondulantes visualizan cómo los desarrolladores conectan repositorios y organizaciones entre sí. La <em>intensidad del color</em> y la <em>amplitud de la onda</em> reflejan la fuerza de la conexión.</p>
+                    <p>Las <strong>ondas sinuosas</strong> entre entidades representan relaciones de colaboración directa. Como canales cuánticos que transmiten información entre organizaciones, estas líneas ondulantes visualizan cómo los desarrolladores conectan repositorios y organizaciones entre sí. La <em>intensidad del color</em> y la <em>amplitud de la onda</em> reflejan la fuerza de la conexión.</p>
                   </div>
                 </div>
               </div>
@@ -5458,7 +5944,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,255,200,0.12)', color: '#ffffaa' }}>✦</div>
                   <div>
                     <h4>Quantum Genesis</h4>
-                    <p>El <strong>destello blanco inicial</strong> simula el Big Bang que da origen al universo cuántico. Al entrar en la visualización, todas las entidades nacen desde un punto singular y se expanden siguiendo una animación cinética que distribuye procesadores, qubits y partículas a sus posiciones finales. La opacidad y escala aumentan <em>progresivamente</em> (entanglement phase).</p>
+                    <p>El <strong>destello blanco inicial</strong> simula el Big Bang que da origen al universo cuántico. Al entrar en la visualización, todas las entidades nacen desde un punto singular y se expanden siguiendo una animación cinética que distribuye organizaciones, repositorios y usuarios a sus posiciones finales. La opacidad y escala aumentan <em>progresivamente</em> (entanglement phase).</p>
                   </div>
                 </div>
 
@@ -5466,7 +5952,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.1)', color: '#dd88ff' }}>☁</div>
                   <div>
                     <h4>Nubes de Probabilidad</h4>
-                    <p>Los <strong>halos difusos</strong> alrededor de cada qubit (repositorio) son sus <em>nubes de probabilidad</em>. En mecánica cuántica, la posición de un electrón no es un punto fijo sino una distribución de probabilidad. Las partículas de la nube orbitan con velocidades aleatorias, pulsando con un brillo tenue que refleja la superposición de estados del qubit.</p>
+                    <p>Los <strong>halos difusos</strong> alrededor de cada repositorio (qubit) son sus <em>nubes de probabilidad</em>. En mecánica cuántica, la posición de un electrón no es un punto fijo sino una distribución de probabilidad. Las partículas de la nube orbitan con velocidades aleatorias, pulsando con un brillo tenue que refleja la superposición de estados del repositorio.</p>
                   </div>
                 </div>
 
@@ -5474,7 +5960,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.1)', color: '#00f7ff' }}>◎</div>
                   <div>
                     <h4>Anillos de Energía</h4>
-                    <p>Los <strong>anillos brillantes</strong> alrededor de los procesadores (organizaciones) representan sus <em>niveles de energía</em>. Como un átomo con sus capas electrónicas, cada organización emite anillos que reflejan su nivel de actividad. Los colores heredan la firma cromática de la organización, y los anillos pulsan sutilmente con el ritmo del ecosistema.</p>
+                    <p>Los <strong>anillos brillantes</strong> alrededor de las organizaciones (procesadores) representan sus <em>niveles de energía</em>. Como un átomo con sus capas electrónicas, cada organización emite anillos que reflejan su nivel de actividad. Los colores heredan la firma cromática de la organización, y los anillos pulsan sutilmente con el ritmo del ecosistema.</p>
                   </div>
                 </div>
 
@@ -5490,7 +5976,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,200,255,0.1)', color: '#00c8ff' }}>○</div>
                   <div>
                     <h4>Ondas de Decoherencia</h4>
-                    <p>Los <strong>anillos expansivos</strong> que emanan periódicamente de los procesadores simulan la <em>decoherencia cuántica</em> - el proceso por el que un sistema cuántico pierde su coherencia al interactuar con el entorno. Las ondas se expanden y desvanecen, representando cómo la información cuántica se disipa al exterior del sistema.</p>
+                    <p>Los <strong>anillos expansivos</strong> que emanan periódicamente de las organizaciones simulan la <em>decoherencia cuántica</em> - el proceso por el que un sistema cuántico pierde su coherencia al interactuar con el entorno. Las ondas se expanden y desvanecen, representando cómo la información cuántica se disipa al exterior del sistema.</p>
                   </div>
                 </div>
 
@@ -5498,7 +5984,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,100,100,0.1)', color: '#ff8888' }}>❋</div>
                   <div>
                     <h4>Radiación de Hawking</h4>
-                    <p>Las <strong>micropartículas</strong> que emanan constantemente de cada procesador simulan la <em>radiación de Hawking</em> - la emisión térmica predicha por Stephen Hawking para los agujeros negros. Las partículas nacen cerca del procesador y se alejan lentamente, desapareciendo al salir de su campo gravitatorio. Representan la actividad constante del ecosistema.</p>
+                    <p>Las <strong>micropartículas</strong> que emanan constantemente de cada organización simulan la <em>radiación de Hawking</em> - la emisión térmica predicha por Stephen Hawking para los agujeros negros. Las partículas nacen cerca de la organización y se alejan lentamente, desapareciendo al salir de su campo gravitatorio. Representan la actividad constante del ecosistema.</p>
                   </div>
                 </div>
 
@@ -5546,8 +6032,8 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}>⚠</div>
                   <div>
-                    <h4>Bus Factor</h4>
-                    <p>El <strong>Bus Factor</strong> mide el <em>riesgo de concentración de conocimiento</em>: ¿cuántas personas tendrían que desaparecer para que un proyecto quede sin mantenimiento? Un bus factor de 1 (crítico, rojo) significa que una sola persona controla todo el conocimiento. Se muestra con barras de contribución por usuario y clasificación de riesgo: <span style={{color:'#ff3333'}}>crítico</span>, <span style={{color:'#ff8800'}}>alto</span>, <span style={{color:'#ffdd00'}}>medio</span>, <span style={{color:'#00ff88'}}>bajo</span>.</p>
+                    <h4>Resiliencia</h4>
+                    <p>La <strong>Resiliencia</strong> mide <em>cuántos contribuidores clave sostienen un proyecto</em>. Un valor de 1 indica un <span style={{color:'#ff6b6b'}}>pilar clave</span>: un contribuidor esencial que mantiene vivo el proyecto. Con 2 se forma un <span style={{color:'#ff8800'}}>núcleo reducido</span>, con 3-4 el conocimiento está <span style={{color:'#ffdd00'}}>equilibrado</span>, y con 5+ hay <span style={{color:'#00ff88'}}>alta resiliencia</span>. Se muestra con barras de contribución por usuario. Los pilares clave son valiosos — diversificar contribuidores aumentaría la resiliencia del proyecto.</p>
                   </div>
                 </div>
 
@@ -5603,7 +6089,7 @@ export default function UniverseView() {
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,150,0.12)', color: '#00ff96' }}>♥</div>
                   <div>
                     <h4>Salud del Proyecto</h4>
-                    <p>El <strong>gauge de salud</strong> (arco semicircular) muestra un score compuesto de 0-100 que evalúa la sostenibilidad del proyecto. Combina métricas de: <em>diversidad de contribuidores</em>, <em>actividad reciente</em>, <em>distribución de commits</em> y <em>bus factor</em>. A mayor puntaje, más resiliente es el proyecto ante la pérdida de contribuidores clave.</p>
+                    <p>El <strong>gauge de salud</strong> (arco semicircular) muestra un score compuesto de 0-100 que evalúa la sostenibilidad del proyecto. Combina métricas de: <em>diversidad de contribuidores</em>, <em>actividad reciente</em>, <em>distribución de commits</em> y <em>resiliencia</em>. A mayor puntaje, más resiliente es el proyecto ante la pérdida de contribuidores clave.</p>
                   </div>
                 </div>
 
@@ -5629,6 +6115,9 @@ export default function UniverseView() {
                   <div>
                     <h4>Lente de Comunidades</h4>
                     <p>Colorea cada entidad según la <strong>comunidad</strong> a la que pertenece (algoritmo Louvain/modularity). Las entidades del mismo color forman clusters de trabajo estrecho. Permite identificar <em>silos organizacionales</em>, equipos que trabajan aislados, y los <em>bridge users</em> que los conectan. Las fronteras zonales se habilitan automáticamente para delimitar cada comunidad en el espacio 3D.</p>
+                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(108,92,231,0.08)', borderRadius: 8, borderLeft: '3px solid #6c5ce7', fontSize: '11.5px', lineHeight: 1.5 }}>
+                      <strong style={{ color: '#a29bfe' }}>✦ Transición multi-org:</strong> los usuarios que contribuyen a <strong>más de una organización</strong> transicionan suavemente entre los colores de comunidad de cada org a la que pertenecen. El ritmo de transición varía aleatoriamente por usuario para dar una sensación orgánica, observa cómo sus partículas <em>parpadean</em> entre colores revelando visualmente los puentes humanos entre comunidades.
+                    </p>
                   </div>
                 </div>
 
@@ -5643,8 +6132,8 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}><FiShield size={18} /></div>
                   <div>
-                    <h4>Lente de Bus Factor</h4>
-                    <p>Colorea los <strong>repositorios</strong> según su riesgo de bus factor (cuántas personas hacen falta para cubrir el 50% del trabajo). <span style={{color:'#ff3333'}}>Rojo intenso</span> = crítico (1 persona), <span style={{color:'#ff8800'}}>naranja</span> = alto (2), <span style={{color:'#ffdd00'}}>amarillo</span> = medio (3-4), <span style={{color:'#00ff88'}}>verde</span> = bajo (5+). Organizaciones y usuarios se atenúan para que los repos destaquen. Los repos más grandes y brillantes tienen mayor riesgo.</p>
+                    <h4>Lente de Resiliencia</h4>
+                    <p>Colorea los <strong>repositorios</strong> según su distribución de contribuidores clave. <span style={{color:'#ff3333'}}>Rojo</span> = pilar clave (1 contribuidor principal), <span style={{color:'#ff8800'}}>naranja</span> = núcleo reducido (2), <span style={{color:'#ffdd00'}}>amarillo</span> = equilibrado (3-4), <span style={{color:'#00ff88'}}>verde</span> = alta resiliencia (5+). Organizaciones y usuarios se atenúan para que los repos destaquen. Los repos más destacados tienen contribuidores esenciales que los sostienen.</p>
                   </div>
                 </div>
 
@@ -5678,7 +6167,7 @@ export default function UniverseView() {
                     <div className={styles.helpControlKey}>Click</div>
                     <div>
                       <strong>Colapso de Función de Onda</strong>
-                      <p>Al hacer click en una entidad, "colapsa su función de onda" revelando toda su información: radar de colaboración, estadísticas, métricas de red, bus factor, ADN, y más. La cámara se acerca suavemente a la entidad seleccionada.</p>
+                      <p>Al hacer click en una entidad, "colapsa su función de onda" revelando toda su información: radar de colaboración, estadísticas, métricas de red, resiliencia, ADN, y más. La cámara se acerca suavemente a la entidad seleccionada.</p>
                     </div>
                   </div>
 

@@ -803,10 +803,29 @@
   margin-top: var(--spacing-sm);
   opacity: 0.7;
   font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .chartHint::before {
   content: '💡 ';
+}
+
+.kbdKey {
+  display: inline-block;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  font-style: normal;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.4;
+  vertical-align: middle;
 }
 
 /* === ENHANCED TOOLTIP STYLES === */
@@ -2008,6 +2027,15 @@
   font-weight: 400;
   color: #6b7280;
   margin-left: 4px;
+}
+
+.comparisonSharedHint {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: #6b7280;
+  font-style: italic;
+  margin-top: 1px;
 }
 
 /* Overlay fullscreen (como entityDetailOverlay) */

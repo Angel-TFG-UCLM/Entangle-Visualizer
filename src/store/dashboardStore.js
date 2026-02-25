@@ -23,6 +23,9 @@ import { devtools } from 'zustand/middleware'
 import { shallow } from 'zustand/shallow'
 import { organizations, users, repositories } from '../data/mockData'
 
+// AbortController para prevenir condiciones de carrera en filtros concurrentes
+let filterAbortController = null
+
 /**
  * Estado inicial del dashboard
  * Representa "sin filtros aplicados" - vista global con datos mock
@@ -134,7 +137,7 @@ export const useDashboardStore = create(
           // Usamos los datos de graph como "data" para que los componentes funcionen
           const legacyData = {
             organizations: stats.graph?.organizations || (Array.isArray(stats.charts?.organizations) ? stats.charts.organizations : []),
-            users: normalizeUserOrgs(stats.graph?.users || stats.charts?.users || []),
+            users: normalizeUserOrgs(stats.graph?.users || (Array.isArray(stats.charts?.users) ? stats.charts.users : stats.charts?.users?.byContributions) || []),
             repositories: stats.graph?.repositories || stats.charts?.repositories || [],
           }
           
@@ -266,6 +269,13 @@ export const useDashboardStore = create(
         // Recargar datos del backend con los nuevos filtros
         const hasFilters = newOrg || newLanguage || newRepo
         
+        // Cancelar cualquier petición de filtro anterior en vuelo
+        if (filterAbortController) {
+          filterAbortController.abort()
+        }
+        filterAbortController = new AbortController()
+        const currentController = filterAbortController
+        
         if (hasFilters) {
           // Con filtros: llamar al backend para datos filtrados
           // Usamos isFiltering para mostrar overlay sin resetear animaciones
@@ -278,8 +288,18 @@ export const useDashboardStore = create(
               repo: newRepo
             })
             
-            // Normalizar users en charts
+            // Verificar que esta petición no fue cancelada por una más reciente
+            if (currentController.signal.aborted) return
+            
+            // Normalizar users en charts (soporta dict {byContributions, byRepos} y arrays)
             const normalizeUserOrgs = (users) => {
+              if (users && typeof users === 'object' && !Array.isArray(users)) {
+                const result = {}
+                for (const [k, v] of Object.entries(users)) {
+                  result[k] = normalizeUserOrgs(v)
+                }
+                return result
+              }
               if (!Array.isArray(users)) return []
               return users.map(user => ({
                 ...user,
@@ -293,7 +313,7 @@ export const useDashboardStore = create(
             set({
               charts: {
                 ...stats.charts,
-                users: normalizeUserOrgs(stats.charts?.users || [])
+                users: normalizeUserOrgs(stats.charts?.users)
               },
               kpis: stats.kpis,
               isFiltering: false,
@@ -301,6 +321,7 @@ export const useDashboardStore = create(
             
             console.log(`🔍 Datos filtrados cargados: org=${newOrg}, language=${newLanguage}, repo=${newRepo}`)
           } catch (error) {
+            if (currentController.signal.aborted) return
             console.warn('Error cargando datos filtrados:', error)
             set({ isFiltering: false }, false, 'setFilter/error')
           }
@@ -311,7 +332,17 @@ export const useDashboardStore = create(
             const { getDashboardStats } = await import('../services/api')
             const stats = await getDashboardStats(false)
             
+            // Verificar que esta petición no fue cancelada
+            if (currentController.signal.aborted) return
+            
             const normalizeUserOrgs = (users) => {
+              if (users && typeof users === 'object' && !Array.isArray(users)) {
+                const result = {}
+                for (const [k, v] of Object.entries(users)) {
+                  result[k] = normalizeUserOrgs(v)
+                }
+                return result
+              }
               if (!Array.isArray(users)) return []
               return users.map(user => ({
                 ...user,
@@ -324,7 +355,7 @@ export const useDashboardStore = create(
             set({
               charts: {
                 ...stats.charts,
-                users: normalizeUserOrgs(stats.charts?.users || [])
+                users: normalizeUserOrgs(stats.charts?.users)
               },
               kpis: stats.kpis,
               isFiltering: false,
@@ -332,6 +363,7 @@ export const useDashboardStore = create(
             
             console.log('🔍 Filtros limpiados, datos base restaurados')
           } catch (error) {
+            if (currentController.signal.aborted) return
             console.warn('Error restaurando datos base:', error)
             set({ isFiltering: false }, false, 'setFilter/restoreError')
           }
@@ -368,6 +400,13 @@ export const useDashboardStore = create(
           const stats = await getDashboardStats(false)
           
           const normalizeUserOrgs = (users) => {
+            if (users && typeof users === 'object' && !Array.isArray(users)) {
+              const result = {}
+              for (const [k, v] of Object.entries(users)) {
+                result[k] = normalizeUserOrgs(v)
+              }
+              return result
+            }
             if (!Array.isArray(users)) return []
             return users.map(user => ({
               ...user,
@@ -380,7 +419,7 @@ export const useDashboardStore = create(
           set({
             charts: {
               ...stats.charts,
-              users: normalizeUserOrgs(stats.charts?.users || [])
+              users: normalizeUserOrgs(stats.charts?.users)
             },
             kpis: stats.kpis,
             isFiltering: false,

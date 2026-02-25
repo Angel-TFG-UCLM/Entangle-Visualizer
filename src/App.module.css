@@ -317,6 +317,73 @@
   }
 }
 
+/* === BLOCK UI - Bloqueo durante operaciones pesadas === */
+.blockUI {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 14, 20, 0.82);
+  backdrop-filter: blur(6px);
+  animation: blockUIFadeIn 0.25s ease-out;
+  cursor: none;
+}
+
+/* Scanlines CRT - mismo efecto que loading screen */
+.blockUI::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 212, 228, 0.01) 2px,
+    rgba(0, 212, 228, 0.01) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+  animation: scanlineScroll 8s linear infinite;
+}
+
+.blockUIContent {
+  text-align: center;
+  position: relative;
+  z-index: 2;
+  animation: blockUIPulse 2s ease-in-out infinite;
+}
+
+.blockUISpinner {
+  animation: atomFadeIn 0.4s ease-out;
+  margin-bottom: var(--spacing-md);
+}
+
+.blockUIText {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: rgba(0, 212, 228, 0.7);
+  letter-spacing: 0.08em;
+  margin: 0;
+  animation: blockUITextPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes blockUIFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes blockUIPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes blockUITextPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);

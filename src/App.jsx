@@ -70,6 +70,7 @@ function App() {
   const activeViewId = useFavoritesStore(s => s.activeViewId)
   const activeViewData = useFavoritesStore(s => s.activeViewData)
   const favoritesCount = useFavoritesStore(s => s.favorites.length)
+  const isLoadingViewData = useFavoritesStore(s => s.isLoadingViewData)
 
   // Dev features
   const devFeatures = useDevStore(s => s.features)
@@ -559,6 +560,42 @@ function App() {
         }>
           <UniverseView />
         </Suspense>
+      )}
+
+      {/* BLOCK UI - Bloqueo durante cambio de vista */}
+      {isLoadingViewData && (
+        <div className={styles.blockUI}>
+          <div className={styles.blockUIContent}>
+            <svg
+              className={styles.blockUISpinner}
+              viewBox="0 0 120 120" width="60" height="60"
+            >
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 212, 228, 0.3)" strokeWidth="1.5" className={styles.atomOrbit1} />
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(157, 111, 219, 0.3)" strokeWidth="1.5" className={styles.atomOrbit2} />
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 255, 159, 0.25)" strokeWidth="1.5" className={styles.atomOrbit3} />
+              <circle r="4" fill="#00D4E4" filter="url(#blockGlow)">
+                <animateMotion dur="2s" repeatCount="indefinite" path="M 110,60 A 50,18 0 1,1 10,60 A 50,18 0 1,1 110,60" />
+              </circle>
+              <circle r="3.5" fill="#9D6FDB" filter="url(#blockGlow)">
+                <animateMotion dur="2.6s" repeatCount="indefinite" path="M 95,82.7 A 50,18 60 1,1 25,37.3 A 50,18 60 1,1 95,82.7" />
+              </circle>
+              <circle r="3" fill="#00ff9f" filter="url(#blockGlow)">
+                <animateMotion dur="3.2s" repeatCount="indefinite" path="M 25,82.7 A 50,18 120 1,1 95,37.3 A 50,18 120 1,1 25,82.7" />
+              </circle>
+              <circle cx="60" cy="60" r="6" fill="rgba(0, 212, 228, 0.5)" className={styles.atomCore} />
+              <circle cx="60" cy="60" r="3" fill="rgba(255, 255, 255, 0.7)" />
+              <defs>
+                <filter id="blockGlow" x="-200%" y="-200%" width="500%" height="500%">
+                  <feGaussianBlur stdDeviation="4" result="g" />
+                  <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+            </svg>
+            <p className={styles.blockUIText}>
+              Cargando vista personalizada...
+            </p>
+          </div>
+        </div>
       )}
 
       {/* DEV MENU */}

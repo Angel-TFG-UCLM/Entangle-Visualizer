@@ -27,6 +27,66 @@ import { organizations, users, repositories } from '../data/mockData'
 let filterAbortController = null
 
 /**
+ * Calcula el Set de node IDs visibles para un rango temporal dado.
+ * Replica la lógica del backend (bridge users, connected repos) client-side.
+ * @param {Array} nodes - graph.nodes del discover response
+ * @param {Array} links - graph.links del discover response
+ * @param {number|null} yearFrom - año mínimo (inclusive)
+ * @param {number|null} yearTo - año máximo (inclusive), puede ser decimal para visibilidad fraccional
+ * @returns {Map<string,number>|null} Map de node ID → visibilidad (0.0-1.0), o null si no hay filtro
+ */
+export function computeTemporalVisibility(nodes, links, yearFrom, yearTo) {
+  if (!nodes || !links || nodes.length === 0) return null
+  if (yearFrom == null && yearTo == null) return null
+
+  const yearToFloor = yearTo != null ? Math.floor(yearTo) : null
+  const yearFrac = yearTo != null ? yearTo - yearToFloor : 0 // fracción dentro del año
+
+  const visible = new Map()
+
+  // 1. Repos: visibilidad según pushed_at_year vs rango temporal
+  //    - year <= yearToFloor → 1.0 (completamente visible)
+  //    - year === yearToFloor + 1 → fracción (aparición progresiva)
+  //    - year > yearToFloor + 1 → 0 (oculto)
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]
+    if (n.type !== 'repo') continue
+    const y = n.pushed_at_year
+    if (y == null) continue
+    if (yearFrom != null && y < yearFrom) continue
+    let v = 0
+    if (yearToFloor == null || y <= yearToFloor) {
+      v = 1.0
+    } else if (y === yearToFloor + 1 && yearFrac > 0) {
+      v = yearFrac // slider entre años → aparición gradual
+    }
+    if (v > 0) visible.set(n.id, v)
+  }
+
+  // 2. Users: visibilidad = max de sus repos visibles (vía links contributed_to)
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i]
+    if (link.type !== 'contributed_to') continue
+    const rv = visible.get(link.target) // visibilidad del repo
+    if (rv == null) continue
+    const prev = visible.get(link.source) ?? 0
+    if (rv > prev) visible.set(link.source, rv)
+  }
+
+  // 3. Orgs: visibilidad = max de sus repos visibles (vía links owns)
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i]
+    if (link.type !== 'owns') continue
+    const rv = visible.get(link.target) // visibilidad del repo
+    if (rv == null) continue
+    const prev = visible.get(link.source) ?? 0
+    if (rv > prev) visible.set(link.source, rv)
+  }
+
+  return visible
+}
+
+/**
  * Estado inicial del dashboard
  * Representa "sin filtros aplicados" - vista global con datos mock
  */
@@ -49,6 +109,12 @@ const initialState = {
   collaborationDiscovery: null,    // Resultado completo del discover endpoint
   showCollaborationGraph: false,   // bool - si mostrar la vista fullscreen del grafo
   isDiscovering: false,            // Estado de carga del discovery
+  
+  // === FILTRO TEMPORAL ===
+  temporalFilter: null,            // null | { yearFrom: number, yearTo: number }
+  temporalRange: null,             // { min, max } rango de años disponibles en los datos
+  sliderYear: null,                // number | null - posición actual del slider temporal
+  activeNodeIds: null,             // Set | null - IDs de nodos visibles (null = todos)
   
   // Datos legacy (mockData para fallback offline)
   data: {
@@ -576,18 +642,26 @@ export const useDashboardStore = create(
        * 
        * Si encuentra colaboración real, establece collaborationAvailable = true
        * y el banner aparecerá en la UI invitando al usuario a explorar el grafo.
+       * 
+       * @param {boolean} forceRefresh - Forzar recálculo
+       * @param {Object|null} temporalFilter - { yearFrom, yearTo } o null
        */
-      discoverCollaboration: async (forceRefresh = false) => {
+      discoverCollaboration: async (forceRefresh = false, temporalFilter = null) => {
         set({ isDiscovering: true }, false, 'discoverCollaboration/start')
         
         try {
           const { discoverCollaboration } = await import('../services/api')
-          const result = await discoverCollaboration(forceRefresh)
+          const result = await discoverCollaboration(forceRefresh, temporalFilter)
           
+          const tRange = result.temporal_range || null
           set({
             collaborationAvailable: result.available,
             collaborationDiscovery: result,
             isDiscovering: false,
+            temporalFilter: temporalFilter,
+            temporalRange: tRange,
+            sliderYear: tRange?.max || null,
+            activeNodeIds: null, // sin filtro temporal al cargar
           }, false, 'discoverCollaboration/success')
           
           if (result.available) {
@@ -622,6 +696,68 @@ export const useDashboardStore = create(
         set({ showCollaborationGraph: false }, false, 'closeCollaborationGraph')
       },
 
+      /**
+       * Aplica un filtro temporal calcúlando visibilidad client-side (instantáneo).
+       * @param {Object|null} filter - { yearFrom: number, yearTo: number } o null para quitar filtro
+       */
+      applyTemporalFilter: (filter) => {
+        const state = get()
+        const prev = state.temporalFilter
+        if (JSON.stringify(prev) === JSON.stringify(filter)) return
+
+        if (!filter) {
+          // Quitar filtro → mostrar todo
+          set({
+            temporalFilter: null,
+            sliderYear: state.temporalRange?.max || null,
+            activeNodeIds: null,
+          }, false, 'applyTemporalFilter/clear')
+          return
+        }
+
+        const nodes = state.collaborationDiscovery?.graph?.nodes
+        const links = state.collaborationDiscovery?.graph?.links
+        if (!nodes || !links) return
+
+        const activeNodeIds = computeTemporalVisibility(nodes, links, filter.yearFrom, filter.yearTo)
+        set({
+          temporalFilter: filter,
+          sliderYear: filter.yearTo || state.temporalRange?.max || null,
+          activeNodeIds,
+        }, false, 'applyTemporalFilter')
+      },
+
+      /**
+       * Establece el año del slider temporal (solo para settings panel y reset).
+       * @param {number|null} year - año entero, o null para reset
+       */
+      setSliderYear: (year) => {
+        const state = get()
+        const range = state.temporalRange
+        if (!range) return
+
+        if (year == null || year >= range.max) {
+          set({
+            sliderYear: range.max,
+            temporalFilter: null,
+            activeNodeIds: null,
+          }, false, 'setSliderYear/max')
+          return
+        }
+
+        const intYear = Math.floor(year)
+        const nodes = state.collaborationDiscovery?.graph?.nodes
+        const links = state.collaborationDiscovery?.graph?.links
+        if (!nodes || !links) return
+
+        const activeNodeIds = computeTemporalVisibility(nodes, links, range.min, intYear)
+        set({
+          sliderYear: intYear,
+          temporalFilter: { yearFrom: range.min, yearTo: intYear },
+          activeNodeIds,
+        }, false, 'setSliderYear')
+      },
+
       // ============================================================================
       // ANÁLISIS DE RED & LENTES ANALÍTICAS
       // ============================================================================
@@ -640,14 +776,15 @@ export const useDashboardStore = create(
       /**
        * Carga métricas de red completas (centralidad, comunidades, bus factor, etc.)
        * @param {boolean} forceRefresh - Forzar recálculo del backend
+       * @param {Object|null} temporalFilter - { yearFrom, yearTo } o null
        */
-      loadNetworkMetrics: async (forceRefresh = false) => {
+      loadNetworkMetrics: async (forceRefresh = false, temporalFilter = null) => {
         if (get().isLoadingMetrics) return
         set({ isLoadingMetrics: true, metricsError: null, metricsLoadAttempted: true }, false, 'loadNetworkMetrics/start')
         
         try {
           const { getNetworkMetrics } = await import('../services/api')
-          const metrics = await getNetworkMetrics(forceRefresh)
+          const metrics = await getNetworkMetrics(forceRefresh, temporalFilter)
           set({ 
             networkMetrics: metrics, 
             isLoadingMetrics: false 

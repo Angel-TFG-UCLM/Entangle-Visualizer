@@ -8,6 +8,27 @@
  */
 
 // ============================================================================
+// SIBLING ORG DETECTION — duplicate for worker (no shared scope)
+// ============================================================================
+function _areSiblingOrgs(loginA, loginB) {
+  if (!loginA || !loginB) return false
+  const la = loginA.toLowerCase(), lb = loginB.toLowerCase()
+  if (la === lb) return true
+  // PRONG 1 — Token-based: first token match (≥4 chars), one must be single-token
+  const ta = la.split(/[-_.\s]+/).filter(Boolean)
+  const tb = lb.split(/[-_.\s]+/).filter(Boolean)
+  if (ta.length && tb.length && ta[0].length >= 4 && ta[0] === tb[0]) {
+    if (ta.length === 1 || tb.length === 1) return true
+  }
+  // PRONG 2 — Prefix-based: shorter normalised prefix of longer, ratio ≤ 3
+  const a = la.replace(/[-_\s.]+/g, ''), b = lb.replace(/[-_\s.]+/g, '')
+  if (!a || !b) return false
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a]
+  if (s.length >= 4 && l.startsWith(s) && l.length / s.length <= 3.0) return true
+  return false
+}
+
+// ============================================================================
 // JENKS NATURAL BREAKS - clasificación data-driven (Fisher 1958)
 // ============================================================================
 // Misma implementación que computeLayout.worker.js.
@@ -308,22 +329,29 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
           }
         }
       })
+      const selLogin = selectedEntity.login || selectedEntity.name || ''
       orgEntangledOrgs = Array.from(sharedMap.entries())
         .map(([oid, count]) => {
           const org = idx.orgNodeMap.get(oid)
           return org ? { ...org, sharedCount: count } : null
         })
-        .filter(Boolean)
+        .filter(o => o && !_areSiblingOrgs(selLogin, o.login || o.name || ''))
         .sort((a, b) => b.sharedCount - a.sharedCount)
 
       // Cross-pollination: % de contributors que también contribuyen a otras orgs
+      // Excluye orgs hermanas (misma entidad organizacional)
       if (orgAllUsers.size > 0) {
+        const selLogin2 = selectedEntity.login || selectedEntity.name || ''
         let crossCount = 0
         orgAllUsers.forEach((user) => {
           const uRepos = idx.userToRepos.get(user.id) || []
           for (const rid of uRepos) {
             const oid = idx.repoToOrg[rid]
-            if (oid && oid !== selectedEntity.id) { crossCount++; break }
+            if (oid && oid !== selectedEntity.id) {
+              const extOrg = idx.orgNodeMap.get(oid)
+              const extLogin = extOrg ? (extOrg.login || extOrg.name || '') : ''
+              if (!_areSiblingOrgs(selLogin2, extLogin)) { crossCount++; break }
+            }
           }
         })
         orgCrossPollination = ((crossCount / orgAllUsers.size) * 100).toFixed(0)

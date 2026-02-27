@@ -155,6 +155,14 @@ code {
   color: var(--color-neon);
 }
 
+/* === Clase para ocultar scrollbar sin layout shift (usado por UniverseView) === */
+html.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+}
+html.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Edge/Safari */
+}
+
 /* === SCROLLBAR CUÁNTICO (Webkit) === */
 ::-webkit-scrollbar {
   width: 10px;

@@ -20,9 +20,9 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import { useDashboardStore } from '../../store/dashboardStore'
+import { useDashboardStore, computeTemporalVisibility } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
-import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink } from 'react-icons/fi'
+import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink, FiCalendar, FiPlay } from 'react-icons/fi'
 import BlackHoleExit from './BlackHoleExit'
 import BigBangEntry from './BigBangEntry'
 import styles from './UniverseView.module.css'
@@ -613,12 +613,13 @@ function QuantumVacuum({ progressRef, progressKey }) {
 // PROCESADORES CUÁNTICOS (Orgs) - InstancedMesh: 4 draw calls en vez de 2800
 // ============================================================================
 
-function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
+function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, activeNodeIdsRef }) {
   const torus1Ref = useRef()
   const torus2Ref = useRef()
   const coreRef = useRef()
   const hitRef = useRef()
   const n = orgNodes.length
+  const visRef = useRef(null)
 
   const torusGeo = useMemo(() => new THREE.TorusGeometry(2.8, 0.25, 12, 48), [])
   const torusGeo2 = useMemo(() => new THREE.TorusGeometry(4, 0.12, 8, 48), [])
@@ -659,6 +660,19 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
     }
     const blend = orgLensBlend.current
 
+    // === Temporal visibility lerp ===
+    if (!visRef.current || visRef.current.length !== n) {
+      visRef.current = new Float32Array(n)
+      const initIds = activeNodeIdsRef?.current
+      for (let vi = 0; vi < n; vi++) visRef.current[vi] = !initIds ? 1 : (initIds.get(orgNodes[vi]?.id) ?? 0)
+    }
+    const activeIds = activeNodeIdsRef?.current
+    for (let vi = 0; vi < n; vi++) {
+      const vTarget = !activeIds ? 1 : (activeIds.get(orgNodes[vi]?.id) ?? 0)
+      visRef.current[vi] += (vTarget - visRef.current[vi]) * 0.015
+      if (Math.abs(vTarget - visRef.current[vi]) < 0.005) visRef.current[vi] = vTarget
+    }
+
     for (let i = 0; i < n; i++) {
       const pos = positions[orgNodes[i].id]
       if (!pos) continue
@@ -672,7 +686,8 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
         ? 0.5 + ((ld.r + ld.g + ld.b) / 3) * 0.8
         : 1.0
       const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
-      const scale = (isHighlighted ? localP * 1.25 : localP) * appliedLensScale
+      const vis = visRef.current[i]
+      const scale = (isHighlighted ? localP * 1.25 : localP) * appliedLensScale * (vis < 0.001 ? 0 : 1)
       const speed = 0.3 + i * 0.05
 
       // Torus 1 - rotación X,Y
@@ -698,13 +713,14 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
       // Color con dimming via brillo (instanceColor × material.color = color final)
       const dim = hasSel && !isHighlighted ? 0.02 : 1
       const boost = hasSel && isHighlighted ? 1.6 : 1
+      const visFade = vis * vis  // quadratic for smoother perceptual fade
       if (ld && blend > 0.01) {
         orgTargetColor.setRGB(ld.r, ld.g, ld.b)
         tmpColor.copy(orgBaseColor).lerp(orgTargetColor, blend)
       } else {
         tmpColor.copy(orgBaseColor)
       }
-      const factor = dim * boost
+      const factor = dim * boost * visFade
       tmpColor2.copy(tmpColor).multiplyScalar(2 * factor)
       torus1Ref.current.setColorAt(i, tmpColor2)
       tmpColor2.copy(tmpColor).multiplyScalar(1.2 * factor)
@@ -730,9 +746,9 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
       <instancedMesh ref={torus2Ref} args={[torusGeo2, t2Mat, n]} frustumCulled={false} />
       <instancedMesh ref={coreRef} args={[coreGeo, coreMat, n]} frustumCulled={false} />
       <instancedMesh ref={hitRef} args={[hitGeo, hitMat, n]} frustumCulled={false}
-        onPointerOver={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i]) onHover(orgNodes[i], positions[orgNodes[i].id]) }}
+        onPointerOver={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i] && (!visRef.current || visRef.current[i] > 0.01)) onHover(orgNodes[i], positions[orgNodes[i].id]) }}
         onPointerOut={(e) => { e.stopPropagation(); onHover(null, null) }}
-        onClick={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i]) onClick(orgNodes[i], positions[orgNodes[i].id]) }}
+        onClick={(e) => { e.stopPropagation(); const i = e.instanceId; if (i != null && orgNodes[i] && (!visRef.current || visRef.current[i] > 0.01)) onClick(orgNodes[i], positions[orgNodes[i].id]) }}
       />
     </>
   )
@@ -747,9 +763,13 @@ const CLOUD_VERTEX = `
   attribute float aTheta;
   attribute float aPhi;
   attribute float aSpeed;
+  attribute float aVisible;
   uniform float uTime;
   uniform float uProgress;
+  varying float vVisible;
   void main() {
+    vVisible = aVisible;
+    if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
     float theta = aTheta + uTime * aSpeed;
     float phi = aPhi + uTime * 0.15;
     float r = aRadius * uProgress;
@@ -766,16 +786,19 @@ const CLOUD_VERTEX = `
 const CLOUD_FRAGMENT = `
   uniform vec3 uColor;
   uniform float uOpacity;
+  varying float vVisible;
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0;
     if (d > 1.0) discard;
-    gl_FragColor = vec4(uColor, uOpacity * (1.0 - d * d));
+    float visFade = vVisible * vVisible;
+    gl_FragColor = vec4(uColor * visFade, uOpacity * (1.0 - d * d) * visFade);
   }
 `
 
-function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dimmed }) {
+function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dimmed, activeNodeIdsRef }) {
   const ref = useRef()
   const PER_QUBIT = 10
+  const visRef = useRef(null)
 
   const { centerArr, radiusArr, thetaArr, phiArr, speedArr, count } = useMemo(() => {
     const total = repoNodes.length * PER_QUBIT
@@ -801,6 +824,8 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
     return { centerArr: centers, radiusArr: radii, thetaArr: thetas, phiArr: phis, speedArr: speeds, count: total }
   }, [repoNodes, positions])
 
+  const visibleArr = useMemo(() => new Float32Array(count).fill(1), [count])
+
   const shaderMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color('#bd00ff').multiplyScalar(2) },
@@ -821,6 +846,35 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
     shaderMat.uniforms.uTime.value = clock.getElapsedTime() * 0.4
     shaderMat.uniforms.uProgress.value = p
     shaderMat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.5) * p
+
+    // === Temporal visibility per cloud particle ===
+    const geo = ref.current?.geometry
+    if (geo) {
+      const visAttr = geo.attributes.aVisible
+      if (visAttr) {
+        const activeIds = activeNodeIdsRef?.current
+        const n = repoNodes.length
+        if (!visRef.current || visRef.current.length !== n) {
+          visRef.current = new Float32Array(n)
+          const initIds = activeNodeIdsRef?.current
+          for (let ri = 0; ri < n; ri++) visRef.current[ri] = !initIds ? 1 : (initIds.get(repoNodes[ri]?.id) ?? 0)
+        }
+        let changed = false
+        for (let ri = 0; ri < n; ri++) {
+          const vTarget = !activeIds ? 1 : (activeIds.get(repoNodes[ri]?.id) ?? 0)
+          visRef.current[ri] += (vTarget - visRef.current[ri]) * 0.015
+          if (Math.abs(vTarget - visRef.current[ri]) < 0.005) visRef.current[ri] = vTarget
+        }
+        for (let ri = 0; ri < n; ri++) {
+          const v = visRef.current[ri]
+          const base = ri * PER_QUBIT
+          for (let pi = 0; pi < PER_QUBIT; pi++) {
+            if (visAttr.array[base + pi] !== v) { visAttr.array[base + pi] = v; changed = true }
+          }
+        }
+        if (changed) visAttr.needsUpdate = true
+      }
+    }
   })
 
   if (repoNodes.length === 0) return null
@@ -833,6 +887,7 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
         <bufferAttribute attach="attributes-aTheta" array={thetaArr} itemSize={1} count={count} />
         <bufferAttribute attach="attributes-aPhi" array={phiArr} itemSize={1} count={count} />
         <bufferAttribute attach="attributes-aSpeed" array={speedArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aVisible" array={visibleArr} itemSize={1} count={count} />
       </bufferGeometry>
     </points>
   )
@@ -842,10 +897,11 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
 // QUBITS (Repos) - Esferas con ejes de Bloch
 // ============================================================================
 
-function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100 }) {
+function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, activeNodeIdsRef }) {
   const ref = useRef()
   const hitRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
+  const visRef = useRef(null)
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(0.55, 16, 16), [])
   const hitGeo = useMemo(() => new THREE.SphereGeometry(2.5, 6, 6), [])
   const hitMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), [])
@@ -891,6 +947,20 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
       qubitMat.color.copy(baseQubitCol)
     }
 
+    // === Temporal visibility lerp ===
+    const rn = repoNodes.length
+    if (!visRef.current || visRef.current.length !== rn) {
+      visRef.current = new Float32Array(rn)
+      const initIds = activeNodeIdsRef?.current
+      for (let vi = 0; vi < rn; vi++) visRef.current[vi] = !initIds ? 1 : (initIds.get(repoNodes[vi]?.id) ?? 0)
+    }
+    const activeIds = activeNodeIdsRef?.current
+    for (let vi = 0; vi < rn; vi++) {
+      const vTarget = !activeIds ? 1 : (activeIds.get(repoNodes[vi]?.id) ?? 0)
+      visRef.current[vi] += (vTarget - visRef.current[vi]) * 0.015
+      if (Math.abs(vTarget - visRef.current[vi]) < 0.005) visRef.current[vi] = vTarget
+    }
+
     repoNodes.forEach((repo, i) => {
       const pos = positions[repo.id]; if (!pos) return
       const baseScale = Math.min(Math.max((repo.stars || 0) / 800, 0.7), 1.5)
@@ -906,28 +976,33 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
         ? 0.5 + ((ld.r + ld.g + ld.b) / 3) * 1.0
         : 1.0
       const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
+      const vis = visRef.current[i]
+      const visFade = vis * vis  // quadratic for smoother perceptual fade
       dummy.position.copy(pos)
       // Heisenberg uncertainty - micro-vibración cuántica
       dummy.position.x += Math.sin(t * 1.7 + i * 3.14) * 0.04
       dummy.position.y += Math.cos(t * 2.3 + i * 2.71) * 0.04
       dummy.position.z += Math.sin(t * 1.9 + i * 1.62) * 0.04
-      dummy.scale.setScalar(baseScale * localP * selScale * appliedLensScale)
+      dummy.scale.setScalar(baseScale * localP * selScale * appliedLensScale * (vis < 0.001 ? 0 : 1))
       dummy.updateMatrix()
       ref.current.setMatrixAt(i, dummy.matrix)
       if (hitRef.current) {
-        dummy.scale.setScalar(localP > 0.1 ? 1 : 0.001)
+        dummy.scale.setScalar(vis > 0.01 && localP > 0.1 ? 1 : 0.001)
         dummy.updateMatrix()
         hitRef.current.setMatrixAt(i, dummy.matrix)
       }
       // Lens-aware coloring with smooth blend
       if (ld && blend > 0.01) {
-        lensCol.setRGB(ld.r, ld.g, ld.b)
+        lensCol.setRGB(ld.r * visFade, ld.g * visFade, ld.b * visFade)
         // Lerp from base/selection color towards lens color
         const fromCol = hasSel ? (isHighlighted ? boostCol : dimCol) : brightCol
         lensCol.lerp(fromCol, 1.0 - blend)
+        lensCol.multiplyScalar(visFade)
         ref.current.setColorAt(i, lensCol)
       } else {
-        ref.current.setColorAt(i, hasSel ? (isHighlighted ? boostCol : dimCol) : brightCol)
+        const baseCol = hasSel ? (isHighlighted ? boostCol : dimCol) : brightCol
+        lensCol.copy(baseCol).multiplyScalar(visFade)
+        ref.current.setColorAt(i, lensCol)
       }
     })
     ref.current.instanceMatrix.needsUpdate = true
@@ -946,13 +1021,13 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
         onPointerMove={(e) => {
           e.stopPropagation()
           const idx = e.instanceId
-          if (idx !== undefined && repoNodes[idx]) onHover(repoNodes[idx], positions[repoNodes[idx].id])
+          if (idx !== undefined && repoNodes[idx] && (!visRef.current || visRef.current[idx] > 0.01)) onHover(repoNodes[idx], positions[repoNodes[idx].id])
         }}
         onPointerLeave={(e) => { e.stopPropagation(); onHover(null, null) }}
         onClick={(e) => {
           e.stopPropagation()
           const idx = e.instanceId
-          if (idx !== undefined && repoNodes[idx]) onClick(repoNodes[idx], positions[repoNodes[idx].id])
+          if (idx !== undefined && repoNodes[idx] && (!visRef.current || visRef.current[idx] > 0.01)) onClick(repoNodes[idx], positions[repoNodes[idx].id])
         }}
       />
     </>
@@ -963,41 +1038,86 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
 // EJES DE BLOCH - líneas |0⟩↔|1⟩ por cada qubit
 // ============================================================================
 
-function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed }) {
+function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed, activeNodeIdsRef }) {
   const matRef = useRef()
+  const visRef = useRef(null)
+  const gRef = useRef()
   const geometry = useMemo(() => {
     const pts = []
+    const vis = []
     repoNodes.forEach(repo => {
       const pos = positions[repo.id]; if (!pos) return
       const scale = Math.min(Math.max((repo.stars || 0) / 800, 0.7), 1.5)
       const h = 1.8 * scale
-      // Eje vertical |0⟩ → |1⟩
+      // Eje vertical |0⟩ → |1⟩ (2 vértices por repo)
       pts.push(pos.x, pos.y - h, pos.z, pos.x, pos.y + h, pos.z)
+      vis.push(1.0, 1.0)  // aVisible por vértice
     })
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+    g.setAttribute('aVisible', new THREE.Float32BufferAttribute(new Float32Array(vis), 1))
     return g
   }, [repoNodes, positions])
   // Dispose geometry anterior cuando deps cambian + cleanup en unmount
   useEffect(() => () => geometry?.dispose(), [geometry])
 
-  const blochColor = useMemo(() => new THREE.Color('#bd00ff').multiplyScalar(0.8), [])
-
   useFrame(() => {
-    if (matRef.current) matRef.current.opacity = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0) * (dimmed ? 0.04 : 1)
+    if (matRef.current) matRef.current.uniforms.uOpacity.value = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0) * (dimmed ? 0.04 : 1)
+    // === Temporal visibility for Bloch axes ===
+    const visAttr = geometry.attributes.aVisible
+    if (visAttr) {
+      const activeIds = activeNodeIdsRef?.current
+      const n = repoNodes.length
+      if (!visRef.current || visRef.current.length !== n) {
+        visRef.current = new Float32Array(n)
+        const initIds = activeNodeIdsRef?.current
+        for (let ri = 0; ri < n; ri++) visRef.current[ri] = !initIds ? 1 : (initIds.get(repoNodes[ri]?.id) ?? 0)
+      }
+      let changed = false
+      for (let ri = 0; ri < n; ri++) {
+        const vTarget = !activeIds ? 1 : (activeIds.get(repoNodes[ri]?.id) ?? 0)
+        visRef.current[ri] += (vTarget - visRef.current[ri]) * 0.015
+        if (Math.abs(vTarget - visRef.current[ri]) < 0.005) visRef.current[ri] = vTarget
+        const v = visRef.current[ri]
+        const base = ri * 2 // 2 vértices por repo
+        if (visAttr.array[base] !== v) { visAttr.array[base] = v; visAttr.array[base + 1] = v; changed = true }
+      }
+      if (changed) visAttr.needsUpdate = true
+    }
   })
 
   if (repoNodes.length === 0) return null
 
   return (
     <lineSegments geometry={geometry}>
-      <lineBasicMaterial
+      <shaderMaterial
         ref={matRef}
-        color={blochColor}
         transparent
-        opacity={0}
         depthWrite={false}
         toneMapped={false}
+        blending={THREE.AdditiveBlending}
+        vertexShader={`
+          attribute float aVisible;
+          varying float vVis;
+          void main() {
+            vVis = aVisible;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vVis;
+          void main() {
+            if (vVis < 0.001) discard;
+            float visFade = vVis * vVis;
+            gl_FragColor = vec4(uColor * visFade, uOpacity * visFade);
+          }
+        `}
+        uniforms={{
+          uColor: { value: new THREE.Color('#bd00ff').multiplyScalar(0.8) },
+          uOpacity: { value: 0 },
+        }}
       />
     </lineSegments>
   )
@@ -1033,6 +1153,7 @@ const PARTICLE_VERTEX = /* glsl */`
   attribute float aSeed;
   attribute vec3 aLensColor;
   attribute float aDensity;
+  attribute float aVisible;
   uniform float uTime;
   uniform float uProgress;
   uniform float uBaseSize;
@@ -1046,6 +1167,7 @@ const PARTICLE_VERTEX = /* glsl */`
   varying float vLensActive;
   varying float vDensity;
   varying float vBridgeBlend;
+  varying float vVisible;
 
   void main() {
     vBrightness = aBrightness;
@@ -1053,6 +1175,7 @@ const PARTICLE_VERTEX = /* glsl */`
     vLensColor = aLensColor;
     vLensActive = uLensActive;
     vDensity = aDensity;
+    vVisible = aVisible;
     float p = smoothstep(0.0, 1.0, uProgress);
 
     // === STAGGERING PER-PARTICLE ===
@@ -1060,7 +1183,7 @@ const PARTICLE_VERTEX = /* glsl */`
     float localP = smoothstep(stagger, stagger + 0.45, p);
 
     // === CRITICAL: GPU clampea gl_PointSize mínimo a 1px ===
-    if (localP < 0.001) {
+    if (localP < 0.001 || aVisible < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
@@ -1106,6 +1229,7 @@ const PARTICLE_VERTEX = /* glsl */`
     vGlow = mix(1.0, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
+    if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
     gl_Position = projectionMatrix * mvPos;
   }
 `
@@ -1121,8 +1245,10 @@ const PARTICLE_FRAGMENT = /* glsl */`
   varying float vLensActive;
   varying float vDensity;
   varying float vBridgeBlend;
+  varying float vVisible;
 
   void main() {
+    float visFade = vVisible * vVisible;
     vec4 texel = texture2D(uMap, gl_PointCoord);
     // Bridge reveal: verde → dorado progresivo según vBridgeBlend
     vec3 baseCol = mix(uColorNormal, uColorBridge, vBridgeBlend);
@@ -1131,10 +1257,10 @@ const PARTICLE_FRAGMENT = /* glsl */`
     // Halo radiante: centro más brillante, borde con color
     float d = length(gl_PointCoord - vec2(0.5));
     float core = smoothstep(0.4, 0.0, d);
-    vec3 finalCol = col * vBrightness * vGlow + vec3(1.0) * core * 0.3 * vGlow;
+    vec3 finalCol = col * vBrightness * vGlow * visFade + vec3(1.0) * core * 0.3 * vGlow * visFade;
     // Reducir opacidad en repos densos (bridges mantienen visibilidad)
     float densityAlpha = mix(vDensity, 1.0, vIsBridge * 0.7);
-    float alpha = texel.a * vBrightness * 0.95 * densityAlpha;
+    float alpha = texel.a * vBrightness * 0.95 * densityAlpha * visFade;
     gl_FragColor = vec4(finalCol, alpha);
   }
 `
@@ -1143,7 +1269,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 // PARTÍCULAS CUÁNTICAS (Users) - 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
-function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity, multiOrgColors }) {
+function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity, multiOrgColors, activeNodeIdsRef }) {
   const ref = useRef()
   const glowMap = useMemo(() => createGlowTexture(), [])
 
@@ -1181,8 +1307,10 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     g.setAttribute('aIsBridge', new THREE.BufferAttribute(isBridge, 1))
     g.setAttribute('aBrightness', new THREE.BufferAttribute(brightness, 1))
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
+    const visible = new Float32Array(count).fill(1.0)
     g.setAttribute('aLensColor', new THREE.BufferAttribute(lensColors, 3))
     g.setAttribute('aDensity', new THREE.BufferAttribute(density, 1))
+    g.setAttribute('aVisible', new THREE.BufferAttribute(visible, 1))
     return g
   }, [allUsers, positions, userDensity])
   // Dispose geometry anterior cuando deps cambian + cleanup en unmount
@@ -1321,20 +1449,47 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
       }
       bright.needsUpdate = true
     }
+
+    // === Temporal visibility lerp ===
+    const activeIds = activeNodeIdsRef?.current
+    const visAttr = geo.attributes.aVisible
+    if (visAttr) {
+      let visChanged = false
+      for (let i = 0; i < allUsers.length; i++) {
+        const vTarget = !activeIds ? 1 : (activeIds.get(allUsers[i].id) ?? 0)
+        const diff = vTarget - visAttr.array[i]
+        if (Math.abs(diff) > 0.005) {
+          visAttr.array[i] += diff * 0.015
+          visChanged = true
+        } else if (visAttr.array[i] !== vTarget) {
+          visAttr.array[i] = vTarget
+          visChanged = true
+        }
+      }
+      if (visChanged) visAttr.needsUpdate = true
+    }
   })
 
   // Raycasting via Points nativo
   const handlePointer = useCallback((e) => {
     e.stopPropagation()
     const idx = e.index
-    if (idx !== undefined && allUsers[idx]) onHover(allUsers[idx], positions[allUsers[idx].id])
-  }, [allUsers, positions, onHover])
+    if (idx !== undefined && allUsers[idx]) {
+      const activeIds = activeNodeIdsRef?.current
+      if (activeIds && (activeIds.get(allUsers[idx].id) ?? 0) < 0.01) return
+      onHover(allUsers[idx], positions[allUsers[idx].id])
+    }
+  }, [allUsers, positions, onHover, activeNodeIdsRef])
 
   const handleClick = useCallback((e) => {
     e.stopPropagation()
     const idx = e.index
-    if (idx !== undefined && allUsers[idx]) onClick(allUsers[idx], positions[allUsers[idx].id])
-  }, [allUsers, positions, onClick])
+    if (idx !== undefined && allUsers[idx]) {
+      const activeIds = activeNodeIdsRef?.current
+      if (activeIds && (activeIds.get(allUsers[idx].id) ?? 0) < 0.01) return
+      onClick(allUsers[idx], positions[allUsers[idx].id])
+    }
+  }, [allUsers, positions, onClick, activeNodeIdsRef])
 
   const handleLeave = useCallback(() => onHover(null, null), [onHover])
 
@@ -1355,16 +1510,19 @@ const BOND_VERTEX = /* glsl */`
   attribute vec3 aEnd;
   attribute float aSeed;
   attribute float aParticleIdx;
+  attribute float aVisible;
   uniform float uTime;
   uniform float uProgress;
   varying float vPhase;
   varying float vParticle;
+  varying float vVisible;
 
   void main() {
     float p = smoothstep(0.0, 1.0, uProgress);
+    vVisible = aVisible;
 
     // === CRITICAL: GPU clampea gl_PointSize mínimo a 1px ===
-    if (p < 0.001) {
+    if (p < 0.001 || aVisible < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
@@ -1393,6 +1551,7 @@ const BOND_VERTEX = /* glsl */`
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
 
     gl_PointSize = p * 2.0 * (200.0 / -mvPos.z);
+    if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
     gl_Position = projectionMatrix * mvPos;
   }
 `
@@ -1401,22 +1560,25 @@ const BOND_FRAGMENT = /* glsl */`
   uniform float uOpacity;
   varying float vPhase;
   varying float vParticle;
+  varying float vVisible;
 
   void main() {
     float d = length(gl_PointCoord - vec2(0.5));
     if (d > 0.5) discard;
+    float visFade = vVisible * vVisible;
     float glow = smoothstep(0.5, 0.0, d);
     // Color dual: verde-cyan, variando por partícula y fase
     vec3 colA = vec3(0.0, 1.0, 0.62);  // verde cuántico
     vec3 colB = vec3(0.0, 0.97, 1.0);  // cyan
     vec3 col = mix(colA, colB, sin(vPhase * 6.28 + vParticle * 3.14) * 0.5 + 0.5);
-    float alpha = glow * uOpacity * (0.5 + 0.2 * sin(vPhase * 3.14159));
-    gl_FragColor = vec4(col * 1.2, alpha);
+    float alpha = glow * uOpacity * (0.5 + 0.2 * sin(vPhase * 3.14159)) * visFade;
+    gl_FragColor = vec4(col * 1.2 * visFade, alpha);
   }
 `
 
-function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }) {
+function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed, activeNodeIdsRef }) {
   const ref = useRef()
+  const visRef = useRef(null)
 
   const PARTICLES_PER_BOND = 1
 
@@ -1431,7 +1593,7 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
       for (let u = 0; u < users.length && list.length < MAX_BONDS; u++) {
         const upos = positions[users[u].id]
         if (!upos) continue
-        list.push({ start: upos, end: rpos, seed: u * 7.13 })
+        list.push({ start: upos, end: rpos, seed: u * 7.13, repoId, userId: users[u].id })
       }
     }
     return list
@@ -1461,8 +1623,10 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
     g.setAttribute('position', new THREE.BufferAttribute(posArr, 3))
     g.setAttribute('aStart', new THREE.BufferAttribute(starts, 3))
     g.setAttribute('aEnd', new THREE.BufferAttribute(ends, 3))
+    const visArr = new Float32Array(count).fill(1.0)
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
     g.setAttribute('aParticleIdx', new THREE.BufferAttribute(particleIdx, 1))
+    g.setAttribute('aVisible', new THREE.BufferAttribute(visArr, 1))
 
     const m = new THREE.ShaderMaterial({
       vertexShader: BOND_VERTEX,
@@ -1482,13 +1646,39 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
   // Dispose geometry + material anterior cuando deps cambian + cleanup en unmount
   useEffect(() => () => { geo?.dispose(); mat?.dispose() }, [geo, mat])
 
-  // Solo 3 uniforms por frame - CPU ≈ 0%
+  // Solo 3 uniforms por frame + temporal visibility lerp
   useFrame(({ clock }) => {
     if (!mat) return
     const progress = progressRef.current[progressKey]
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
     mat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.35) * easeOutCubic(progress)
+
+    // === Temporal visibility lerp ===
+    if (geo) {
+      const activeIds = activeNodeIdsRef?.current
+      if (!visRef.current || visRef.current.length !== bonds.length) {
+        visRef.current = new Float32Array(bonds.length)
+        const initIds = activeNodeIdsRef?.current
+        for (let i = 0; i < bonds.length; i++) visRef.current[i] = !initIds ? 1 : Math.min(initIds.get(bonds[i].repoId) ?? 0, initIds.get(bonds[i].userId) ?? 0)
+      }
+      const visAttr = geo.attributes.aVisible
+      let visChanged = false
+      for (let i = 0; i < bonds.length; i++) {
+        const vTarget = !activeIds ? 1 : Math.min(activeIds.get(bonds[i].repoId) ?? 0, activeIds.get(bonds[i].userId) ?? 0)
+        const diff = vTarget - visRef.current[i]
+        if (Math.abs(diff) > 0.005) {
+          visRef.current[i] += diff * 0.015
+          visAttr.array[i] = visRef.current[i]
+          visChanged = true
+        } else if (visRef.current[i] !== vTarget) {
+          visRef.current[i] = vTarget
+          visAttr.array[i] = vTarget
+          visChanged = true
+        }
+      }
+      if (visChanged) visAttr.needsUpdate = true
+    }
   })
 
   if (!geo || bonds.length === 0) return null
@@ -1503,8 +1693,10 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed }
 const ARC_VERTEX = `
   attribute float aT;
   attribute float aStrength;
+  attribute float aVisible;
   varying float vT;
   varying float vStrength;
+  varying float vVisible;
   uniform float uTime;
   uniform float uProgress;
   uniform float uOpacity;
@@ -1512,8 +1704,9 @@ const ARC_VERTEX = `
   void main() {
     vT = aT;
     vStrength = aStrength;
-    // Descartar TODO cuando opacity es 0 (pre-animación)
-    if (uOpacity < 0.001 || uProgress < 0.001) {
+    vVisible = aVisible;
+    // Descartar TODO cuando opacity es 0 (pre-animación) o visibility 0
+    if (uOpacity < 0.001 || uProgress < 0.001 || aVisible < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
@@ -1534,13 +1727,15 @@ const ARC_VERTEX = `
 const ARC_FRAGMENT = `
   varying float vT;
   varying float vStrength;
+  varying float vVisible;
   uniform float uTime;
   uniform float uOpacity;
   uniform float uBoost;
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0;
     if (d > 1.0) discard;
-    float alpha = (1.0 - d * d) * uOpacity * mix(0.35, 0.8, vStrength);
+    float visFade = vVisible * vVisible;
+    float alpha = (1.0 - d * d) * uOpacity * mix(0.35, 0.8, vStrength) * visFade;
     // Gradiente cyan → púrpura a lo largo del arco
     vec3 cyan = vec3(0.0, 0.83, 0.89);
     vec3 purple = vec3(0.74, 0.44, 0.86);
@@ -1551,12 +1746,13 @@ const ARC_FRAGMENT = `
     alpha *= mix(1.0, 0.5, 1.0 - pulse);
     // Brillo extra cuando está resaltado
     float glow = 1.8 + uBoost * 1.2;
-    gl_FragColor = vec4(col * glow, alpha);
+    gl_FragColor = vec4(col * glow * visFade, alpha);
   }
 `
 
-function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHighlight }) {
+function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHighlight, activeNodeIdsRef }) {
   const ref = useRef()
+  const visRef = useRef(null)
   const POINTS_PER_ARC = 32
 
   const { geo, maxStrength } = useMemo(() => {
@@ -1565,6 +1761,7 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     const pos = new Float32Array(total * 3)
     const tArr = new Float32Array(total)
     const strArr = new Float32Array(total)
+    const visArr = new Float32Array(total).fill(1.0)
     let maxS = 1
 
     arcs.forEach(arc => {
@@ -1600,6 +1797,7 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     g.setAttribute('aT', new THREE.BufferAttribute(tArr, 1))
     g.setAttribute('aStrength', new THREE.BufferAttribute(strArr, 1))
+    g.setAttribute('aVisible', new THREE.BufferAttribute(visArr, 1))
     return { geo: g, maxStrength: maxS }
   }, [arcs])
   // Dispose geometry anterior cuando deps cambian + cleanup en unmount
@@ -1628,6 +1826,38 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     // Smooth boost transition
     const targetBoost = collabHighlight ? 1.0 : 0.0
     mat.uniforms.uBoost.value += (targetBoost - mat.uniforms.uBoost.value) * 0.08
+
+    // === Temporal visibility lerp ===
+    if (geo) {
+      const activeIds = activeNodeIdsRef?.current
+      const nArcs = arcs.length
+      if (!visRef.current || visRef.current.length !== nArcs) {
+        visRef.current = new Float32Array(nArcs)
+        const initIds = activeNodeIdsRef?.current
+        for (let ai = 0; ai < nArcs; ai++) visRef.current[ai] = !initIds ? 1 : Math.min(initIds.get(arcs[ai].source) ?? 0, initIds.get(arcs[ai].target) ?? 0)
+      }
+      const visAttr = geo.attributes.aVisible
+      let visChanged = false
+      for (let ai = 0; ai < nArcs; ai++) {
+        const vTarget = !activeIds ? 1 : Math.min(activeIds.get(arcs[ai].source) ?? 0, activeIds.get(arcs[ai].target) ?? 0)
+        const diff = vTarget - visRef.current[ai]
+        if (Math.abs(diff) > 0.005) {
+          visRef.current[ai] += diff * 0.015
+          visChanged = true
+        } else if (visRef.current[ai] !== vTarget) {
+          visRef.current[ai] = vTarget
+          visChanged = true
+        }
+      }
+      if (visChanged) {
+        for (let ai = 0; ai < nArcs; ai++) {
+          const v = visRef.current[ai]
+          const base = ai * POINTS_PER_ARC
+          for (let pi = 0; pi < POINTS_PER_ARC; pi++) visAttr.array[base + pi] = v
+        }
+        visAttr.needsUpdate = true
+      }
+    }
   })
 
   if (!geo || arcs.length === 0) return null
@@ -1648,14 +1878,17 @@ const CHANNEL_VERTEX = `
   attribute float aStagger;
   attribute float aWaveAmp;
   attribute float aIntensity;
+  attribute float aVisible;
   uniform float uOpacity;
   uniform float uTime;
   uniform float uDrawProgress;
   varying float vIntensity;
   varying float vDist;
+  varying float vVisible;
   void main() {
     vIntensity = aIntensity;
-    if (uOpacity < 0.001) {
+    vVisible = aVisible;
+    if (uOpacity < 0.001 || aVisible < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
@@ -1674,6 +1907,7 @@ const CHANNEL_VERTEX = `
     float basePx = mix(1.2, 3.0, aIntensity);
     float distScale = 200.0 / max(dist, 1.0);
     gl_PointSize = basePx * clamp(distScale, 0.2, 5.0);
+    if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -1682,30 +1916,33 @@ const CHANNEL_FRAGMENT = `
   uniform float uOpacity;
   varying float vIntensity;
   varying float vDist;
+  varying float vVisible;
   void main() {
     // Círculo suave
     float d = length(gl_PointCoord - 0.5) * 2.0;
     if (d > 1.0) discard;
+    float visFade = vVisible * vVisible;
     // Fade con distancia: de lejos los puntos se vuelven más tenues
     // evitando que la acumulación de overlap cree líneas gruesas
     float distFade = clamp(150.0 / max(vDist, 1.0), 0.15, 1.0);
-    float alpha = (1.0 - d * d) * uOpacity * mix(0.25, 1.0, vIntensity) * distFade;
-    gl_FragColor = vec4(uColor * mix(0.6, 1.8, vIntensity), alpha);
+    float alpha = (1.0 - d * d) * uOpacity * mix(0.25, 1.0, vIntensity) * distFade * visFade;
+    gl_FragColor = vec4(uColor * mix(0.6, 1.8, vIntensity) * visFade, alpha);
   }
 `
 
-function EntanglementChannels({ connections, progressRef, progressKey, dimmed, highlightSet, starRepos, collabHighlight }) {
+function EntanglementChannels({ connections, progressRef, progressKey, dimmed, highlightSet, starRepos, collabHighlight, activeNodeIdsRef }) {
   const ref = useRef()
   const lastHighlightRef = useRef(null)
   const lastDimmedRef = useRef(null)
   const lastCollabRef = useRef(null)
+  const visRef = useRef(null)
 
   const POINTS_PER_CONN = 35
 
   // ===== useMemo: precalcular TODOS los atributos UNA sola vez =====
   // position = start, aEnd, aPerp, aFraction, aStagger, aWaveAmp → inmutables
   // aIntensity → se actualiza solo cuando cambia highlightSet (no cada frame)
-  const { startArr, endArr, perpArr, fractionArr, staggerArr, waveAmpArr, intensityArr, count, connMeta } = useMemo(() => {
+  const { startArr, endArr, perpArr, fractionArr, staggerArr, waveAmpArr, intensityArr, count, connMeta, visArr } = useMemo(() => {
     const nConn = connections.length
     const total = nConn * POINTS_PER_CONN
     const starts = new Float32Array(total * 3)
@@ -1754,7 +1991,7 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
       }
     }
 
-    return { startArr: starts, endArr: ends, perpArr: perps, fractionArr: fracs, staggerArr: stags, waveAmpArr: wamps, intensityArr: intens, count: total, connMeta: meta }
+    return { startArr: starts, endArr: ends, perpArr: perps, fractionArr: fracs, staggerArr: stags, waveAmpArr: wamps, intensityArr: intens, count: total, connMeta: meta, visArr: new Float32Array(total).fill(1.0) }
   }, [connections, starRepos])
 
   // Material de shader personalizado - GPU calcula posiciones desde atributos + uniforms
@@ -1810,6 +2047,42 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
       }
       intAttr.needsUpdate = true
     }
+
+    // === Temporal visibility lerp ===
+    const activeIds = activeNodeIdsRef?.current
+    const nConn = connections.length
+    if (!visRef.current || visRef.current.length !== nConn) {
+      visRef.current = new Float32Array(nConn)
+      const initIds = activeNodeIdsRef?.current
+      for (let ci = 0; ci < nConn; ci++) {
+        const { sourceId, targetId } = connMeta[ci]
+        visRef.current[ci] = !initIds ? 1 : Math.min(initIds.get(sourceId) ?? 0, initIds.get(targetId) ?? 0)
+      }
+    }
+    const visAttr = ref.current.geometry.attributes.aVisible
+    if (visAttr) {
+      let visChanged = false
+      for (let ci = 0; ci < nConn; ci++) {
+        const { sourceId, targetId } = connMeta[ci]
+        const vTarget = !activeIds ? 1 : Math.min(activeIds.get(sourceId) ?? 0, activeIds.get(targetId) ?? 0)
+        const diff = vTarget - visRef.current[ci]
+        if (Math.abs(diff) > 0.005) {
+          visRef.current[ci] += diff * 0.015
+          visChanged = true
+        } else if (visRef.current[ci] !== vTarget) {
+          visRef.current[ci] = vTarget
+          visChanged = true
+        }
+      }
+      if (visChanged) {
+        for (let ci = 0; ci < nConn; ci++) {
+          const v = visRef.current[ci]
+          const base = ci * POINTS_PER_CONN
+          for (let pi = 0; pi < POINTS_PER_CONN; pi++) visAttr.array[base + pi] = v
+        }
+        visAttr.needsUpdate = true
+      }
+    }
   })
 
   if (connections.length === 0) return null
@@ -1824,6 +2097,7 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
         <bufferAttribute attach="attributes-aStagger" array={staggerArr} itemSize={1} count={count} />
         <bufferAttribute attach="attributes-aWaveAmp" array={waveAmpArr} itemSize={1} count={count} />
         <bufferAttribute attach="attributes-aIntensity" array={intensityArr} itemSize={1} count={count} />
+        <bufferAttribute attach="attributes-aVisible" array={visArr} itemSize={1} count={count} />
       </bufferGeometry>
     </points>
   )
@@ -1833,8 +2107,9 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
 // ENERGY RINGS - InstancedMesh (700 draw calls → 1, fix material.clone leak)
 // ============================================================================
 
-function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightSet, dimmed }) {
+function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightSet, dimmed, activeNodeIdsRef }) {
   const meshRef = useRef()
+  const visRef = useRef(null)
   const n = orgNodes.length
   const ringGeo = useMemo(() => new THREE.RingGeometry(0.4, 0.6, 48), [])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({
@@ -1854,17 +2129,32 @@ function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightS
     const p = easeOutCubic(progressRef.current[progressKey])
     const hasSel = highlightSet !== null
 
+    // === Temporal visibility lerp ===
+    if (!visRef.current || visRef.current.length !== n) {
+      visRef.current = new Float32Array(n)
+      const initIds = activeNodeIdsRef?.current
+      for (let vi = 0; vi < n; vi++) visRef.current[vi] = !initIds ? 1 : (initIds.get(orgNodes[vi]?.id) ?? 0)
+    }
+    const activeIds = activeNodeIdsRef?.current
+    for (let vi = 0; vi < n; vi++) {
+      const vTarget = !activeIds ? 1 : (activeIds.get(orgNodes[vi]?.id) ?? 0)
+      visRef.current[vi] += (vTarget - visRef.current[vi]) * 0.015
+      if (Math.abs(vTarget - visRef.current[vi]) < 0.005) visRef.current[vi] = vTarget
+    }
+
     for (let i = 0; i < n; i++) {
       const pos = positions[orgNodes[i].id]
       if (!pos) continue
+      const vis = visRef.current[i]
+      const visFade = vis * vis  // quadratic for smoother perceptual fade
       const phase = (t * 0.5 + i * 0.8) % 3
       const scale = (1 + phase * 6) * p
       const dim = (hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.02 : 1) * (dimmed && !hasSel ? 0.03 : 1)
-      const fade = Math.max(0, 1 - phase / 3) * p * dim
+      const fade = Math.max(0, 1 - phase / 3) * p * dim * visFade
 
       tmpObj.position.copy(pos)
       tmpObj.rotation.set(Math.PI / 2, 0, 0)
-      tmpObj.scale.setScalar(fade < 0.01 ? 0 : scale)
+      tmpObj.scale.setScalar(fade < 0.001 ? 0 : scale)
       tmpObj.updateMatrix()
       meshRef.current.setMatrixAt(i, tmpObj.matrix)
 
@@ -2130,7 +2420,7 @@ const _norm = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _perp = new THREE.Vector3()
 
-function TunnelingPulses({ connections, startAnimation, dimmed }) {
+function TunnelingPulses({ connections, startAnimation, dimmed, activeNodeIdsRef }) {
   const ref = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const PULSE_COUNT = Math.min(connections.length, 25)
@@ -2180,6 +2470,17 @@ function TunnelingPulses({ connections, startAnimation, dimmed }) {
       }
       const conn = connections[pulse.connIdx]
       if (!conn) return
+      // --- Temporal visibility: hide pulse if connection endpoints are invisible ---
+      const activeIds = activeNodeIdsRef?.current
+      if (activeIds) {
+        const vis = Math.min(activeIds.get(conn.source) ?? 0, activeIds.get(conn.target) ?? 0)
+        if (vis < 0.01) {
+          dummy.scale.setScalar(0.001)
+          dummy.updateMatrix()
+          ref.current.setMatrixAt(i, dummy.matrix)
+          return
+        }
+      }
       const { start, end } = conn
       _dir.subVectors(end, start)
       const len = _dir.length()
@@ -2210,11 +2511,11 @@ function TunnelingPulses({ connections, startAnimation, dimmed }) {
 // DECOHERENCE SHOCKWAVES - ondas de decoherencia desde procesadores
 // ============================================================================
 
-function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed }) {
+function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef }) {
   const MAX_WAVES = 3
   const wavesRef = useRef([])
   const waveState = useRef(
-    Array.from({ length: MAX_WAVES }, () => ({ active: false, pos: new THREE.Vector3(), age: 0 }))
+    Array.from({ length: MAX_WAVES }, () => ({ active: false, pos: new THREE.Vector3(), age: 0, orgId: null }))
   )
   const nextWave = useRef(4 + Math.random() * 4)
 
@@ -2234,14 +2535,25 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed }) {
       const slot = waveState.current.find(w => !w.active)
       if (slot) {
         const orgIdx = Math.floor(Math.random() * orgNodes.length)
-        const pos = positions[orgNodes[orgIdx].id]
-        if (pos) { slot.active = true; slot.pos.copy(pos); slot.age = 0 }
+        const org = orgNodes[orgIdx]
+        // --- Temporal visibility: skip spawning wave for invisible orgs ---
+        const activeIds = activeNodeIdsRef?.current
+        if (activeIds && (activeIds.get(org.id) ?? 0) < 0.01) { /* skip */ }
+        else {
+          const pos = positions[org.id]
+          if (pos) { slot.active = true; slot.pos.copy(pos); slot.age = 0; slot.orgId = org.id }
+        }
       }
     }
     waveState.current.forEach((wave, i) => {
       const mesh = wavesRef.current[i]
       if (!mesh) return
       if (!wave.active) { mesh.scale.setScalar(0.001); return }
+      // --- Temporal visibility: hide wave if its org became invisible ---
+      const activeIds2 = activeNodeIdsRef?.current
+      if (activeIds2 && wave.orgId && (activeIds2.get(wave.orgId) ?? 0) < 0.01) {
+        wave.active = false; mesh.scale.setScalar(0.001); return
+      }
       wave.age += delta
       const duration = 3.5
       if (wave.age >= duration) { wave.active = false; mesh.scale.setScalar(0.001); return }
@@ -2273,11 +2585,12 @@ const HAWKING_VERTEX = `
   attribute float aSpeed;
   attribute float aOffset;
   attribute float aMaxR;
+  attribute float aVisible;
   uniform float uTime;
   uniform float uOpacity;
   varying float vAlpha;
   void main() {
-    if (uOpacity < 0.001) {
+    if (uOpacity < 0.001 || aVisible < 0.001) {
       gl_PointSize = 0.0;
       gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0);
       return;
@@ -2289,7 +2602,8 @@ const HAWKING_VERTEX = `
     float dist = -mv.z;
     gl_PointSize = 0.35 * (200.0 / max(dist, 1.0));
     gl_Position = projectionMatrix * mv;
-    vAlpha = uOpacity;
+    float visFade = aVisible * aVisible;
+    vAlpha = uOpacity * visFade;
   }
 `
 const HAWKING_FRAGMENT = `
@@ -2303,11 +2617,12 @@ const HAWKING_FRAGMENT = `
   }
 `
 
-function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
+function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef }) {
   const ref = useRef()
   const PER_ORG = 18
   const animTimer = useRef(0)
   const opacityRef = useRef(0)
+  const visRef = useRef(null)
   const DELAY_BEFORE_VISIBLE = 4.0
 
   const { centerArr, thetaArr, phiArr, speedArr, offsetArr, maxRArr, total } = useMemo(() => {
@@ -2335,6 +2650,8 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
     return { centerArr: centers, thetaArr: thetas, phiArr: phis, speedArr: speeds, offsetArr: offsets, maxRArr: maxRs, total: sIdx }
   }, [orgNodes, positions])
 
+  const visibleArr = useMemo(() => new Float32Array(orgNodes.length * PER_ORG).fill(1), [orgNodes, PER_ORG])
+
   const shaderMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color('#00f7ff').multiplyScalar(2.0) },
@@ -2358,6 +2675,35 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
     if (dimmed && opacityRef.current > target) opacityRef.current = Math.max(opacityRef.current - dt * 0.8, target)
     shaderMat.uniforms.uOpacity.value = opacityRef.current
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
+
+    // === Temporal visibility per org radiation ===
+    const geo = ref.current?.geometry
+    if (geo) {
+      const visAttr = geo.attributes.aVisible
+      if (visAttr) {
+        const activeIds = activeNodeIdsRef?.current
+        const n = orgNodes.length
+        if (!visRef.current || visRef.current.length !== n) {
+          visRef.current = new Float32Array(n)
+          const initIds = activeNodeIdsRef?.current
+          for (let oi = 0; oi < n; oi++) visRef.current[oi] = !initIds ? 1 : (initIds.get(orgNodes[oi]?.id) ?? 0)
+        }
+        let changed = false
+        for (let oi = 0; oi < n; oi++) {
+          const vTarget = !activeIds ? 1 : (activeIds.get(orgNodes[oi]?.id) ?? 0)
+          visRef.current[oi] += (vTarget - visRef.current[oi]) * 0.015
+          if (Math.abs(vTarget - visRef.current[oi]) < 0.005) visRef.current[oi] = vTarget
+        }
+        for (let oi = 0; oi < n; oi++) {
+          const v = visRef.current[oi]
+          const base = oi * PER_ORG
+          for (let pi = 0; pi < PER_ORG; pi++) {
+            if (visAttr.array[base + pi] !== v) { visAttr.array[base + pi] = v; changed = true }
+          }
+        }
+        if (changed) visAttr.needsUpdate = true
+      }
+    }
   })
 
   if (total === 0) return null
@@ -2371,6 +2717,7 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
         <bufferAttribute attach="attributes-aSpeed" array={speedArr} itemSize={1} count={total} />
         <bufferAttribute attach="attributes-aOffset" array={offsetArr} itemSize={1} count={total} />
         <bufferAttribute attach="attributes-aMaxR" array={maxRArr} itemSize={1} count={total} />
+        <bufferAttribute attach="attributes-aVisible" array={visibleArr} itemSize={1} count={total} />
       </bufferGeometry>
     </points>
   )
@@ -2380,7 +2727,7 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed }) {
 // CAMERA RIG
 // ============================================================================
 
-function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
+function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef }) {
   const controlsRef = useRef()
   const { camera, gl } = useThree()
   const target = useRef(new THREE.Vector3(0, 0, 0))
@@ -2413,7 +2760,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     flying.current = true
   }, [resetTrigger])
 
-  // ── Cancelar fly-to cuando el usuario arrastra (rotación / pan) ──
+  //  Cancelar fly-to cuando el usuario arrastra (rotación / pan) 
   useEffect(() => {
     const canvas = gl.domElement
     const cancelFly = () => { flying.current = false }
@@ -2421,7 +2768,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     return () => canvas.removeEventListener('pointerdown', cancelFly)
   }, [gl])
 
-  // ── Zoom libre: comportamiento depende de si hay entidad seleccionada ──
+  //  Zoom libre: comportamiento depende de si hay entidad seleccionada 
   // Sin selección: cámara + target viajan JUNTOS (navegación libre por el universo)
   // Con selección: solo la cámara se acerca/aleja del target fijo (zoom orbital)
   const selectedRef = useRef(selectedEntity)
@@ -2470,7 +2817,17 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
   }, [camera, gl])
 
   useFrame((_, delta) => {
-    if (!flying.current || !controlsRef.current) return
+    if (!controlsRef.current) return
+    // Tour cinemático: interpolación lenta y dramática
+    const tc = tourCameraRef?.current
+    if (tc?.active) {
+      const t = 1 - Math.exp(-1.6 * delta) // más lento que fly-to normal → cinemático
+      camera.position.lerp(tc.position, t)
+      controlsRef.current.target.lerp(tc.target, t)
+      controlsRef.current.update()
+      return
+    }
+    if (!flying.current) return
     // Damping exponencial independiente del frame rate:
     // a 60fps → t≈0.072, a 30fps → t≈0.139 (compensa frames largos automáticamente)
     const t = 1 - Math.exp(-4.5 * delta)
@@ -2480,13 +2837,15 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity }) {
     if (camera.position.distanceTo(goal.current) < 0.5) flying.current = false
   })
 
+  const tourActive = tourCameraRef?.current?.active
   return (
     <OrbitControls
       ref={controlsRef}
       enableDamping
       dampingFactor={0.08}
       enableZoom={false}
-      enablePan={!selectedEntity}
+      enablePan={!selectedEntity && !tourActive}
+      enableRotate={!tourActive}
       panSpeed={1.2}
       rotateSpeed={0.6}
       minDistance={0.5}
@@ -2714,6 +3073,7 @@ function FocusHighlight({ position, entityType }) {
 
 // Ease-out cubic para transiciones suaves
 function easeOutCubic(t) { return 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3) }
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 }
 function easeOutElastic(t) {
   const c4 = (2 * Math.PI) / 3
   if (t <= 0) return 0
@@ -3149,7 +3509,392 @@ const SCENE_READY_STAGE = 5 // Señalizar "listo" tras montar lo esencial (orgs+
 // Los stages 5-8 (channels, arcs, effects) se montan MIENTRAS el loader se desvanece
 // Sus animaciones no empiezan hasta 5.5-6.5s después del Big Bang
 
-const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, tunnelPath, favoriteIdSet, multiOrgColors }) {
+// ============================================================================
+// SIBLING ORG DETECTION — shared across tour waypoints, arcs, etc.
+// ============================================================================
+function areSiblingOrgs(o1, o2) {
+  if (!o1 || !o2) return false
+  const l1 = (o1.login || o1.name || '').toLowerCase()
+  const l2 = (o2.login || o2.name || '').toLowerCase()
+  if (!l1 || !l2) return false
+  if (l1 === l2) return true
+  // PRONG 1 — Token-based: first token match (≥4 chars), one must be single-token
+  const t1 = l1.split(/[-_.\s]+/).filter(Boolean)
+  const t2 = l2.split(/[-_.\s]+/).filter(Boolean)
+  if (t1.length && t2.length && t1[0].length >= 4 && t1[0] === t2[0]) {
+    if (t1.length === 1 || t2.length === 1) return true
+  }
+  // PRONG 2 — Prefix-based: shorter normalised prefix of longer, ratio ≤ 3
+  const a = l1.replace(/[-_\s.]+/g, ''), b = l2.replace(/[-_\s.]+/g, '')
+  if (!a || !b) return false
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a]
+  if (s.length >= 4 && l.startsWith(s) && l.length / s.length <= 3.0) return true
+  return false
+}
+
+// ============================================================================
+// CINEMATIC TOUR - Generador de waypoints narrativos
+// ============================================================================
+
+function generateTourWaypoints(universeData, temporalRange) {
+  if (!universeData || !temporalRange) return []
+  const { orgNodes, repoNodes, userNodes, positions, orgRepos, orgScore, connections } = universeData
+  const yMin = temporalRange.min, yMax = temporalRange.max
+  const total = repoNodes.length, totalOrgs = orgNodes.length
+  const totalUsers = userNodes?.length || 0
+
+  //  Helpers 
+  const oName = (o) => o?.name || o?.login || '???'
+  const camFor = (pos, dist = 55) => {
+    if (!pos) return { camPos: [0, 200, 500], camTarget: [0, 0, 0] }
+    return {
+      camPos: [pos.x + dist * 0.7, pos.y + dist * 0.5, pos.z + dist],
+      camTarget: [pos.x, pos.y, pos.z],
+    }
+  }
+
+  //  1. Repos acumulados y nuevos por año 
+  const reposByYear = {}
+  const accumByYear = {}
+  for (const r of repoNodes) {
+    const y = r.pushed_at_year
+    if (y != null) { ;(reposByYear[y] ??= []).push(r) }
+  }
+  for (let y = yMin; y <= yMax; y++) {
+    accumByYear[y] = repoNodes.filter(r => r.pushed_at_year != null && r.pushed_at_year <= y).length
+  }
+
+  //  2. Org "primera aparición" = min(pushed_at_year) de sus repos 
+  const orgFirstYear = {}
+  const orgById = {}
+  for (const o of orgNodes) orgById[o.id] = o
+  for (const o of orgNodes) {
+    const repos = orgRepos[o.id] || []
+    let minY = Infinity
+    for (const r of repos) {
+      if (r.pushed_at_year != null && r.pushed_at_year < minY) minY = r.pushed_at_year
+    }
+    if (minY < Infinity) orgFirstYear[o.id] = minY
+  }
+
+  const orgsAppearingAt = {}
+  for (const [id, y] of Object.entries(orgFirstYear)) {
+    ;(orgsAppearingAt[y] ??= []).push(orgById[id])
+  }
+
+  //  3. Ranked orgs por repos 
+  const orgsByRepos = [...orgNodes]
+    .map(o => ({ org: o, count: (orgRepos[o.id] || []).length }))
+    .sort((a, b) => b.count - a.count)
+
+  //  4. Top starred repo 
+  let topRepo = null, topStars = 0
+  for (const r of repoNodes) {
+    if ((r.stars || 0) > topStars) { topStars = r.stars; topRepo = r }
+  }
+
+  //  5. Año de mayor crecimiento 
+  let peakYear = yMin + 1, peakGrowth = 0
+  for (let y = yMin + 1; y <= yMax; y++) {
+    const g = (accumByYear[y] || 0) - (accumByYear[y - 1] || 0)
+    if (g > peakGrowth) { peakGrowth = g; peakYear = y }
+  }
+
+  //  6. Entanglement links 
+  const entanglementLinks = connections?.filter(c => c.type === 'entangled_with') || []
+  const entanglementCount = entanglementLinks.length
+
+  //  7. Bridge users 
+  const bridgeUsers = userNodes?.filter(u => u.isBridge) || []
+  const bridgeCount = bridgeUsers.length
+
+  //  8. Top languages 
+  const langCount = {}
+  for (const r of repoNodes) {
+    const lang = r.language
+    if (lang) langCount[lang] = (langCount[lang] || 0) + 1
+  }
+  const topLangs = Object.entries(langCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  //  9. Entrelazamiento más fuerte — excluyendo orgs "hermanas" 
+  // Usa areSiblingOrgs() definido a nivel de módulo
+  // Filtrar links inter-org genuinos (no hermanas)
+  const genuineLinks = entanglementLinks.filter(c => {
+    const o1 = orgById[c.source], o2 = orgById[c.target]
+    return !areSiblingOrgs(o1, o2)
+  })
+  let strongestLink = null
+  for (const c of genuineLinks) {
+    if (!strongestLink || c.strength > strongestLink.strength) strongestLink = c
+  }
+
+  //  10. Estrellas total ecosistema 
+  let totalStarsAll = 0
+  for (const r of repoNodes) totalStarsAll += (r.stars || 0)
+
+  //  11. Top 5 repos por estrellas 
+  const topStarredRepos = [...repoNodes].sort((a, b) => (b.stars || 0) - (a.stars || 0)).slice(0, 5)
+
+  //  12. Org más central (mayor score) 
+  let mostCentralOrg = null, maxScore = 0
+  if (orgScore) {
+    for (const [id, score] of Object.entries(orgScore)) {
+      if (score > maxScore) { maxScore = score; mostCentralOrg = orgById[id] }
+    }
+  }
+
+  //  13. Diversidad: orgs con >1 lenguaje en sus repos 
+  const orgLangDiversity = {}
+  for (const o of orgNodes) {
+    const langs = new Set()
+    for (const r of (orgRepos[o.id] || [])) { if (r.language) langs.add(r.language) }
+    orgLangDiversity[o.id] = langs.size
+  }
+
+  //  14. Repos "huérfanos" con pocos contributors vs masivos 
+  const midY = Math.round((yMin + yMax) / 2)
+
+  //  15. Detección de orgs industriales clave para contexto narrativo 
+  const keyOrgPatterns = [
+    { key: 'ibm',     pattern: /\bqiskit\b|ibm.?quantum|ibm.?research/i, label: 'IBM / Qiskit' },
+    { key: 'google',  pattern: /\bgoogle\b|quantumai|cirq/i,             label: 'Google' },
+    { key: 'microsoft', pattern: /\bmicrosoft\b|azure.?quantum|qsharp/i, label: 'Microsoft' },
+    { key: 'rigetti', pattern: /\brigetti\b|pyquil|forest/i,             label: 'Rigetti' },
+    { key: 'dwave',   pattern: /\bd.?wave\b|dwavesys|ocean/i,           label: 'D-Wave' },
+    { key: 'xanadu',  pattern: /\bxanadu\b|pennylane|strawberry/i,      label: 'Xanadu' },
+    { key: 'zapata',  pattern: /\bzapata\b|orquestra/i,                  label: 'Zapata' },
+  ]
+  const keyOrgsFound = {}
+  for (const { key, pattern, label } of keyOrgPatterns) {
+    const org = orgNodes.find(o => pattern.test(o.login || '') || pattern.test(o.name || ''))
+    if (org) keyOrgsFound[key] = { org, label, year: orgFirstYear[org.id] }
+  }
+  const keyOrgNamesList = Object.values(keyOrgsFound).map(v => v.label)
+  const hasIndustryOrgs = keyOrgNamesList.length > 0
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONSTRUIR WAYPOINTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const waypoints = []
+
+  //  WP 0: EL VACÍO — Oscuridad total 
+  waypoints.push({
+    year: yMin - 1,
+    camPos: [0, 200, 600],
+    camTarget: [0, 0, 0],
+    duration: 18,
+    isVoid: true,
+    title: '',
+    text: `En 1981, Richard Feynman imaginó por primera vez un ordenador que operase según las leyes de la mecánica cuántica. Durante las décadas siguientes, mentes como las de Shor y Grover transformaron esa intuición en algoritmos revolucionarios, mientras los laboratorios luchaban por construir los primeros qubits estables. Sin embargo, todo ese conocimiento vivía encerrado en papers académicos y laboratorios privados. En GitHub, hasta ${yMin}, el silencio era casi absoluto.`,
+  })
+
+  //  WP 1: PRELUDIO — "Y de pronto, un día…" 
+  waypoints.push({
+    year: yMin - 1,
+    camPos: [0, 200, 600],
+    camTarget: [0, 0, 0],
+    duration: 12,
+    isPreludio: true,
+    triggerBigBangAt: 9,
+    title: '',
+    text: 'Entonces la industria decidió abrir sus puertas al mundo…',
+  })
+
+  //  WP 2: GÉNESIS — El Big Bang del ecosistema 
+  // Calcular firstActiveYear aquí para usarlo en génesis y pioneros
+  let firstActiveYear = yMin
+  for (let y = yMin; y <= yMax; y++) {
+    if ((reposByYear[y]?.length || 0) > 0) { firstActiveYear = y; break }
+  }
+
+  waypoints.push({
+    year: firstActiveYear + 0.5,
+    camPos: [0, 500, 1200],
+    camTarget: [0, 0, 0],
+    duration: 16,
+    isGenesis: true,
+    title: 'Génesis Open-Source',
+    text: `Estamos en el año ${firstActiveYear} y comienza una nueva era para la computación cuántica: la era del código abierto. A lo largo de los próximos años, ${total.toLocaleString()} repositorios, ${totalOrgs} organizaciones y ${totalUsers.toLocaleString()} desarrolladores irán materializándose en este universo.${hasIndustryOrgs ? ` Gigantes tecnológicos como ${keyOrgNamesList.slice(0, 3).join(', ')} liderarán esta apertura, publicando herramientas que antes solo existían tras puertas cerradas.` : ''} Lo que durante décadas vivió confinado en laboratorios académicos está a punto de construirse de forma colaborativa y transparente.`,
+  })
+
+  //  WP 3: PRIMERAS FLUCTUACIONES — Pioneros reales 
+  const firstRepos = reposByYear[firstActiveYear] || []
+  const firstOrgs = orgsAppearingAt[firstActiveYear] || []
+  const firstOrgNames = firstOrgs.slice(0, 3).map(o => oName(o)).join(', ')
+  const firstRepoNames = firstRepos.slice(0, 4).map(r => r.full_name || r.name).join(', ')
+  const firstOrgPos = firstOrgs[0] ? positions[firstOrgs[0].id] : null
+  // Detectar si los primeros repos/orgs son de la industria o proyectos pequeños
+  const firstOrgIsKey = firstOrgs.length > 0 && Object.values(keyOrgsFound).some(v => firstOrgs.some(o => o.id === v.org.id))
+  waypoints.push({
+    year: firstActiveYear + 0.5,
+    ...(firstOrgPos ? camFor(firstOrgPos, 80) : { camPos: [0, 180, 450], camTarget: [0, 0, 0] }),
+    duration: 12,
+    title: 'Los Primeros Nodos',
+    text: firstOrgs.length > 0
+      ? (firstOrgIsKey
+        ? `En ${firstActiveYear}, ${firstOrgs.length} organizaciones dan el primer paso publicando ${firstRepos.length} repositorios. Entre ellas, ${firstOrgNames} abren su código al mundo con proyectos como ${firstRepoNames}, sentando las bases técnicas sobre las que se construirá todo el ecosistema abierto de computación cuántica.`
+        : `Los primeros ${firstRepos.length} repositorios que aparecen en ${firstActiveYear} no son de grandes corporaciones, sino proyectos pequeños y experimentales como ${firstRepoNames}. Organizaciones como ${firstOrgNames} representan iniciativas de investigación y prototipos tempranos que exploran el terreno, allanando el camino para que los grandes actores de la industria se sumen más adelante.`)
+      : `En ${firstActiveYear} emergen los primeros ${firstRepos.length} repositorios: ${firstRepoNames}. Son proyectos experimentales y de investigación, pequeñas semillas plantadas antes de que la industria reconociera el potencial del open-source para acelerar la computación cuántica.`,
+  })
+
+  //  WP 3b: PRIMER GIGANTE — La primera gran org industrial en el ecosistema 
+  // Encontrar la primera org industrial clave por año de aparición
+  const keyOrgsByYear = Object.values(keyOrgsFound)
+    .filter(v => v.year != null)
+    .sort((a, b) => a.year - b.year)
+  const firstKeyOrg = keyOrgsByYear[0]
+  if (firstKeyOrg && firstKeyOrg.year > firstActiveYear) {
+    const fkOrg = firstKeyOrg.org
+    const fkPos = positions[fkOrg.id]
+    const fkRepos = orgRepos[fkOrg.id] || []
+    const fkStars = fkRepos.reduce((sum, r) => sum + (r.stars || 0), 0)
+    const fkTopRepo = [...fkRepos].sort((a, b) => (b.stars || 0) - (a.stars || 0))[0]
+    const fkLangs = [...new Set(fkRepos.map(r => r.language).filter(Boolean))].slice(0, 3)
+    // Otras orgs clave que aparecen el mismo año o poco después
+    const sameEraOrgs = keyOrgsByYear.filter(v => v.year <= firstKeyOrg.year + 1 && v.org.id !== fkOrg.id).map(v => v.label)
+    waypoints.push({
+      year: firstKeyOrg.year + 0.5,
+      ...(fkPos ? camFor(fkPos, 55) : { camPos: [0, 200, 500], camTarget: [0, 0, 0] }),
+      duration: 13,
+      title: firstKeyOrg.label,
+      text: `En ${firstKeyOrg.year}, ${firstKeyOrg.label} irrumpe en el ecosistema open-source cuántico aportando ${fkRepos.length} repositorios que acumulan ${fkStars.toLocaleString()} estrellas en GitHub.${fkTopRepo ? ` Su proyecto insignia, ${fkTopRepo.full_name || fkTopRepo.name}, alcanza las ${(fkTopRepo.stars || 0).toLocaleString()} ★ y se convierte en referencia para desarrolladores de todo el mundo.` : ''}${fkLangs.length > 0 ? ` Su stack tecnológico abarca ${fkLangs.join(', ')}.` : ''}${sameEraOrgs.length > 0 ? ` No están solos: en esta misma etapa también se incorporan ${sameEraOrgs.join(' y ')}, marcando el punto de inflexión en el que la industria apuesta decididamente por el open-source cuántico.` : ' Es el momento en que la industria apuesta decididamente por construir en abierto.'}`,
+    })
+  }
+
+  //  WP 3: EPICENTRO — La org más importante por centralidad 
+  const epicenterOrg = mostCentralOrg || orgsByRepos[0]?.org
+  if (epicenterOrg) {
+    const epicenterPos = positions[epicenterOrg.id]
+    const epicenterRepos = orgRepos[epicenterOrg.id] || []
+    const epicenterYear = orgFirstYear[epicenterOrg.id] || midY
+    const epicenterStars = epicenterRepos.reduce((sum, r) => sum + (r.stars || 0), 0)
+    const epicenterLangs = [...new Set(epicenterRepos.map(r => r.language).filter(Boolean))].slice(0, 3)
+    const epicenterTopRepo = [...epicenterRepos].sort((a, b) => (b.stars || 0) - (a.stars || 0))[0]
+    waypoints.push({
+      year: Math.min(epicenterYear + 1, yMax),
+      ...(epicenterPos ? camFor(epicenterPos, 45) : { camPos: [0, 150, 350], camTarget: [0, 0, 0] }),
+      duration: 13,
+      title: oName(epicenterOrg),
+      text: `En el centro gravitacional de este universo se encuentra ${oName(epicenterOrg)}, la organización más conectada del ecosistema. Con ${epicenterRepos.length} repositorios y ${epicenterStars.toLocaleString()} estrellas acumuladas, actúa como un hub que atrae colaboradores y genera influencia en múltiples direcciones.${epicenterTopRepo ? ` Su proyecto más emblemático es ${epicenterTopRepo.name}, con ${(epicenterTopRepo.stars || 0).toLocaleString()} ★.` : ''}${epicenterLangs.length > 0 ? ` Su stack tecnológico incluye ${epicenterLangs.join(', ')}, reflejando la amplitud de su contribución al campo.` : ''}`,
+    })
+  }
+
+  //  WP 4: QUBIT ESTELAR — El repo con más estrellas 
+  if (topRepo && topStars > 50) {
+    const trPos = positions[topRepo.id]
+    const ownerOrg = orgNodes.find(o => (orgRepos[o.id] || []).some(r => r.id === topRepo.id))
+    // Top 3 repos para contexto
+    const top3Names = topStarredRepos.slice(0, 3).map(r => `${r.name} (${(r.stars || 0).toLocaleString()} ★)`).join(', ')
+    waypoints.push({
+      year: topRepo.pushed_at_year || midY + 1,
+      ...(trPos ? camFor(trPos, 28) : { camPos: [100, 150, 250], camTarget: [0, 0, 0] }),
+      duration: 12,
+      title: `★ ${topRepo.name}`,
+      text: `Si hay un repositorio que brilla con luz propia en este ecosistema, ese es ${topRepo.full_name || topRepo.name}. Con ${topStars.toLocaleString()} estrellas en GitHub${ownerOrg ? `, mantenido por ${oName(ownerOrg)}` : ''}${topRepo.language ? ` y escrito principalmente en ${topRepo.language}` : ''}, se ha convertido en el proyecto más influyente de la computación cuántica open-source. Junto a él, otros proyectos destacados son ${top3Names}. En conjunto, todo el ecosistema acumula ${totalStarsAll.toLocaleString()} estrellas, reflejo del interés global por estas tecnologías.`,
+    })
+  }
+
+  //  WP 5: ENTRELAZAMIENTO — Overview general de la red de colaboración 
+  if (genuineLinks.length > 0) {
+    const genuineCount = genuineLinks.length
+    // Contar orgs únicas involucradas en colaboraciones genuinas
+    const collabOrgIds = new Set()
+    for (const c of genuineLinks) { collabOrgIds.add(c.source); collabOrgIds.add(c.target) }
+    const collabOrgCount = collabOrgIds.size
+    // Top 3 pares más fuertes
+    const strongPairs = genuineLinks
+      .sort((a, b) => b.strength - a.strength)
+      .slice(0, 3)
+      .map(c => {
+        const o1 = orgById[c.source], o2 = orgById[c.target]
+        return `${oName(o1)} ↔ ${oName(o2)} (${c.strength})`
+      }).join(', ')
+    waypoints.push({
+      year: midY + 1,
+      camPos: [0, 400, 800],
+      camTarget: [0, 0, 0],
+      duration: 13,
+      isEntanglement: true,
+      title: 'Entrelazamiento',
+      text: `La verdadera fortaleza de un ecosistema no está en sus nodos individuales, sino en cómo se conectan entre sí. Existen ${genuineCount} enlaces de colaboración real que unen a ${collabOrgCount} organizaciones independientes a través de desarrolladores que contribuyen en múltiples proyectos. Los vínculos más fuertes son ${strongPairs}. Cada arco luminoso que ves representa un puente genuino de talento entre equipos, evidencia de que la computación cuántica avanza como un esfuerzo colectivo y no como una carrera aislada.`,
+    })
+  }
+
+  //  WP 6: USUARIOS PUENTE — Los conectores del ecosistema 
+  if (bridgeCount > 0) {
+    // Encontrar el bridge user que más repos tiene
+    const topBridges = [...bridgeUsers].sort((a, b) => (b.repos_count || 0) - (a.repos_count || 0)).slice(0, 3)
+    const topBridgeNames = topBridges.map(u => `${u.name || u.login} (${u.repos_count || 0} repos)`).join(', ')
+    const bridgePct = ((bridgeCount / totalUsers) * 100).toFixed(1)
+    const normalCount = totalUsers - bridgeCount
+    waypoints.push({
+      year: midY + 2,
+      camPos: [0, 350, 700],
+      camTarget: [0, 0, 0],
+      duration: 13,
+      isBridgeUsers: true,
+      title: 'Usuarios Puente',
+      text: `${totalUsers.toLocaleString()} desarrolladores pueblan este ecosistema, pero no todos desempeñan el mismo rol. Entre ellos destacan ${bridgeCount.toLocaleString()} usuarios puente, apenas el ${bridgePct}% del total, representados por los puntos dorados que destellan ante ti. Estos desarrolladores contribuyen simultáneamente a repositorios de múltiples organizaciones, tejiendo la red de colaboración que mantiene unido al ecosistema. Los más activos son ${topBridgeNames}. Sin estos conectores, los ${normalCount.toLocaleString()} desarrolladores restantes quedarían fragmentados en silos organizacionales inconexos.`,
+    })
+  }
+
+  //  WP 7: INFLACIÓN CÓSMICA — El año del boom 
+  const peakOrgs = (orgsAppearingAt[peakYear] || [])
+    .sort((a, b) => (orgRepos[b.id]?.length || 0) - (orgRepos[a.id]?.length || 0))
+    .slice(0, 4)
+  const peakOrgNames = peakOrgs.map(o => oName(o)).join(', ')
+  const prevYearAccum = accumByYear[peakYear - 1] || 0
+  const growthPct = prevYearAccum > 0 ? ((peakGrowth / prevYearAccum) * 100).toFixed(0) : '∞'
+  // Detectar hitos industriales clave en el año del boom
+  const peakKeyOrgs = Object.values(keyOrgsFound).filter(v => v.year === peakYear).map(v => v.label)
+  waypoints.push({
+    year: peakYear,
+    camPos: [250, 300, -200],
+    camTarget: [0, 0, 0],
+    duration: 13,
+    title: 'Inflación Cósmica',
+    text: `El año ${peakYear} marca el mayor salto en la historia del ecosistema: ${peakGrowth} nuevos repositorios irrumpen de golpe, un crecimiento del ${growthPct}% respecto al año anterior.${peakKeyOrgs.length > 0 ? ` No es casualidad: ${peakKeyOrgs.join(' y ')} ${peakKeyOrgs.length > 1 ? 'publican' : 'publica'} código abierto este año, catalizando la expansión.` : ''}${peakOrgNames ? ` Organizaciones como ${peakOrgNames} se incorporan al ecosistema, aportando nuevas perspectivas y herramientas.` : ''} En apenas doce meses, la cifra acumulada pasa de ${prevYearAccum} a ${accumByYear[peakYear] || 0} repositorios.`,
+  })
+
+  //  WP 8: BABEL CUÁNTICA — Diversidad de lenguajes 
+  if (topLangs.length >= 3) {
+    const langBreakdown = topLangs.slice(0, 5).map(([lang, count]) => `${lang} (${count})`).join(', ')
+    const dominantPct = ((topLangs[0][1] / total) * 100).toFixed(0)
+    const totalLangs = Object.keys(langCount).length
+    waypoints.push({
+      year: yMax - 1,
+      camPos: [-300, 200, 200],
+      camTarget: [0, 50, 0],
+      duration: 12,
+      title: 'Babel Cuántica',
+      text: `La computación cuántica no habla un solo lenguaje. ${totalLangs} lenguajes de programación distintos coexisten en este ecosistema, cada uno aportando fortalezas únicas. ${topLangs[0][0]} domina con el ${dominantPct}% de los repositorios, pero la diversidad es imprescindible: ${langBreakdown}. Desde la simulación numérica de circuitos cuánticos hasta las interfaces de control de hardware real, cada lenguaje cubre una necesidad específica del campo.`,
+    })
+  }
+
+  //  WP 9: PANORÁMICA FINAL — El universo completo 
+  const topOrgNames = orgsByRepos.slice(0, 5).map(e => `${oName(e.org)} (${e.count})`).join(', ')
+  waypoints.push({
+    year: yMax,
+    camPos: [0, 300, 650],
+    camTarget: [0, 30, 0],
+    duration: 14,
+    isFinal: true,
+    title: 'El Universo Cuántico',
+    text: `De la imaginación de Feynman en 1981 a este universo de código abierto: ${total.toLocaleString()} repositorios, ${totalOrgs} organizaciones y ${totalUsers.toLocaleString()} desarrolladores conforman hoy el ecosistema cuántico open-source, conectados por ${genuineLinks.length} colaboraciones inter-organizacionales reales. Los mayores hubs son ${topOrgNames}. Lo que comenzó como una intuición teórica se ha transformado en un organismo vivo, descentralizado y en constante expansión, donde academia e industria construyen juntas el futuro de la computación.`,
+  })
+
+  //  Ordenar cronológicamente para progresión lineal 
+  // El waypoint final (isFinal) siempre va al final independientemente del año
+  waypoints.sort((a, b) => {
+    if (a.isFinal) return 1
+    if (b.isFinal) return -1
+    return a.year - b.year
+  })
+
+  return waypoints
+}
+
+const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, tunnelPath, favoriteIdSet, multiOrgColors, activeNodeIdsRef, tourCameraRef }) {
   // === PROGRESO VIA REF - CERO re-renders de React desde el render-loop ===
   // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
   const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
@@ -3279,7 +4024,7 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
   const dimmed = selectedEntity !== null || searchHighlightSet !== null || entityFilter.size > 0 || lensData !== null || tunnelPath?.found || favoriteIdSet !== null
 
   const handleHover = useCallback((entity, pos) => {
-    // ── Suprimir hover durante arrastre de cámara ──
+    //  Suprimir hover durante arrastre de cámara 
     // R3F dispara raycasting en cada pointermove → hits → setHovered → re-render
     // del padre (UniverseView) con ~16 hijos no-memoizados. Bloquear aquí elimina
     // esos re-renders innecesarios y el stuttering al rotar con entidad seleccionada.
@@ -3314,11 +4059,17 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
     [universeData?.connections]
   )
 
-  // Arcos de entrelazamiento org↔org
-  const entanglementArcs = useMemo(
-    () => (universeData?.connections || []).filter(c => c.type === 'entangled_with'),
-    [universeData?.connections]
-  )
+  // Arcos de entrelazamiento org↔org (filtro siblings como safety-net)
+  const entanglementArcs = useMemo(() => {
+    const conns = (universeData?.connections || []).filter(c => c.type === 'entangled_with')
+    if (!universeData?.orgNodes) return conns
+    const oById = {}
+    for (const o of universeData.orgNodes) oById[o.id] = o
+    return conns.filter(c => {
+      const o1 = oById[c.source], o2 = oById[c.target]
+      return !areSiblingOrgs(o1, o2)
+    })
+  }, [universeData?.connections, universeData?.orgNodes])
 
   // Repo estrella por org
   const starRepos = useMemo(() => {
@@ -3350,7 +4101,7 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
       <ambientLight intensity={0.05} />
 
       {/* Cámara */}
-      <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} />
+      <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} tourCameraRef={tourCameraRef} />
 
       {/* Director de animación - escribe directo al ref, sin setState */}
       <BuildDirector progressRef={bpRef} startAnimation={startAnimation} />
@@ -3367,38 +4118,38 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
       <group visible={startAnimation}>
       {/* Stage 1: Procesadores (orgs) - 701 materiales + geometría */}
       {mountStage >= 1 && (
-        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
+        <QuantumProcessors orgNodes={orgNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} activeNodeIdsRef={activeNodeIdsRef} />
       )}
 
       {/* Stage 2: Anillos de energía (orgs) */}
-      {mountStage >= 2 && <EnergyRings orgNodes={orgNodes} positions={positions} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} dimmed={dimmed} />}
+      {mountStage >= 2 && <EnergyRings orgNodes={orgNodes} positions={positions} progressRef={bpRef} progressKey="processors" highlightSet={highlightSet} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
 
       {/* Stage 3: Qubits (repos) - 1122 instanced meshes */}
       {mountStage >= 3 && (
-        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="qubits" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} />
+        <Qubits repoNodes={repoNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="qubits" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} activeNodeIdsRef={activeNodeIdsRef} />
       )}
 
       {/* Stage 4: Partículas (users) - 27K+ vertices × 6 atributos (MÁS PESADO) */}
       {mountStage >= 4 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} multiOrgColors={multiOrgColors} />
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} multiOrgColors={multiOrgColors} activeNodeIdsRef={activeNodeIdsRef} />
       )}
 
       {/* Stage 5: Bonds (user-repo connections) */}
-      {mountStage >= 5 && showUsers && <QuantumBonds repoUsers={repoUsers} positions={positions} progressRef={bpRef} progressKey="particles" dimmed={dimmed} />}
+      {mountStage >= 5 && showUsers && <QuantumBonds repoUsers={repoUsers} positions={positions} progressRef={bpRef} progressKey="particles" dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
 
       {/* Stage 6: Canales de entrelazamiento (38K×35pts - PESADO) */}
-      {mountStage >= 6 && <EntanglementChannels connections={longConnections} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} highlightSet={highlightSet} starRepos={starRepos} collabHighlight={entityFilter.has('collab')} />}
+      {mountStage >= 6 && <EntanglementChannels connections={longConnections} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} highlightSet={highlightSet} starRepos={starRepos} collabHighlight={entityFilter.has('collab')} activeNodeIdsRef={activeNodeIdsRef} />}
 
       {/* Stage 7: Arcos org↔org + nubes + ejes (ligeros) */}
-      {mountStage >= 7 && entanglementArcs.length > 0 && <OrgEntanglementArcs arcs={entanglementArcs} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} collabHighlight={entityFilter.has('collab')} />}
-      {mountStage >= 7 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} />}
-      {mountStage >= 7 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} />}
+      {mountStage >= 7 && entanglementArcs.length > 0 && <OrgEntanglementArcs arcs={entanglementArcs} progressRef={bpRef} progressKey="entanglement" dimmed={dimmed} collabHighlight={entityFilter.has('collab')} activeNodeIdsRef={activeNodeIdsRef} />}
+      {mountStage >= 7 && showEffects && <ProbabilityClouds repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
+      {mountStage >= 7 && showEffects && <BlochAxes repoNodes={repoNodes} positions={positions} progressRef={bpRef} progressKey="qubits" dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
 
       {/* Stage 8: Efectos de ambiente - radiación + decoherencia + tunelización */}
       {/* Pasan startAnimation para no hacerse visibles durante la carga */}
-      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} />}
-      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} />}
-      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} dimmed={dimmed} />}
+      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
+      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
+      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
       </group>
 
       {/* Highlight de selección - anillos rotando */}
@@ -3515,6 +4266,19 @@ export default function UniverseView() {
   const tunnelingPath = useDashboardStore(s => s.tunnelingPath)
   const isLoadingTunneling = useDashboardStore(s => s.isLoadingTunneling)
   const clearTunneling = useDashboardStore(s => s.clearTunneling)
+  const temporalFilter = useDashboardStore(s => s.temporalFilter)
+  const applyTemporalFilter = useDashboardStore(s => s.applyTemporalFilter)
+  const isDiscovering = useDashboardStore(s => s.isDiscovering)
+  const temporalRange = useDashboardStore(s => s.temporalRange)
+  const storeSliderYear = useDashboardStore(s => s.sliderYear)
+  const activeNodeIds = useDashboardStore(s => s.activeNodeIds)
+  const setSliderYear = useDashboardStore(s => s.setSliderYear)
+  // Estado local para slider fluido — computa visibilidad y escribe directamente a la ref
+  const [localSlider, setLocalSlider] = useState(null)
+  useEffect(() => {
+    // Sincronizar slider local cuando el store cambia (reset, settings panel, etc.)
+    if (storeSliderYear != null) setLocalSlider(storeSliderYear)
+  }, [storeSliderYear])
 
   // Favoritos
   const toggleFavorite = useFavoritesStore(s => s.toggleFavorite)
@@ -3554,6 +4318,442 @@ export default function UniverseView() {
   const [entityFilter, setEntityFilter] = useState(new Set()) // Set of 'org' | 'repo' | 'user-bridge' | 'user-normal'
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
+  // === Temporal filter local state ===
+  const [showTemporalPanel, setShowTemporalPanel] = useState(false)
+  const [tempYearFrom, setTempYearFrom] = useState(temporalFilter?.yearFrom ?? '')
+  const [tempYearTo, setTempYearTo] = useState(temporalFilter?.yearTo ?? '')
+  const temporalRef = useRef(null)
+
+  // === Ref para visibilidad temporal - evita re-renders del Canvas memo'd ===
+  const activeNodeIdsRef = useRef(null)
+  // Solo sincronizar desde store cuando activeNodeIds cambie realmente
+  // (settings panel, reset), NO en cada render (que sobreescribiría el cálculo local del slider)
+  useEffect(() => { activeNodeIdsRef.current = activeNodeIds }, [activeNodeIds])
+
+  // Handler del slider: computa visibilidad localmente y escribe a la ref → 0 re-renders del Canvas
+  const handleSliderChange = useCallback((value) => {
+    setLocalSlider(value)
+    if (!temporalRange) return
+    if (value >= temporalRange.max) {
+      activeNodeIdsRef.current = null
+      return
+    }
+    const state = useDashboardStore.getState()
+    const nodes = state.collaborationDiscovery?.graph?.nodes
+    const links = state.collaborationDiscovery?.graph?.links
+    if (!nodes || !links) return
+    activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, temporalRange.min, value)
+  }, [temporalRange])
+
+  // === CINEMATIC TOUR ===
+  const [tourActive, setTourActive] = useState(false)
+  const [tourFading, setTourFading] = useState(false)
+  const [tourStep, setTourStep] = useState(0)
+  const [tourBigBangFired, setTourBigBangFired] = useState(false)
+  const [tourBigBangReplay, setTourBigBangReplay] = useState(0)
+  const [tourEnded, setTourEnded] = useState(false)
+  const [tourExiting, setTourExiting] = useState(false)
+  const [tourPaused, setTourPaused] = useState(false)
+  const tourCameraRef = useRef({ active: false, position: new THREE.Vector3(), target: new THREE.Vector3() })
+  const tourRafRef = useRef(null)
+  const tourFadeTimeoutRef = useRef(null)
+  // tourWaypoints se computa más abajo, después de universeData
+  const tourWaypointsRef = useRef([])
+  // Pause system refs
+  const tourPausedRef = useRef(false)
+  const tourPauseAccumRef = useRef(0)
+  const tourPauseStartRef = useRef(0)
+  const tourT0Ref = useRef(0)
+  const tourStepStartsRef = useRef([])
+  const tourBigBangTriggeredRef = useRef(false)
+
+  const stopTour = useCallback(() => {
+    setTourActive(false)
+    setTourFading(false)
+    setTourExiting(false)
+    setTourStep(0)
+    setTourEnded(false)
+    setTourBigBangFired(false)
+    setTourPaused(false)
+    tourPausedRef.current = false
+    tourPauseAccumRef.current = 0
+    tourBigBangTriggeredRef.current = false
+    setEntityFilter(new Set()) // Limpiar filtro collab del tour
+    tourCameraRef.current.active = false
+    if (tourRafRef.current) { cancelAnimationFrame(tourRafRef.current); tourRafRef.current = null }
+    if (tourFadeTimeoutRef.current) { clearTimeout(tourFadeTimeoutRef.current); tourFadeTimeoutRef.current = null }
+    // Restaurar slider al máximo (todo visible)
+    if (temporalRange) {
+      setLocalSlider(temporalRange.max)
+      activeNodeIdsRef.current = null
+      setSliderYear(temporalRange.max)
+    }
+  }, [temporalRange, setSliderYear])
+
+  const startTour = useCallback(() => {
+    const tourWaypoints = tourWaypointsRef.current
+    if (tourWaypoints.length === 0 || !temporalRange) return
+    setSelectedEntity(null)
+    setShowHelp(false)
+    setTourFading(true) // Fade gradual de la UI
+
+    // Tras completarse el fade, iniciar el engine del tour
+    tourFadeTimeoutRef.current = setTimeout(() => {
+      tourFadeTimeoutRef.current = null
+      setTourActive(true)
+      setTourBigBangFired(false)
+      setTourStep(0)
+
+      // Posición inicial del tour
+      const wp0 = tourWaypoints[0]
+      tourCameraRef.current.active = true
+      tourCameraRef.current.position.set(...wp0.camPos)
+      tourCameraRef.current.target.set(...wp0.camTarget)
+      handleSliderChange(wp0.year)
+
+      // Tiempos acumulados de cada step
+      const stepStarts = [0]
+      for (let i = 0; i < tourWaypoints.length; i++) stepStarts.push(stepStarts[i] + tourWaypoints[i].duration * 1000)
+      const totalDur = stepStarts[stepStarts.length - 1]
+
+      const t0 = performance.now()
+      tourT0Ref.current = t0
+      tourStepStartsRef.current = stepStarts
+      tourPauseAccumRef.current = 0
+      tourPausedRef.current = false
+      setTourPaused(false)
+      tourBigBangTriggeredRef.current = false
+      let curStep = -1
+      let lastSliderUI = 0
+      let endedFlag = false
+      const lastStepIdx = tourWaypoints.length - 1
+      const lastStepStart = stepStarts[lastStepIdx]
+      // Camera lerp state for smooth transitions between steps
+      let lerpCamPos = [...wp0.camPos]
+      let lerpCamTarget = [...wp0.camTarget]
+      let targetCamPos = [...wp0.camPos]
+      let targetCamTarget = [...wp0.camTarget]
+
+      // Pre-compute genesis filter so void/preludio use it instead of null
+      let genesisFilter = new Map()
+      const genesisWp = tourWaypoints.find(w => w.isGenesis)
+      if (genesisWp && temporalRange) {
+        const _st = useDashboardStore.getState()
+        const _n = _st.collaborationDiscovery?.graph?.nodes
+        const _l = _st.collaborationDiscovery?.graph?.links
+        if (_n && _l) genesisFilter = computeTemporalVisibility(_n, _l, temporalRange.min, genesisWp.year)
+      }
+      // Apply genesis filter immediately so visRef init uses correct targets
+      activeNodeIdsRef.current = genesisFilter
+
+      let postTourAngleOffset = 0
+      let postTourInitialized = false
+
+      const tick = (now) => {
+        //  Si está pausado, mantener RAF pero no avanzar 
+        if (tourPausedRef.current) {
+          tourRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        const el = now - t0 - tourPauseAccumRef.current
+
+        //  Fase post-tour: rotación continua, botones visibles 
+        if (el >= totalDur) {
+          if (!endedFlag) { setTourEnded(true); setEntityFilter(new Set()); endedFlag = true }
+          // Calcular offset inicial una vez para continuidad con la rotación del tour
+          if (!postTourInitialized) {
+            // Ángulo actual de la cámara al final del tour
+            const camX = tourCameraRef.current.position.x
+            const camZ = tourCameraRef.current.position.z
+            const currentAngle = Math.atan2(camX, camZ)
+            // El ángulo post-tour arranca desde sinceLastStep=0 → offset = currentAngle
+            postTourAngleOffset = currentAngle
+            postTourInitialized = true
+          }
+          // Cámara gira lentamente alrededor del universo (sentido horario)
+          const sinceLastStep = (el - totalDur) / 1000
+          const angle = postTourAngleOffset - sinceLastStep * 0.1
+          const radius = 620
+          tourCameraRef.current.position.set(
+            Math.sin(angle) * radius,
+            280,
+            Math.cos(angle) * radius
+          )
+          tourCameraRef.current.target.set(0, 30, 0)
+          tourRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+
+        // Step actual
+        let s = 0
+        while (s < tourWaypoints.length - 1 && el >= stepStarts[s + 1]) s++
+        const wp = tourWaypoints[s]
+        const nxt = tourWaypoints[s + 1]
+        const t = Math.min((el - stepStarts[s]) / (wp.duration * 1000), 1)
+
+        // Cambio de step → actualizar camera target + narrativa + filtros
+        if (s !== curStep) {
+          const prevWp = curStep >= 0 ? tourWaypoints[curStep] : null
+          curStep = s
+          setTourStep(s)
+          // Smooth lerp targets for camera position + target
+          targetCamPos = [...wp.camPos]
+          targetCamTarget = [...wp.camTarget]
+          // Aplicar/quitar filtros automáticos según el step
+          if (wp.isEntanglement) {
+            setEntityFilter(new Set(['collab']))
+          } else if (wp.isBridgeUsers) {
+            setEntityFilter(new Set(['user-bridge', 'user-normal']))
+          } else if (prevWp?.isEntanglement || prevWp?.isBridgeUsers) {
+            setEntityFilter(new Set())
+          }
+        }
+
+        //  Lerp suave de posición base de cámara entre steps 
+        const lerpSpeed = 0.03 // Suave, ~1s para transición completa
+        lerpCamPos[0] += (targetCamPos[0] - lerpCamPos[0]) * lerpSpeed
+        lerpCamPos[1] += (targetCamPos[1] - lerpCamPos[1]) * lerpSpeed
+        lerpCamPos[2] += (targetCamPos[2] - lerpCamPos[2]) * lerpSpeed
+        lerpCamTarget[0] += (targetCamTarget[0] - lerpCamTarget[0]) * lerpSpeed
+        lerpCamTarget[1] += (targetCamTarget[1] - lerpCamTarget[1]) * lerpSpeed
+        lerpCamTarget[2] += (targetCamTarget[2] - lerpCamTarget[2]) * lerpSpeed
+
+        //  Rotación orbital cinemática continua (no se reinicia por step) 
+        {
+          const totalElapsedSec = el / 1000 // Tiempo total desde inicio del tour
+          const orbitSpeed = 0.08 // rad/s — lenta y cinemática
+          const angle = -totalElapsedSec * orbitSpeed
+          const cx = lerpCamTarget[0], cy = lerpCamTarget[1], cz = lerpCamTarget[2]
+          const dx = lerpCamPos[0] - cx, dz = lerpCamPos[2] - cz
+          const radius = Math.sqrt(dx * dx + dz * dz)
+          const baseAngle = Math.atan2(dx, dz)
+          tourCameraRef.current.position.set(
+            cx + Math.sin(baseAngle + angle) * radius,
+            lerpCamPos[1],
+            cz + Math.cos(baseAngle + angle) * radius
+          )
+          tourCameraRef.current.target.set(cx, cy, cz)
+        }
+
+        //  Trigger BigBang mid-step durante el preludio 
+        if (wp.isPreludio && !tourBigBangTriggeredRef.current && wp.triggerBigBangAt) {
+          const stepElapsed = (el - stepStarts[s]) / 1000
+          if (stepElapsed >= wp.triggerBigBangAt) {
+            setTourBigBangFired(true)
+            setTourBigBangReplay(r => r + 1)
+            tourBigBangTriggeredRef.current = true
+          }
+        }
+
+        //  Durante void/preludio: overlay negro cubre la escena 
+        // Usar filtro de génesis (no null) para que las entidades estén
+        // pre-condicionadas al año correcto antes de que se levante el overlay
+        if (wp.isVoid || wp.isPreludio) {
+          activeNodeIdsRef.current = genesisFilter
+          tourRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+
+        //  Durante génesis: filtrar al primer año con datos reales 
+        if (wp.isGenesis) {
+          if (temporalRange) {
+            const st = useDashboardStore.getState()
+            const nodes = st.collaborationDiscovery?.graph?.nodes
+            const links = st.collaborationDiscovery?.graph?.links
+            if (nodes && links) {
+              activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, temporalRange.min, wp.year)
+            }
+          }
+          if (now - lastSliderUI > 80) {
+            setLocalSlider(wp.year)
+            lastSliderUI = now
+          }
+          tourRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+
+        //  Último step: mantener slider en max 
+        if (s === lastStepIdx) {
+          if (now - lastSliderUI > 80) {
+            setLocalSlider(temporalRange.max)
+            lastSliderUI = now
+          }
+          activeNodeIdsRef.current = null
+          tourRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+
+        // Interpolar slider (año)
+        if (nxt) {
+          const year = wp.year + (nxt.year - wp.year) * easeInOutCubic(t)
+          // Actualizar la ref de visibilidad en cada frame (sin re-render)
+          if (temporalRange && year < temporalRange.max) {
+            const st = useDashboardStore.getState()
+            const nodes = st.collaborationDiscovery?.graph?.nodes
+            const links = st.collaborationDiscovery?.graph?.links
+            if (nodes && links) activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, temporalRange.min, year)
+          } else {
+            activeNodeIdsRef.current = null
+          }
+          // Throttle React setState del slider (~12fps) para mover la barra visual
+          if (now - lastSliderUI > 80) {
+            setLocalSlider(year)
+            lastSliderUI = now
+          }
+        }
+
+        tourRafRef.current = requestAnimationFrame(tick)
+      }
+      tourRafRef.current = requestAnimationFrame(tick)
+    }, 1300) // Esperar 1.3s para que la animación de fade complete
+  }, [temporalRange, handleSliderChange, stopTour])
+
+  // Salir del tour con transición suave (secuencial: cámara → UI)
+  const exitTourSmooth = useCallback(() => {
+    if (tourRafRef.current) { cancelAnimationFrame(tourRafRef.current); tourRafRef.current = null }
+    // Fase 1: Fade-out del overlay del tour + mover cámara al centro
+    tourCameraRef.current.position.set(0, 280, 600)
+    tourCameraRef.current.target.set(0, 30, 0)
+    setTourEnded(false)
+    setTourFading(false)
+    setTourBigBangFired(false)
+    setEntityFilter(new Set())
+    setTourExiting(true) // Inicia fade-out del overlay
+    // Restaurar slider al máximo durante la transición
+    if (temporalRange) {
+      setLocalSlider(temporalRange.max)
+      activeNodeIdsRef.current = null
+      setSliderYear(temporalRange.max)
+    }
+    // Fase 2: Tras la cámara centrarse (~1.6s), revelar la UI
+    tourFadeTimeoutRef.current = setTimeout(() => {
+      setTourActive(false) // Quita tourHideElement → activa tourRevealElement
+      tourCameraRef.current.active = false
+      setTourStep(0)
+      // Fase 3: Limpieza final tras completar el fade-in de la UI
+      setTimeout(() => {
+        setTourExiting(false)
+        tourFadeTimeoutRef.current = null
+      }, 1500)
+    }, 1600)
+  }, [temporalRange, setSliderYear])
+
+  // Reiniciar el tour desde el principio
+  const restartTour = useCallback(() => {
+    if (tourRafRef.current) { cancelAnimationFrame(tourRafRef.current); tourRafRef.current = null }
+    if (tourFadeTimeoutRef.current) { clearTimeout(tourFadeTimeoutRef.current); tourFadeTimeoutRef.current = null }
+    setTourEnded(false)
+    setTourActive(false)
+    setTourFading(false)
+    setTourExiting(false)
+    setTourStep(0)
+    setTourBigBangFired(false)
+    setTourPaused(false)
+    tourPausedRef.current = false
+    tourPauseAccumRef.current = 0
+    tourBigBangTriggeredRef.current = false
+    setEntityFilter(new Set()) // Limpiar filtro collab del tour
+    tourCameraRef.current.active = false
+    // Pequeño delay para que el estado se limpie, luego relanzar
+    setTimeout(() => startTour(), 150)
+  }, [startTour])
+
+  //  Controles manuales del tour: pausa, siguiente, anterior 
+  const toggleTourPause = useCallback(() => {
+    if (!tourActive || tourEnded) return
+    if (tourPausedRef.current) {
+      // Reanudar — acumular tiempo pausado
+      tourPauseAccumRef.current += performance.now() - tourPauseStartRef.current
+      tourPausedRef.current = false
+      setTourPaused(false)
+    } else {
+      // Pausar — registrar momento
+      tourPauseStartRef.current = performance.now()
+      tourPausedRef.current = true
+      setTourPaused(true)
+    }
+  }, [tourActive, tourEnded])
+
+  const tourGoNext = useCallback(() => {
+    if (!tourActive || tourEnded) return
+    const stepStarts = tourStepStartsRef.current
+    const wps = tourWaypointsRef.current
+    if (!stepStarts.length || !wps.length) return
+    const now = performance.now()
+    const currentEl = tourPausedRef.current
+      ? tourPauseStartRef.current - tourT0Ref.current - tourPauseAccumRef.current
+      : now - tourT0Ref.current - tourPauseAccumRef.current
+    let s = 0
+    while (s < wps.length - 1 && currentEl >= stepStarts[s + 1]) s++
+    const nextStep = Math.min(s + 1, wps.length - 1)
+    if (nextStep === s) return // ya estamos en el último
+    const targetEl = stepStarts[nextStep]
+    if (tourPausedRef.current) {
+      tourPauseAccumRef.current = tourPauseStartRef.current - tourT0Ref.current - targetEl
+    } else {
+      tourPauseAccumRef.current = now - tourT0Ref.current - targetEl
+    }
+  }, [tourActive, tourEnded])
+
+  const tourGoPrev = useCallback(() => {
+    if (!tourActive || tourEnded) return
+    const stepStarts = tourStepStartsRef.current
+    const wps = tourWaypointsRef.current
+    if (!stepStarts.length || !wps.length) return
+    const now = performance.now()
+    const currentEl = tourPausedRef.current
+      ? tourPauseStartRef.current - tourT0Ref.current - tourPauseAccumRef.current
+      : now - tourT0Ref.current - tourPauseAccumRef.current
+    let s = 0
+    while (s < wps.length - 1 && currentEl >= stepStarts[s + 1]) s++
+    const prevStep = Math.max(s - 1, 0)
+    if (prevStep === s) return // ya estamos en el primero
+    const targetEl = stepStarts[prevStep]
+    // Si retrocedemos antes del preludio, resetear el BigBang
+    if (prevStep <= 1) {
+      tourBigBangTriggeredRef.current = false
+      setTourBigBangFired(false)
+    }
+    if (tourPausedRef.current) {
+      tourPauseAccumRef.current = tourPauseStartRef.current - tourT0Ref.current - targetEl
+    } else {
+      tourPauseAccumRef.current = now - tourT0Ref.current - targetEl
+    }
+  }, [tourActive, tourEnded])
+
+  // Escape cancela tour, flechas izq/der navegan, espacio pausa
+  useEffect(() => {
+    if (!tourActive && !tourFading) return
+    const handleKey = (e) => {
+      if (e.key === 'Escape') stopTour()
+      if (tourActive && !tourEnded) {
+        if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); toggleTourPause() }
+        if (e.key === 'ArrowRight') tourGoNext()
+        if (e.key === 'ArrowLeft') tourGoPrev()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [tourActive, tourFading, tourEnded, stopTour, toggleTourPause, tourGoNext, tourGoPrev])
+
+  // Cleanup al desmontar
+  useEffect(() => () => {
+    if (tourRafRef.current) cancelAnimationFrame(tourRafRef.current)
+    if (tourFadeTimeoutRef.current) clearTimeout(tourFadeTimeoutRef.current)
+  }, [])
+
+  // Cerrar panel temporal al hacer clic fuera
+  useEffect(() => {
+    if (!showTemporalPanel) return
+    const handleClickOutside = (e) => {
+      if (temporalRef.current && !temporalRef.current.contains(e.target)) {
+        setShowTemporalPanel(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showTemporalPanel])
+
   // Cerrar dropdown de ajustes al hacer clic fuera
   useEffect(() => {
     if (!showSettings) return
@@ -3590,6 +4790,10 @@ export default function UniverseView() {
   const handleExit = useCallback(() => {
     if (isExiting) return
     setIsExiting(true)
+    // Restaurar scrollbar al inicio de la salida para evitar salto visual al cerrar
+    const html = document.documentElement
+    html.style.overflow = ''
+    html.style.scrollbarGutter = ''
     // BlackHoleExit Canvas component handles all visuals + calls onComplete
   }, [isExiting])
 
@@ -3629,6 +4833,13 @@ export default function UniverseView() {
   const layoutWorkerRef = useRef(null)
   const layoutRequestIdRef = useRef(0)
   const [universeData, setUniverseData] = useState(null)
+
+  // Compute tour waypoints when universe data or temporal range change
+  useEffect(() => {
+    if (universeData && temporalRange) {
+      tourWaypointsRef.current = generateTourWaypoints(universeData, temporalRange)
+    }
+  }, [universeData, temporalRange])
 
   // Set de IDs de favoritos para filtrado rápido
   // Herencia: si una org es favorita, sus repos y users también se incluyen
@@ -3689,6 +4900,18 @@ export default function UniverseView() {
     })
   }, [filteredGraph, networkMetrics, isLoadingMetrics, metricsLoadAttempted])
 
+  //  Ocultar scrollbar del body al entrar al universo (incluida pantalla de carga) 
+  useEffect(() => {
+    if (showCollaborationGraph) {
+      const html = document.documentElement
+      const prevOverflow = html.style.overflow
+      const prevGutter = html.style.scrollbarGutter
+      html.style.overflow = 'hidden'
+      html.style.scrollbarGutter = 'auto'
+      return () => { html.style.overflow = prevOverflow; html.style.scrollbarGutter = prevGutter }
+    }
+  }, [showCollaborationGraph])
+
   useEffect(() => {
     if (showCollaborationGraph) {
       requestAnimationFrame(() => setEntering(true))
@@ -3709,7 +4932,7 @@ export default function UniverseView() {
     }
   }, [showCollaborationGraph])
 
-  // ─── Tooltip – delegación global sobre data-tip ───
+  //  Tooltip – delegación global sobre data-tip 
   useEffect(() => {
     const onOver = (e) => {
       const el = e.target.closest('[data-tip]')
@@ -3734,7 +4957,7 @@ export default function UniverseView() {
     }
   }, [])
 
-  // ─── Cierre animado del panel ───
+  //  Cierre animado del panel 
   const closePanelTimerRef = useRef(null)
   const handleClosePanel = useCallback(() => {
     setPanelClosing(true)
@@ -3815,7 +5038,7 @@ export default function UniverseView() {
     })
   }, [universeData])
 
-  // ─── WEB WORKER: computation off-main-thread (progressive) ───
+  //  WEB WORKER: computation off-main-thread (progressive) 
   const [detailData, setDetailData] = useState(null)
   const detailRequestIdRef = useRef(0)
   useEffect(() => {
@@ -3881,22 +5104,24 @@ export default function UniverseView() {
 
   // 3. Cuando el loader desaparece → arrancar animación del Big Bang
   //    El usuario ve el proceso de construcción FRESCO desde el inicio
+  //    Guardar: no re-activar durante el tour (startTour lo pone a false)
   useEffect(() => {
-    if (!loaderVisible && sceneReady && !animationStarted) {
+    if (!loaderVisible && sceneReady && !animationStarted && !tourActive) {
       setAnimationStarted(true)
     }
-  }, [loaderVisible, sceneReady, animationStarted])
+  }, [loaderVisible, sceneReady, animationStarted, tourActive])
 
   // 4. Mostrar UI después de que TODAS las fases de animación hayan terminado
   // entanglement (última fase) empieza a 6.5s y dura 1.8s → finaliza a ~8.3s
+  // Guardar: no ocultar UI durante el tour (el overlay necesita uiVisible=true)
   useEffect(() => {
     if (animationStarted) {
       const t = setTimeout(() => setUiVisible(true), 8500)
       return () => clearTimeout(t)
-    } else {
+    } else if (!tourActive) {
       setUiVisible(false)
     }
-  }, [animationStarted])
+  }, [animationStarted, tourActive])
 
   // Auto-load network metrics when universe opens (solo 1 intento)
   useEffect(() => {
@@ -4237,12 +5462,19 @@ export default function UniverseView() {
 
   const metrics = collaborationDiscovery?.metrics
 
+  // Clase CSS para elementos de UI durante/después del tour
+  // Fase 1 (tourExiting + tourActive): overlay se desvanece, UI sigue oculta
+  // Fase 2 (tourExiting + !tourActive): UI aparece gradualmente
+  const tourUIClass = (tourExiting && !tourActive)
+    ? styles.tourRevealElement
+    : (tourFading || tourActive) ? styles.tourHideElement : ''
+
   return (
     <div className={`${styles.universe} ${entering ? styles.universeVisible : ''} ${isExiting ? styles.universeExiting : ''}`}>
       {/* Black Hole Gravitational Collapse — Canvas2D particle simulation */}
       <BlackHoleExit active={isExiting} onComplete={handleExitComplete} wrapperRef={canvasWrapperRef} />
       {/* Big Bang Genesis — Canvas2D particle explosion overlay */}
-      <BigBangEntry active={animationStarted && !isExiting} wrapperRef={canvasWrapperRef} />
+      <BigBangEntry active={animationStarted && !isExiting} wrapperRef={canvasWrapperRef} replay={tourBigBangReplay} />
       <div ref={canvasWrapperRef} className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''}`}>
         {canvasMounted && (
         <Canvas
@@ -4251,7 +5483,7 @@ export default function UniverseView() {
           dpr={[1, 1.5]}
           raycaster={{ params: { Points: { threshold: 3 } } }}
           onCreated={({ gl }) => gl.setClearColor('#020208')}
-          frameloop={animationStarted ? 'always' : 'demand'}
+          frameloop={(animationStarted || tourActive) ? 'always' : 'demand'}
         >
           <QuantumScene
             universeData={universeData}
@@ -4270,6 +5502,8 @@ export default function UniverseView() {
             tunnelPath={tunnelingPath}
             favoriteIdSet={favoriteIdSet}
             multiOrgColors={multiOrgColors}
+            activeNodeIdsRef={activeNodeIdsRef}
+            tourCameraRef={tourCameraRef}
           />
           {/* Label flotante - fuera de QuantumScene para no causar re-renders de la escena 3D */}
           <FloatingLabel entity={hovered?.entity ?? null} position={hovered?.pos ?? null} />
@@ -4396,7 +5630,7 @@ export default function UniverseView() {
 
       {/* Header */}
       <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''}`}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ${tourUIClass}`}>
         <div className={styles.headerLeft}>
           <div className={styles.headerBrand}>
             <span className={styles.headerAtom}>⚛</span>
@@ -4480,6 +5714,71 @@ export default function UniverseView() {
                     </button>
                   ))}
                 </div>
+                <div className={styles.settingsDivider} />
+                <div className={styles.settingsSection}>
+                  <span className={styles.settingsSectionTitle}><FiCalendar size={10} style={{ marginRight: 4 }} />Filtro temporal</span>
+                  <div className={styles.temporalFilterRow}>
+                    <div className={styles.temporalInputGroup}>
+                      <label className={styles.temporalLabel}>Desde</label>
+                      <input
+                        type="number"
+                        className={styles.temporalInput}
+                        placeholder="2015"
+                        min={2008}
+                        max={2030}
+                        value={tempYearFrom}
+                        onChange={e => setTempYearFrom(e.target.value)}
+                      />
+                    </div>
+                    <span className={styles.temporalDash}>–</span>
+                    <div className={styles.temporalInputGroup}>
+                      <label className={styles.temporalLabel}>Hasta</label>
+                      <input
+                        type="number"
+                        className={styles.temporalInput}
+                        placeholder="2025"
+                        min={2008}
+                        max={2030}
+                        value={tempYearTo}
+                        onChange={e => setTempYearTo(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className={styles.temporalActions}>
+                    <button
+                      className={styles.temporalApplyBtn}
+                      disabled={!tempYearFrom && !tempYearTo}
+                      onClick={() => {
+                        const yf = tempYearFrom ? parseInt(tempYearFrom) : undefined
+                        const yt = tempYearTo ? parseInt(tempYearTo) : undefined
+                        if (!yf && !yt) return
+                        applyTemporalFilter({ yearFrom: yf, yearTo: yt })
+                        setShowSettings(false)
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                    {temporalFilter && (
+                      <button
+                        className={styles.temporalClearBtn}
+                        onClick={() => {
+                          setTempYearFrom('')
+                          setTempYearTo('')
+                          applyTemporalFilter(null)
+                          setShowSettings(false)
+                        }}
+                      >
+                        <FiX size={10} /> Quitar
+                      </button>
+                    )}
+                  </div>
+                  {temporalFilter && (
+                    <div className={styles.temporalActiveTag}>
+                      <FiCalendar size={9} />
+                      <span>{temporalFilter.yearFrom || '∞'} – {temporalFilter.yearTo || '∞'}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -4489,7 +5788,7 @@ export default function UniverseView() {
       </header>
 
       {/* === BARRA DE BÚSQUEDA CON AUTOCOMPLETE === */}
-      <div className={styles.searchBar}>
+      <div className={`${styles.searchBar} ${tourUIClass}`}>
         <div className={styles.searchInputWrapper}>
           <FiSearch size={14} className={styles.searchIcon} />
           <input
@@ -4556,7 +5855,7 @@ export default function UniverseView() {
       </div>
 
       {/* === BARRA DE LENTES ANALÍTICAS === */}
-      <div className={styles.lensToolbar}>
+      <div className={`${styles.lensToolbar} ${tourUIClass}`}>
         <span className={styles.lensLabel}>Lentes</span>
         {[
           { id: 'communities', icon: <FiLayers size={13} />, name: 'Comunidades', color: '#6c5ce7' },
@@ -4767,7 +6066,7 @@ export default function UniverseView() {
       )}
 
       {/* Leyenda cuántica */}
-      <div className={styles.legend}>
+      <div className={`${styles.legend} ${tourUIClass}`}>
         <div className={styles.legendCard}>
           <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} /><span>Orgs</span><span className={styles.legendType}>Procesadores</span></div>
           <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} /><span>Repos</span><span className={styles.legendType}>Qubits</span></div>
@@ -4778,7 +6077,14 @@ export default function UniverseView() {
       </div>
 
       {/* Métricas - conteos reales del grafo renderizado */}
-      <div className={styles.metricsFloat}>
+      <div className={`${styles.metricsFloat} ${tourUIClass}`}>
+        {temporalFilter && (
+          <div className={`${styles.metricPill} ${styles.temporalBadge}`}>
+            <FiCalendar size={11} style={{ color: '#ff9f43' }} />
+            <span className={styles.metricValue2}>{temporalFilter.yearFrom || '∞'}–{temporalFilter.yearTo || '∞'}</span>
+          </div>
+        )}
+        <div className={styles.metricPill}><FiGlobe size={11} style={{ color: '#00f7ff' }} /><span className={styles.metricValue2}>{universeData?.orgNodes?.length || 0}</span><span className={styles.metricLabel2}>orgs</span></div>
         <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>repos</span></div>
         <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>users</span></div>
         <div className={styles.metricPill}><FiGitBranch size={11} /><span className={styles.metricValue2}>{metrics?.connected_repo_pairs || 0}</span><span className={styles.metricLabel2}>canales</span></div>
@@ -4805,7 +6111,7 @@ export default function UniverseView() {
         const isPinned = pinnedEntity?.id === selectedEntity?.id
 
         return (
-        <aside className={`${styles.detailPanel} ${detailExpanded ? styles.detailPanelExpanded : ''} ${panelClosing ? (detailExpanded ? styles.detailPanelExpandedClosing : styles.detailPanelClosing) : ''}`}>
+        <aside className={`${styles.detailPanel} ${detailExpanded ? styles.detailPanelExpanded : ''} ${panelClosing ? (detailExpanded ? styles.detailPanelExpandedClosing : styles.detailPanelClosing) : ''} ${tourUIClass}`}>
           {/* === TOOLBAR === */}
           <div className={styles.detailToolbar}>
             {navHistory.length > 0 && (
@@ -5032,7 +6338,7 @@ export default function UniverseView() {
             </div>
           )}
 
-          {/* ─── COLLABORATION DNA ─── */}
+          {/*  COLLABORATION DNA  */}
           {detailExpanded && !collabDNA && !_advancedLoaded && radarAxes.length >= 3 && (
             <div className={styles.detailDNA}>
               <p className={styles.detailSectionTitle}><FiHash size={10} /> Collaboration DNA</p>
@@ -5108,7 +6414,7 @@ export default function UniverseView() {
           {/* === TAB: INFO === */}
           {detailTab === 'info' && (
             <div className={styles.detailBody}>
-              {/* ─── ORG INFO ─── */}
+              {/*  ORG INFO  */}
               {selectedEntity.type === 'org' && (
                 <>
                   <div className={styles.detailStatsGrid}>
@@ -5186,7 +6492,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── REPO INFO ─── */}
+              {/*  REPO INFO  */}
               {selectedEntity.type === 'repo' && (
                 <>
                   {repoOwnerOrg && (
@@ -5269,7 +6575,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── USER INFO ─── */}
+              {/*  USER INFO  */}
               {selectedEntity.type === 'user' && (
                 <>
                   <div className={styles.detailStatsGrid}>
@@ -5339,7 +6645,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── ANALYSIS SUMMARY (shared all types) ─── */}
+              {/*  ANALYSIS SUMMARY (shared all types)  */}
               {analysisText && (
                 <div className={styles.detailAnalysis}>
                   <p className={styles.detailSectionTitle} data-tip="Resumen generado automáticamente del perfil de colaboración"><FiAward size={10} /> Resumen de análisis</p>
@@ -5347,7 +6653,7 @@ export default function UniverseView() {
                 </div>
               )}
 
-              {/* ─── HEALTH SCORE (orgs only) ─── */}
+              {/*  HEALTH SCORE (orgs only)  */}
               {healthScore !== null && (
                 <div className={styles.detailHealthSection}>
                   <p className={styles.detailSectionTitle} data-tip="Puntuación 0-100 que mide la salud del ecosistema colaborativo de esta organización"><FiHeart size={10} /> Salud colaborativa</p>
@@ -5379,7 +6685,7 @@ export default function UniverseView() {
                 </div>
               )}
 
-              {/* ─── COLLABORATION MATRIX (orgs, expanded) ─── */}
+              {/*  COLLABORATION MATRIX (orgs, expanded)  */}
               {detailExpanded && !collabMatrix && !_advancedLoaded && selectedEntity.type === 'org' && orgReposList.length >= 2 && orgReposList.length <= 15 && (
                 <div className={styles.detailSection}>
                   <p className={styles.detailSectionTitle}><FiLayers size={10} /> Matriz de colaboración</p>
@@ -5509,7 +6815,7 @@ export default function UniverseView() {
                     </div>
                   )}
 
-                  {/* ─── KEY DEPENDENCIES - nodos críticos ─── */}
+                  {/*  KEY DEPENDENCIES - nodos críticos  */}
                   {keyDependencies.length > 0 && (
                     <div className={styles.detailSection}>
                       <p className={styles.detailSectionTitle} data-tip="Usuarios críticos cuya marcha tendría mayor impacto en la red de colaboración"><FiAlertTriangle size={10} /> Dependencias clave <span className={styles.detailCount}>{keyDependencies.length}</span></p>
@@ -5538,7 +6844,7 @@ export default function UniverseView() {
                     </div>
                   )}
 
-                  {/* ─── IMPACT SIMULATION ─── */}
+                  {/*  IMPACT SIMULATION  */}
                   {detailExpanded && impactSimulations.length === 0 && !_advancedLoaded && keyDependencies.length > 0 && (
                     <div className={styles.detailSection}>
                       <p className={styles.detailSectionTitle}><FiAlertTriangle size={10} /> ¿Qué pasaría si…?</p>
@@ -5601,7 +6907,7 @@ export default function UniverseView() {
           {/* === TAB: EXPLORAR (relaciones navegables) === */}
           {detailTab === 'explorer' && (
             <div className={styles.detailBody}>
-              {/* ─── ORG EXPLORER ─── */}
+              {/*  ORG EXPLORER  */}
               {selectedEntity.type === 'org' && (
                 <>
                   {/* Top contributors de la org */}
@@ -5639,7 +6945,7 @@ export default function UniverseView() {
                     </div>
                   )}
 
-                  {/* ─── KNOWLEDGE FLOWS: flujos internos de conocimiento ─── */}
+                  {/*  KNOWLEDGE FLOWS: flujos internos de conocimiento  */}
                   {knowledgeFlows.length > 0 && (
                     <div className={styles.detailSection}>
                       <p className={styles.detailSectionTitle} data-tip="Pares de repositorios que comparten más contribuidores - indica transferencia de conocimiento"><FiLink size={10} /> Flujos de conocimiento <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
@@ -5671,7 +6977,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── REPO EXPLORER ─── */}
+              {/*  REPO EXPLORER  */}
               {selectedEntity.type === 'repo' && (
                 <>
                   {/* Orgs representadas */}
@@ -5710,7 +7016,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── USER EXPLORER ─── */}
+              {/*  USER EXPLORER  */}
               {selectedEntity.type === 'user' && (
                 <>
                   {/* Lenguajes */}
@@ -5761,7 +7067,7 @@ export default function UniverseView() {
                 </>
               )}
 
-              {/* ─── SIMILAR ENTITIES ─── */}
+              {/*  SIMILAR ENTITIES  */}
               {detailExpanded && similarEntities.length === 0 && !_advancedLoaded && radarAxes.length >= 3 && (
                 <div className={styles.detailSection}>
                   <p className={styles.detailSectionTitle}><FiCrosshair size={10} /> Entidades similares</p>
@@ -5835,11 +7141,19 @@ export default function UniverseView() {
         </div>
       )}
 
-      {/* Botón de ayuda */}
-      <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)}>
-        <FiHelpCircle size={15} />
-        <span>Guía del Universo</span>
-      </button>
+      {/* Botones de acción inferiores */}
+      <div className={`${styles.bottomActions} ${tourUIClass}`}>
+        {!tourActive && !tourFading && temporalRange && (
+          <button className={styles.tourBtn} onClick={startTour}>
+            <FiPlay size={13} />
+            <span>Tour Cósmico</span>
+          </button>
+        )}
+        <button className={styles.helpBtn} onClick={() => setShowHelp(h => !h)}>
+          <FiHelpCircle size={15} />
+          <span>Guía del Universo</span>
+        </button>
+      </div>
 
       {/* Panel de ayuda - Completo */}
       {showHelp && (
@@ -6233,13 +7547,130 @@ export default function UniverseView() {
         </aside>
       )}
 
-      <div className={styles.interactionHint}>
+      {/* === TIMELINE SLIDER - barra temporal inferior === */}
+      {(uiVisible || tourActive || tourFading || tourExiting) && temporalRange && (
+        <div className={`${styles.timelineSlider} ${tourActive ? styles.timelineSliderTourMode : ''} ${tourUIClass}`}>
+          <div className={styles.timelineTrack}>
+            <span className={styles.timelineLabel}>{temporalRange.min}</span>
+            <input
+              type="range"
+              className={styles.timelineInput}
+              min={temporalRange.min}
+              max={temporalRange.max}
+              step={0.02}
+              value={localSlider ?? temporalRange.max}
+              onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
+              onMouseUp={() => { if (localSlider != null) setSliderYear(localSlider) }}
+              onTouchEnd={() => { if (localSlider != null) setSliderYear(localSlider) }}
+            />
+            <span className={styles.timelineLabel}>{temporalRange.max}</span>
+          </div>
+          <div className={styles.timelineYear}>
+            {localSlider != null && localSlider < temporalRange.max ? (
+              <>
+                <span className={styles.timelineYearRange}>{temporalRange.min} – {Math.floor(localSlider)}</span>
+                <button className={styles.timelineClear} onClick={() => { setLocalSlider(temporalRange.max); activeNodeIdsRef.current = null; setSliderYear(temporalRange.max) }} data-tip="Mostrar todo">✕</button>
+              </>
+            ) : (
+              <span className={styles.timelineYearAll}>Todo el rango temporal</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={`${styles.interactionHint} ${tourUIClass}`}>
         <span>Click · Colapso de función de onda</span>
         <span className={styles.hintDivider}>|</span>
         <span>Scroll · Zoom</span>
         <span className={styles.hintDivider}>|</span>
         <span>Arrastrar · Órbita</span>
       </div>
+
+      {/* === FADE TO BLACK — transición de entrada al tour === */}
+      {tourFading && !tourActive && (
+        <div className={styles.tourFadeToBlack} />
+      )}
+
+      {/* === CINEMATIC TOUR OVERLAY === */}
+      {(tourActive || tourExiting) && tourWaypointsRef.current.length > 0 && (() => {
+        const currentWp = tourWaypointsRef.current[tourStep]
+        return (
+        <div className={`${styles.tourOverlay} ${(currentWp?.isVoid || currentWp?.isPreludio) ? styles.tourOverlayVoid : ''} ${tourExiting ? styles.tourOverlayExiting : ''}`}>
+          {/* Letterbox bars - hidden during void/preludio for total blackness */}
+          {!currentWp?.isVoid && !currentWp?.isPreludio && <div className={styles.tourLetterboxTop} />}
+          {!currentWp?.isVoid && !currentWp?.isPreludio && <div className={styles.tourLetterboxBottom} />}
+
+          {/* VOID PHASE — total darkness + centered poetic text */}
+          {currentWp?.isVoid && (
+            <div className={styles.tourVoidNarrative} key={`void-${tourStep}`}>
+              <p className={styles.tourVoidLine} style={{ animationDelay: '1s', animationPlayState: tourPaused ? 'paused' : 'running' }}>{currentWp.text}</p>
+            </div>
+          )}
+
+          {/* PRELUDIO — "Y de pronto, un día…" dramatic centered text */}
+          {currentWp?.isPreludio && !tourBigBangFired && (
+            <div className={styles.tourPreludioNarrative} key={`preludio-${tourStep}`}>
+              <p className={styles.tourPreludioText} style={{ animationPlayState: tourPaused ? 'paused' : 'running' }}>{currentWp.text}</p>
+            </div>
+          )}
+
+          {/* GÉNESIS — post-BigBang narrative with glow */}
+          {currentWp?.isGenesis && (
+            <div className={styles.tourGenesisNarrative} key={`genesis-${tourStep}`} style={{ animationPlayState: tourPaused ? 'paused' : 'running' }}>
+              <h2 className={styles.tourGenesisTitle}>{currentWp.title}</h2>
+              <p className={styles.tourGenesisText}>{currentWp.text}</p>
+            </div>
+          )}
+
+          {/* NORMAL WAYPOINTS — standard narrative */}
+          {!currentWp?.isVoid && !currentWp?.isPreludio && !currentWp?.isGenesis && (
+            <div className={styles.tourNarrative} key={tourStep}>
+              <h2 className={styles.tourTitle}>{currentWp?.title}</h2>
+              <p className={styles.tourText}>{currentWp?.text}</p>
+            </div>
+          )}
+
+          <div className={styles.tourProgress}>
+            {tourWaypointsRef.current.map((_, i) => (
+              <div key={i} className={`${styles.tourDot} ${i <= tourStep ? styles.tourDotActive : ''} ${i === tourStep ? styles.tourDotCurrent : ''}`} />
+            ))}
+          </div>
+          {/* Controles manuales: prev, pause/play, next */}
+          {!tourEnded && (
+            <div className={styles.tourControls}>
+              <button className={styles.tourControlBtn} onClick={tourGoPrev} title="Anterior (←)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button className={styles.tourControlBtn} onClick={toggleTourPause} title={tourPaused ? 'Reanudar (Espacio)' : 'Pausar (Espacio)'}>
+                {tourPaused
+                  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21"/></svg>
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+                }
+              </button>
+              <button className={styles.tourControlBtn} onClick={tourGoNext} title="Siguiente (→)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          )}
+          {!tourEnded && (
+            <button className={styles.tourSkip} onClick={stopTour}>
+              Saltar tour ✕
+            </button>
+          )}
+          {tourEnded && (
+            <div className={styles.tourEndActions}>
+              <button className={styles.tourEndBtn} onClick={restartTour}>
+                ↻ Reiniciar tour
+              </button>
+              <button className={`${styles.tourEndBtn} ${styles.tourEndBtnExit}`} onClick={exitTourSmooth}>
+                Salir del tour
+              </button>
+            </div>
+          )}
+        </div>
+        )
+      })()}
+
       </div>{/* cierre universeUI */}
     </div>
   )

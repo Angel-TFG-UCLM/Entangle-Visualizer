@@ -283,16 +283,21 @@ export async function getUserCollaborationNetwork(userLogin) {
  * Busca bridge users, repos conectados, colaboración cross-org.
  * 
  * @param {boolean} forceRefresh - Si true, ignora caché y recalcula el grafo
- * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs }
+ * @param {Object} [temporalFilter] - Filtro temporal opcional
+ * @param {number} [temporalFilter.yearFrom] - Año inicio (incluido)
+ * @param {number} [temporalFilter.yearTo] - Año fin (incluido)
+ * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs, temporal_filter }
  */
-export async function discoverCollaboration(forceRefresh = false) {
+export async function discoverCollaboration(forceRefresh = false, temporalFilter = null) {
   try {
     const params = forceRefresh ? { force: true } : {};
+    if (temporalFilter?.yearFrom) params.year_from = temporalFilter.yearFrom;
+    if (temporalFilter?.yearTo) params.year_to = temporalFilter.yearTo;
     const response = await apiClient.get('/collaboration/discover', {
       params,
       timeout: 120000, // 2 min - la construcción del grafo completo puede tardar
     });
-    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}`);
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}, temporal=${temporalFilter ? `${temporalFilter.yearFrom || '∞'}–${temporalFilter.yearTo || '∞'}` : 'none'}`);
     return response.data;
   } catch (error) {
     console.error('[discoverCollaboration] Error:', error);
@@ -305,12 +310,18 @@ export async function discoverCollaboration(forceRefresh = false) {
  * Timeout extendido: la computación de grafos con ~30K nodos puede tardar ~90s.
  * 
  * @param {boolean} forceRefresh - Si forzar recálculo
+ * @param {Object} [temporalFilter] - Filtro temporal opcional
+ * @param {number} [temporalFilter.yearFrom] - Año inicio (incluido)
+ * @param {number} [temporalFilter.yearTo] - Año fin (incluido)
  * @returns {Promise<Object>} { node_metrics, communities, global_metrics }
  */
-export async function getNetworkMetrics(forceRefresh = false) {
+export async function getNetworkMetrics(forceRefresh = false, temporalFilter = null) {
   try {
+    const params = { force_refresh: forceRefresh };
+    if (temporalFilter?.yearFrom) params.year_from = temporalFilter.yearFrom;
+    if (temporalFilter?.yearTo) params.year_to = temporalFilter.yearTo;
     const response = await apiClient.get('/collaboration/network-metrics', {
-      params: { force_refresh: forceRefresh },
+      params,
       timeout: 180000, // 3 minutos - la computación de NetworkX es pesada
     });
     console.log(`📊 Network metrics: ${Object.keys(response.data.node_metrics || {}).length} nodes analyzed`);
@@ -550,6 +561,191 @@ export async function getFavoriteChildren(entityId) {
     console.error('[getFavoriteChildren] Error:', error);
     throw error;
   }
+}
+
+// ============================================================================
+// PIPELINE & INGESTION MANAGEMENT
+// ============================================================================
+
+/**
+ * Ejecuta el pipeline completo (ingesta + enriquecimiento de repos, users, orgs).
+ * Endpoint: POST /pipeline/run-all
+ * 
+ * @param {'incremental'|'from_scratch'} mode - Modo de ejecución
+ *   - 'incremental': Solo datos nuevos/actualizados desde la última ingesta
+ *   - 'from_scratch': Limpia todas las colecciones y reingesta desde cero
+ * @param {number} [maxWorkers=4] - Workers paralelos para búsqueda segmentada (1-8)
+ * @returns {Promise<{task_id: string, status: string, mode: string, message: string}>}
+ */
+export async function runFullPipeline(mode = 'incremental', maxWorkers = 4) {
+  try {
+    const response = await apiClient.post('/pipeline/run-all', null, {
+      params: { mode, max_workers: maxWorkers },
+      timeout: 10000, // Solo espera al ACK, no al pipeline completo
+    });
+    console.log(`🚀 Pipeline iniciado (modo: ${mode}):`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runFullPipeline] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de repositorios individualmente.
+ * Endpoint: POST /ingestion/repositories
+ * 
+ * @param {Object} options - Opciones de ingesta
+ * @param {'incremental'|'from_scratch'|'full'} [options.mode='incremental'] - Modo de ingesta
+ * @param {number|null} [options.maxResults=null] - Límite de repos (null = todos)
+ * @param {number} [options.maxWorkers=4] - Workers paralelos (1-8)
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runRepositoryIngestion({ mode = 'incremental', maxResults = null, maxWorkers = 4 } = {}) {
+  try {
+    const params = {
+      incremental: mode === 'incremental',
+      from_scratch: mode === 'from_scratch',
+      max_workers: maxWorkers,
+    };
+    if (maxResults) params.max_results = maxResults;
+
+    const response = await apiClient.post('/ingestion/repositories', null, { params, timeout: 10000 });
+    console.log(`📥 Ingesta de repos iniciada (modo: ${mode}):`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runRepositoryIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta el enriquecimiento de repositorios individualmente.
+ * Endpoint: POST /enrichment/repositories
+ * 
+ * @param {Object} options - Opciones de enriquecimiento
+ * @param {boolean} [options.forceReenrich=false] - Re-enriquecer incluso repos completos
+ * @param {number|null} [options.maxRepos=null] - Límite de repos (null = todos)
+ * @param {number} [options.batchSize=10] - Tamaño de lote
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runRepositoryEnrichment({ forceReenrich = false, maxRepos = null, batchSize = 10 } = {}) {
+  try {
+    const params = { force_reenrich: forceReenrich, batch_size: batchSize };
+    if (maxRepos) params.max_repos = maxRepos;
+
+    const response = await apiClient.post('/enrichment/repositories', null, { params, timeout: 10000 });
+    console.log(`🔄 Enriquecimiento de repos iniciado:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runRepositoryEnrichment] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de usuarios.
+ * Endpoint: POST /ingestion/users
+ * 
+ * @param {Object} options - Opciones
+ * @param {boolean} [options.fromScratch=false] - Limpiar y reingestar
+ * @param {number} [options.batchSize=50] - Tamaño de lote
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runUserIngestion({ fromScratch = false, batchSize = 50 } = {}) {
+  try {
+    const params = { from_scratch: fromScratch, batch_size: batchSize };
+    const response = await apiClient.post('/ingestion/users', null, { params, timeout: 10000 });
+    console.log(`👤 Ingesta de usuarios iniciada:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runUserIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de organizaciones.
+ * Endpoint: POST /ingestion/organizations
+ * 
+ * @param {Object} options - Opciones
+ * @param {boolean} [options.fromScratch=false] - Limpiar y reingestar
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runOrganizationIngestion({ fromScratch = false } = {}) {
+  try {
+    const params = { from_scratch: fromScratch };
+    const response = await apiClient.post('/ingestion/organizations', null, { params, timeout: 10000 });
+    console.log(`🏢 Ingesta de orgs iniciada:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runOrganizationIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Consulta el estado de una tarea en ejecución (ingesta, enriquecimiento o pipeline).
+ * Endpoint: GET /ingestion/status/{taskId}
+ * 
+ * @param {string} taskId - ID de la tarea obtenido al iniciar la operación
+ * @returns {Promise<{status: 'running'|'completed'|'completed_with_errors'|'failed', progress: string, ...}>}
+ */
+export async function getTaskStatus(taskId) {
+  try {
+    const response = await apiClient.get(`/ingestion/status/${encodeURIComponent(taskId)}`);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return { status: 'not_found', progress: 'Tarea no encontrada' };
+    }
+    console.error('[getTaskStatus] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Lista todas las tareas registradas en el backend.
+ * Endpoint: GET /tasks
+ * 
+ * @returns {Promise<{total_tasks: number, tasks: Array<{task_id, status, started_at, progress}>}>}
+ */
+export async function listTasks() {
+  try {
+    const response = await apiClient.get('/tasks');
+    return response.data;
+  } catch (error) {
+    console.error('[listTasks] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Polling helper: consulta el estado de una tarea cada `interval` ms hasta que termine.
+ * 
+ * @param {string} taskId - ID de la tarea
+ * @param {function} onUpdate - Callback llamado con cada actualización de estado
+ * @param {number} [interval=5000] - Intervalo de polling en ms
+ * @returns {Promise<object>} - Estado final de la tarea
+ */
+export async function pollTaskUntilDone(taskId, onUpdate = () => {}, interval = 5000) {
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        const status = await getTaskStatus(taskId);
+        onUpdate(status);
+
+        if (['completed', 'completed_with_errors', 'failed', 'not_found'].includes(status.status)) {
+          resolve(status);
+        } else {
+          setTimeout(poll, interval);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    poll();
+  });
 }
 
 // Exportar la instancia de axios por si se necesita usar directamente

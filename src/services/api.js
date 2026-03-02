@@ -750,3 +750,152 @@ export async function pollTaskUntilDone(taskId, onUpdate = () => {}, interval = 
 
 // Exportar la instancia de axios por si se necesita usar directamente
 export default apiClient;
+
+
+// ============================================================================
+// ADMIN API — Panel de administración protegido
+// ============================================================================
+
+/**
+ * Comprueba si ya hay una contraseña de admin configurada.
+ * @returns {Promise<{has_password: boolean}>}
+ */
+export async function adminHasPassword() {
+  const response = await apiClient.get('/admin/has-password');
+  return response.data;
+}
+
+/**
+ * Configura la contraseña de admin (primera vez o cambio).
+ * @param {string} password - Nueva contraseña
+ * @param {string|null} currentPassword - Contraseña actual (requerida si ya existe una)
+ * @returns {Promise<{success: boolean, message: string, is_new: boolean}>}
+ */
+export async function adminSetupPassword(password, currentPassword = null) {
+  const payload = { password };
+  if (currentPassword) payload.current_password = currentPassword;
+  const response = await apiClient.post('/admin/setup-password', payload);
+  return response.data;
+}
+
+/**
+ * Autentica como admin con contraseña.
+ * @param {string} password
+ * @returns {Promise<{authenticated: boolean, token: string}>}
+ */
+export async function adminAuthenticate(password) {
+  const response = await apiClient.post('/admin/auth', { password });
+  return response.data;
+}
+
+/**
+ * Ejecuta una operación (ingesta, enriquecimiento o pipeline).
+ * @param {string} token - Token de sesión admin
+ * @param {Object} operation - Datos de la operación
+ * @returns {Promise<Object>} - Datos de la operación iniciada
+ */
+export async function adminRunOperation(token, operation) {
+  const response = await apiClient.post('/admin/operations/run', operation, {
+    params: { token },
+    timeout: 15000,
+  });
+  return response.data;
+}
+
+/**
+ * Obtiene las operaciones activas.
+ * @param {string} token
+ * @returns {Promise<{count: number, operations: Array}>}
+ */
+export async function adminGetActiveOperations(token) {
+  const response = await apiClient.get('/admin/operations/active', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Obtiene el estado de una operación específica.
+ * @param {string} token
+ * @param {string} operationId
+ * @returns {Promise<Object>}
+ */
+export async function adminGetOperationStatus(token, operationId) {
+  const response = await apiClient.get(`/admin/operations/${encodeURIComponent(operationId)}`, {
+    params: { token },
+  });
+  return response.data;
+}
+
+/**
+ * Cancela una operación en curso.
+ * @param {string} token
+ * @param {string} operationId
+ * @returns {Promise<Object>}
+ */
+export async function adminCancelOperation(token, operationId) {
+  const response = await apiClient.post(`/admin/operations/${encodeURIComponent(operationId)}/cancel`, null, {
+    params: { token },
+  });
+  return response.data;
+}
+
+/**
+ * Obtiene el historial de operaciones.
+ * @param {string} token
+ * @param {number} limit
+ * @param {string|null} operationType
+ * @returns {Promise<{count: number, operations: Array}>}
+ */
+export async function adminGetHistory(token, limit = 50, operationType = null) {
+  const params = { token, limit };
+  if (operationType) params.operation_type = operationType;
+  const response = await apiClient.get('/admin/history', { params });
+  return response.data;
+}
+
+/**
+ * Limpia el historial de operaciones.
+ * @param {string} token
+ * @returns {Promise<{deleted: number}>}
+ */
+export async function adminClearHistory(token) {
+  const response = await apiClient.delete('/admin/history', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Obtiene estadísticas de la base de datos.
+ * @param {string} token
+ * @returns {Promise<Object>}
+ */
+export async function adminGetDbStats(token) {
+  const response = await apiClient.get('/admin/db-stats', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Polling helper para operaciones admin: consulta estado cada `interval` ms.
+ * @param {string} token
+ * @param {string} operationId
+ * @param {function} onUpdate
+ * @param {number} interval
+ * @returns {Promise<Object>}
+ */
+export async function adminPollOperation(token, operationId, onUpdate = () => {}, interval = 2000) {
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        const status = await adminGetOperationStatus(token, operationId);
+        onUpdate(status);
+
+        if (['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(status.status)) {
+          resolve(status);
+        } else {
+          setTimeout(poll, interval);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    poll();
+  });
+}

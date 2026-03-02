@@ -31,6 +31,7 @@ import CollaborationBanner from './components/Dashboard/CollaborationBanner'
 import FavoritesPanel from './components/Dashboard/FavoritesPanel'
 import ViewBar from './components/Dashboard/ViewBar'
 import DevMenu from './components/Dashboard/DevMenu'
+import AdminPanel from './components/Dashboard/AdminPanel'
 import { useDevStore } from './store/devStore'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
@@ -600,6 +601,9 @@ function App() {
 
       {/* DEV MENU */}
       <DevMenu />
+
+      {/* ADMIN PANEL */}
+      <AdminPanel />
 
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
       {devFeatures.footer !== false && <footer className={styles.footer}>

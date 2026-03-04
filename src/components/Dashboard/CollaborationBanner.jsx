@@ -23,6 +23,7 @@ export default function CollaborationBanner() {
   
   const [visible, setVisible] = useState(false)
   const [inView, setInView] = useState(false)
+  const [autoTour, setAutoTour] = useState(false)
   const wrapperRef = useRef(null)
   
   /* IntersectionObserver — revela el banner al hacer scroll */
@@ -51,7 +52,12 @@ export default function CollaborationBanner() {
   
   const metrics = collaborationDiscovery?.metrics
   
-  const handleClick = () => openCollaborationGraph()
+  const handleClick = () => openCollaborationGraph({ autoTour })
+  
+  const handleToggle = (e) => {
+    e.stopPropagation()
+    setAutoTour(v => !v)
+  }
   
   
   return (
@@ -117,6 +123,14 @@ export default function CollaborationBanner() {
             : 'Red de entrelazamiento cuántico descubierta'
           }
         </p>
+      </div>
+      
+      {/* Toggle Tour Cósmico */}
+      <div className={styles.tourToggle} onClick={handleToggle} title="Iniciar Tour Cósmico al entrar">
+        <div className={`${styles.toggleTrack} ${autoTour ? styles.toggleTrackOn : ''}`}>
+          <div className={`${styles.toggleThumb} ${autoTour ? styles.toggleThumbOn : ''}`} />
+        </div>
+        <span className={`${styles.toggleLabel} ${autoTour ? styles.toggleLabelOn : ''}`}>Tour</span>
       </div>
       
       {/* Botón CTA */}

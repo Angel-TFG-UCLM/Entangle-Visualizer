@@ -14,12 +14,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import useAdminStore from '../../store/adminStore'
+import { adminGetOperationLogs } from '../../services/api'
 import styles from './AdminPanel.module.css'
 import {
   FiLock, FiPlay, FiSquare, FiClock, FiDatabase, FiActivity,
   FiRotateCcw, FiSettings, FiX, FiAlertTriangle, FiCheck,
   FiTrash2, FiLogOut, FiPackage, FiUser, FiGrid, FiSearch,
-  FiCpu, FiZap, FiCheckCircle, FiXCircle, FiSlash
+  FiCpu, FiZap, FiCheckCircle, FiXCircle, FiSlash,
+  FiTerminal, FiChevronDown, FiChevronUp
 } from 'react-icons/fi'
 
 // ── Definiciones de operaciones disponibles ──
@@ -93,6 +95,7 @@ const OPERATION_DEFS = [
     description: 'Ejecuta las 6 fases secuencialmente (ingesta + enriquecimiento de repos, users y orgs).',
     warning: 'from_scratch limpiará TODAS las colecciones antes de reingestar. Esta operación puede tardar horas.',
     supportsModes: true,
+    supportsForceReenrich: true,
     isPipeline: true,
   },
 ]
@@ -516,8 +519,83 @@ function ActiveOperationsTab() {
 }
 
 function ActiveOperationCard({ operation, onCancel }) {
+  const { token } = useAdminStore()
+  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalClosing, setTerminalClosing] = useState(false)
+  const [logs, setLogs] = useState([])
+  const logIndexRef = useRef(0)
+  const terminalRef = useRef(null)
+  const autoScrollRef = useRef(true)
+  const isPipeline = operation.operation_type === 'pipeline'
+
   const progress = operation.progress || 0
   const isCancelling = operation.status === 'cancelling'
+  const isRunning = operation.status === 'running' || operation.status === 'cancelling'
+
+  // Polling de logs cuando el terminal está abierto
+  useEffect(() => {
+    if (!terminalOpen || !token) return
+
+    let cancelled = false
+
+    const fetchLogs = async () => {
+      try {
+        const result = await adminGetOperationLogs(token, operation.operation_id, logIndexRef.current)
+        if (cancelled) return
+        if (result.logs.length > 0) {
+          setLogs(prev => [...prev, ...result.logs])
+          logIndexRef.current = result.next_index
+        }
+      } catch { /* silenciar errores de polling */ }
+    }
+
+    fetchLogs()
+    const interval = isRunning ? setInterval(fetchLogs, 800) : null
+
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
+    }
+  }, [terminalOpen, isRunning, token, operation.operation_id])
+
+  // Auto-scroll del terminal
+  useEffect(() => {
+    if (terminalRef.current && terminalOpen && autoScrollRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [logs, terminalOpen])
+
+  // Detectar si el usuario ha hecho scroll manual
+  const handleTerminalScroll = () => {
+    if (!terminalRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = terminalRef.current
+    autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 40
+  }
+
+  const handleToggleTerminal = () => {
+    if (terminalOpen) {
+      setTerminalClosing(true)
+      setTimeout(() => {
+        setTerminalOpen(false)
+        setTerminalClosing(false)
+      }, 200)
+    } else {
+      setLogs([])
+      logIndexRef.current = 0
+      autoScrollRef.current = true
+      setTerminalOpen(true)
+    }
+  }
+
+  const levelClass = (level) => {
+    switch (level) {
+      case 'ERROR': case 'CRITICAL': return styles.logError
+      case 'WARNING': return styles.logWarn
+      case 'PROGRESS': return styles.logProgress
+      case 'DEBUG': return styles.logDebug
+      default: return styles.logInfo
+    }
+  }
 
   const formatETA = (seconds) => {
     if (!seconds || seconds <= 0) return null
@@ -564,7 +642,7 @@ function ActiveOperationCard({ operation, onCancel }) {
       <div className={styles.progressInfo}>
         <span className={styles.progressMessage}>{operation.progress_message}</span>
         <div className={styles.progressMeta}>
-          {operation.items_total > 0 && (
+          {!isPipeline && operation.items_total > 0 && (
             <span>{operation.items_processed}/{operation.items_total}</span>
           )}
           <span>{Math.round(progress)}%</span>
@@ -576,6 +654,38 @@ function ActiveOperationCard({ operation, onCancel }) {
           )}
         </div>
       </div>
+
+      {/* Terminal toggle */}
+      <button className={styles.terminalToggle} onClick={handleToggleTerminal}>
+        <FiTerminal size={14} />
+        <span>Terminal</span>
+        {terminalOpen ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+        {logs.length > 0 && <span className={styles.logCount}>{logs.length}</span>}
+      </button>
+
+      {/* Terminal viewer */}
+      {terminalOpen && (
+        <div
+          ref={terminalRef}
+          className={`${styles.terminal} ${terminalClosing ? styles.terminalOut : ''}`}
+          onScroll={handleTerminalScroll}
+        >
+          {logs.length === 0 ? (
+            <div className={styles.terminalEmpty}>
+              <span className={styles.spinner} /> Esperando logs...
+            </div>
+          ) : (
+            logs.map((log, i) => (
+              <div key={i} className={styles.terminalLine}>
+                <span className={styles.logTs}>{log.ts}</span>
+                <span className={`${styles.logLevel} ${levelClass(log.level)}`}>{log.level}</span>
+                <span className={styles.logSrc}>{log.src}</span>
+                <span className={styles.logMsg}>{log.msg}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

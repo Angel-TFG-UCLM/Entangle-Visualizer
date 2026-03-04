@@ -1179,3 +1179,149 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   TERMINAL VIEWER — Logs en tiempo real
+   ══════════════════════════════════════════════════════════════════ */
+
+.terminalToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: rgba(0, 212, 228, 0.04);
+  border: 1px solid rgba(0, 212, 228, 0.1);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.terminalToggle:hover {
+  background: rgba(0, 212, 228, 0.08);
+  border-color: rgba(0, 212, 228, 0.2);
+  color: var(--color-text);
+}
+
+.logCount {
+  margin-left: auto;
+  background: rgba(0, 212, 228, 0.15);
+  color: var(--color-accent);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.terminal {
+  margin-top: 6px;
+  background: #0a0e14;
+  border: 1px solid rgba(0, 212, 228, 0.12);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 0;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  animation: terminalIn 0.2s ease-out;
+}
+
+@keyframes terminalIn {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  to { opacity: 1; max-height: 300px; }
+}
+
+.terminalOut {
+  animation: terminalOut 0.2s ease-in forwards;
+}
+
+@keyframes terminalOut {
+  from { opacity: 1; max-height: 300px; }
+  to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; }
+}
+
+/* Scrollbar del terminal */
+.terminal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.terminal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 228, 0.15);
+  border-radius: 3px;
+}
+
+.terminal::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 228, 0.3);
+}
+
+.terminalEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--color-text-disabled);
+  font-style: italic;
+}
+
+.terminalLine {
+  display: flex;
+  gap: 8px;
+  padding: 1px 12px;
+  word-break: break-word;
+  align-items: baseline;
+}
+
+.terminalLine:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.logTs {
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  min-width: 72px;
+  font-size: 0.68rem;
+}
+
+.logLevel {
+  flex-shrink: 0;
+  min-width: 54px;
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.logSrc {
+  color: rgba(0, 212, 228, 0.35);
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.65rem;
+}
+
+.logMsg {
+  color: rgba(255, 255, 255, 0.78);
+  word-break: break-word;
+  flex: 1;
+}
+
+/* Level coloring */
+.logInfo { color: #8bc4ea; }
+.logWarn { color: #f5c842; }
+.logError { color: #f5564a; }
+.logDebug { color: rgba(255, 255, 255, 0.35); }
+.logProgress { color: #00d4e4; }

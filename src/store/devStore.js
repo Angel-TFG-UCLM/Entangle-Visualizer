@@ -49,6 +49,12 @@ export const FEATURE_DEFINITIONS = {
       offlineBanner:      { label: 'Banner Offline',       default: true },
     },
   },
+  envolvente: {
+    label: 'Envolvente Cuántico',
+    features: {
+      electronOrbits:     { label: 'Dyson Shell Cuántica', default: true },
+    },
+  },
 }
 
 /** Genera el estado inicial con todos los features en su default */
@@ -125,6 +131,14 @@ export const useDevStore = create(
     {
       name: 'entangle-dev-features',
       partialize: (state) => ({ features: state.features }),
+      merge: (persisted, current) => {
+        // Ensure new features from FEATURE_DEFINITIONS are always present
+        const merged = { ...current }
+        if (persisted && persisted.features) {
+          merged.features = { ...current.features, ...persisted.features }
+        }
+        return merged
+      },
     }
   )
 )

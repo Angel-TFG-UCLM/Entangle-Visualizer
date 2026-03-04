@@ -839,6 +839,21 @@ export async function adminCancelOperation(token, operationId) {
 }
 
 /**
+ * Obtiene los logs en tiempo real de una operación.
+ * Usa `since` para polling incremental (solo logs nuevos).
+ * @param {string} token
+ * @param {string} operationId
+ * @param {number} since - Índice desde el que obtener logs
+ * @returns {Promise<{logs: Array, total: number, next_index: number}>}
+ */
+export async function adminGetOperationLogs(token, operationId, since = 0) {
+  const response = await apiClient.get(`/admin/operations/${encodeURIComponent(operationId)}/logs`, {
+    params: { token, since },
+  });
+  return response.data;
+}
+
+/**
  * Obtiene el historial de operaciones.
  * @param {string} token
  * @param {number} limit

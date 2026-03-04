@@ -403,17 +403,7 @@
   justify-content: space-between;
   background: linear-gradient(180deg, rgba(5, 5, 16, 0.9) 0%, rgba(5, 5, 16, 0.4) 70%, transparent 100%);
   pointer-events: none;
-  z-index: 25;
-}
-.header::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 24px;
-  right: 24px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 247, 255, 0.15) 20%, rgba(189, 0, 255, 0.15) 80%, transparent);
-  opacity: 0.6;
+  z-index: 50;
 }
 
 .headerLeft {
@@ -575,7 +565,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
     0 0 1px rgba(255, 255, 255, 0.05) inset;
   padding: 6px 0;
-  z-index: 100;
+  z-index: 200;
   animation: settingsSlideIn 0.2s ease-out;
 }
 
@@ -587,6 +577,22 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.settingsDropdownClosing {
+  animation: settingsSlideOut 0.18s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes settingsSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
   }
 }
 
@@ -968,7 +974,8 @@
   backdrop-filter: blur(24px);
   pointer-events: auto;
   animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.3s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  will-change: transform, opacity;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -987,6 +994,7 @@
   box-shadow: 0 0 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
   animation: expandPanel 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
+  z-index: 30;
 }
 
 /* Overlay backdrop when expanded */
@@ -1313,6 +1321,43 @@
   width: 100%;
   font-size: 10px;
   color: rgba(255, 189, 0, 0.5);
+}
+
+/* Discipline badge - prominent in sidebar */
+.detailDisciplineBadge {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--disc-color, #888) 20%, transparent);
+}
+
+.detailDisciplineDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--disc-color, #888) 40%, transparent);
+}
+
+.detailDisciplineInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.detailDisciplineLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--disc-color, #888);
+}
+
+.detailDisciplineConf {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .detailBody {
@@ -2511,6 +2556,16 @@
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
+.helpPanelClosing {
+  animation: helpSlideDown 0.25s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes helpSlideDown {
+  from { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.97); }
+}
+
 .helpHeader {
   display: flex;
   align-items: center;
@@ -2940,6 +2995,141 @@
   to { transform: rotate(360deg); }
 }
 
+/* === Discipline lens hover filter popup === */
+
+.disciplineLensWrapper {
+  position: relative;
+}
+
+.disciplineFilterPopup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 190px;
+  background: rgba(8, 10, 20, 0.94);
+  border: 1px solid rgba(0, 255, 159, 0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  padding: 6px 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* Invisible bridge to keep hover alive across the 8px gap */
+.disciplineFilterPopup::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+.disciplineLensWrapper:hover .disciplineFilterPopup {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+
+
+.disciplineFilterTitle {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 4px 12px 6px;
+  font-weight: 600;
+}
+
+.disciplineFilterItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.disciplineFilterItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.disciplineFilterItemActive {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.disciplineFilterDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.disciplineFilterClear {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+  cursor: default;
+  transition: color 0.15s ease, opacity 0.25s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.disciplineFilterClearVisible {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.disciplineFilterClear:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.disciplineFilterBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(0, 255, 159, 0.25);
+  color: #00ff9f;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 3px;
+  margin-left: 2px;
+}
+
+.lensBtnFiltered {
+  border-color: rgba(0, 255, 159, 0.3) !important;
+  box-shadow: 0 0 8px rgba(0, 255, 159, 0.15);
+}
+
 /* ============================================================================
    QUANTUM TUNNELING - Search & Path
    ============================================================================ */
@@ -2972,6 +3162,22 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.tunnelingPanelClosing {
+  animation: tunnelingPanelOut 0.22s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes tunnelingPanelOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
   }
 }
 
@@ -3639,6 +3845,12 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 247, 255, 0.06);
   max-height: 60vh;
   overflow-y: auto;
+  animation: searchDropIn 0.2s ease-out;
+}
+
+@keyframes searchDropIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .searchResultCount {
@@ -3778,7 +3990,8 @@
   backdrop-filter: blur(16px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   pointer-events: none;
-  animation: tooltipFadeIn 0.15s ease-out;
+  transition: opacity 0.12s ease-out;
+  will-change: opacity, left, top;
 }
 .floatingTooltip::after {
   content: '';
@@ -4260,6 +4473,12 @@
   transition: background-color 0s; /* negro instantáneo al entrar en void */
 }
 
+/* ── Génesis: desvelado rápido para que el Big Bang 3D sea visible ──────── */
+.tourOverlayGenesis {
+  background-color: transparent;
+  transition: background-color 0.5s ease-out; /* rápido: muestra el genesis flash 3D */
+}
+
 /* ── Void Narrative: centered poetic lines, staggered fade-in ──────────── */
 .tourVoidNarrative {
   position: absolute;
@@ -4284,7 +4503,7 @@
   text-align: center;
   max-width: 720px;
   opacity: 0;
-  animation: voidLineFade 15s ease-in-out forwards;
+  animation: voidLineFade 2.5s ease-out forwards;
   text-shadow:
     0 0 40px rgba(100, 160, 255, 0.15),
     0 0 80px rgba(100, 160, 255, 0.05);
@@ -4292,9 +4511,7 @@
 
 @keyframes voidLineFade {
   0%   { opacity: 0; filter: blur(3px); }
-  6%   { opacity: 0.9; filter: blur(0); }
-  82%  { opacity: 0.9; }
-  100% { opacity: 0; }
+  100% { opacity: 0.9; filter: blur(0); }
 }
 
 /* ── Preludio: dramatic centered revelation ────────────────────────────── */
@@ -4316,8 +4533,8 @@
   letter-spacing: 6px;
   text-align: center;
   margin: 0;
-  opacity: 0; /* invisible antes de que arranque la animación */
-  animation: preludioReveal 7s ease-out forwards;
+  opacity: 0;
+  animation: preludioReveal 3s ease-out forwards;
   text-shadow:
     0 0 60px rgba(0, 247, 255, 0.25),
     0 0 120px rgba(157, 111, 219, 0.12),
@@ -4326,12 +4543,9 @@
 
 @keyframes preludioReveal {
   0%   { opacity: 0; letter-spacing: 20px; transform: scale(0.92); filter: blur(8px); }
-  12%  { opacity: 0.8; letter-spacing: 8px; filter: blur(1px); }
-  25%  { opacity: 1; letter-spacing: 6px; transform: scale(1); filter: blur(0); }
-  60%  { opacity: 1; letter-spacing: 5px; transform: scale(1.02);
+  40%  { opacity: 0.8; letter-spacing: 8px; filter: blur(1px); }
+  100% { opacity: 1; letter-spacing: 5px; transform: scale(1.02);
          text-shadow: 0 0 60px rgba(255, 255, 255, 0.3), 0 0 120px rgba(0, 247, 255, 0.2); }
-  85%  { opacity: 0; letter-spacing: 4px; transform: scale(1.04); filter: blur(4px); }
-  100% { opacity: 0; filter: blur(8px); }
 }
 
 /* ── Génesis: post-BigBang narrative with radiant glow ─────────────────── */
@@ -4345,7 +4559,7 @@
   text-align: center;
   z-index: 202;
   animation: genesisNarrativeAppear 2.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 1.5s;
+  animation-delay: 3s;
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.35) 60%, transparent 100%);
   padding: 32px 40px;
   border-radius: 20px;
@@ -4371,7 +4585,7 @@
     0 0 160px rgba(0, 247, 255, 0.08),
     0 2px 24px rgba(0, 0, 0, 0.9);
   animation: genesisTitlePulse 4s ease-in-out infinite;
-  animation-delay: 1.5s;
+  animation-delay: 3s;
 }
 
 @keyframes genesisTitlePulse {

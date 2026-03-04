@@ -257,6 +257,7 @@ export default function ChartsSection({ data }) {
   const [repoChartRef, repoChartVisible] = useScrollAnimation(0.3)
   const [userChartRef, userChartVisible] = useScrollAnimation(0.3)
   const [pieChartRef, pieChartVisible] = useScrollAnimation(0.3)
+  const [disciplineChartRef, disciplineChartVisible] = useScrollAnimation(0.3)
 
   // Refs para aplicar transiciones CSS inline a las barras SVG
   const orgBarContainerRef = useRef(null)
@@ -288,6 +289,7 @@ export default function ChartsSection({ data }) {
   const storeTables = useDashboardStore(state => state.tables)
   const isLoading = useDashboardStore(state => state.isLoading)
   const isFiltering = useDashboardStore(state => state.isFiltering)
+  const networkMetrics = useDashboardStore(state => state.networkMetrics)
 
   // Vista activa: si hay una vista de favoritos, sus datos tienen prioridad
   const activeViewId = useFavoritesStore(s => s.activeViewId)
@@ -843,6 +845,35 @@ export default function ChartsSection({ data }) {
   // Colores para PieChart: 6 colores principales + gris para "Otros"
   const PIE_COLORS = ['#00D4E4', '#9D6FDB', '#F97316', '#3B82F6', '#EC4899', '#00ff9f', '#6B7280']
   const CHART_COLORS = ['#00D4E4', '#9D6FDB', '#F97316', '#3B82F6', '#EC4899']
+
+  // ── GRÁFICO 5: Datos de disciplinas (desde network metrics) ──
+  const DISCIPLINE_COLORS = {
+    quantum_software: '#6c5ce7',
+    quantum_physics: '#00b4d8',
+    quantum_hardware: '#ff6b6b',
+    classical_tooling: '#ffd166',
+    education_research: '#00ff9f',
+  }
+  const DISCIPLINE_LABELS = {
+    quantum_software: 'Software Cuántico',
+    quantum_physics: 'Física Cuántica',
+    quantum_hardware: 'Hardware Cuántico',
+    classical_tooling: 'Tooling Clásico',
+    education_research: 'Educación/Investigación',
+  }
+  const disciplineAnalysis = networkMetrics?.discipline_analysis
+  const disciplinePieData = useMemo(() => {
+    if (!disciplineAnalysis?.distribution) return []
+    return Object.entries(disciplineAnalysis.distribution)
+      .map(([key, count]) => ({
+        name: DISCIPLINE_LABELS[key] || key,
+        value: count,
+        key,
+        fill: DISCIPLINE_COLORS[key] || '#888',
+        pct: disciplineAnalysis.distribution_pct?.[key] || 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [disciplineAnalysis])
 
   // Verificar si hay algún sector/barra seleccionado
   const hasSelectedLanguage = selectedLanguage !== null
@@ -1639,8 +1670,7 @@ export default function ChartsSection({ data }) {
               <span>{orgMetricLabels[orgMetric]}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isOrgMetricDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
-            {isOrgMetricDropdownOpen && (
-              <div className={styles.metricDropdownMenu}>
+              <div className={`${styles.metricDropdownMenu} ${!isOrgMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
                   { value: 'quantum_focus_score', label: 'Quantum Focus', Icon: FiTarget },
                   { value: 'repositories', label: 'Repos Quantum', Icon: FiPackage },
@@ -1663,7 +1693,6 @@ export default function ChartsSection({ data }) {
                   </button>
                 ))}
               </div>
-            )}
           </div>
         </div>
         <div className={styles.chartContainer}>
@@ -1758,8 +1787,7 @@ export default function ChartsSection({ data }) {
               <span>{repoMetricLabels[repoMetric]}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isMetricDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
-            {isMetricDropdownOpen && (
-              <div className={styles.metricDropdownMenu}>
+              <div className={`${styles.metricDropdownMenu} ${!isMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
                   { value: 'stargazer_count', label: 'Estrellas', Icon: FiStar },
                   { value: 'fork_count', label: 'Forks', Icon: FiGitBranch },
@@ -1781,7 +1809,6 @@ export default function ChartsSection({ data }) {
                   </button>
                 ))}
               </div>
-            )}
           </div>
         </div>
         <div className={styles.chartContainer}>
@@ -1868,8 +1895,7 @@ export default function ChartsSection({ data }) {
               <span>{userMetricLabels[userMetric]}</span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isUserMetricDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
-            {isUserMetricDropdownOpen && (
-              <div className={styles.metricDropdownMenu}>
+              <div className={`${styles.metricDropdownMenu} ${!isUserMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
                   { value: 'score', label: 'Colaboración', Icon: Zap },
                   { value: 'repos', label: 'Multi-repo', Icon: Network },
@@ -1889,7 +1915,6 @@ export default function ChartsSection({ data }) {
                   </button>
                 ))}
               </div>
-            )}
           </div>
           <span style={{ margin: '0 4px', color: 'rgba(156,163,175,0.5)' }}>·</span>
           <p className={styles.chartSubtitleInline}>Mostrar</p>
@@ -1915,8 +1940,7 @@ export default function ChartsSection({ data }) {
               </span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isCollabDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
-            {isCollabDropdownOpen && (
-              <div className={styles.metricDropdownMenu}>
+              <div className={`${styles.metricDropdownMenu} ${!isCollabDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
                   { value: 'all', label: 'Todos', Icon: FiUsers, desc: 'Contributors + Reviewers' },
                   { value: 'contributors', label: 'Con commits', Icon: FiCode, desc: 'Han contribuido código' },
@@ -1938,7 +1962,6 @@ export default function ChartsSection({ data }) {
                   </button>
                 ))}
               </div>
-            )}
           </div>
           
           {/* Toggle para incluir bots */}
@@ -2144,6 +2167,139 @@ export default function ChartsSection({ data }) {
           </>
         )}
       </div>
+
+      {/* GRÁFICO 5: Distribución por Disciplina Interdisciplinar */}
+      {disciplinePieData.length > 0 && (
+        <div
+          ref={disciplineChartRef}
+          className={`${styles.chartCard} ${styles.scrollReveal} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
+        >
+          <div className={styles.titleRow}>
+            <h3 className={styles.chartTitle}>🧬 Comunidades Interdisciplinares</h3>
+          </div>
+          <p className={styles.chartSubtitle}>
+            Clasificación automática de usuarios por área de expertise
+            {disciplineAnalysis?.cross_discipline_index != null && (
+              <span style={{ marginLeft: 8, color: '#00ff9f', fontWeight: 600 }}>
+                - Indice cross-disciplina: {(disciplineAnalysis.cross_discipline_index * 100).toFixed(1)}%
+              </span>
+            )}
+          </p>
+          <div className={styles.chartContainer}>
+            {disciplineChartVisible ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                  <Pie
+                    data={disciplinePieData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    innerRadius={35}
+                    dataKey="value"
+                    isAnimationActive={true}
+                    animationBegin={0}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                    label={({ name, value, cx, cy, midAngle, outerRadius, index }) => {
+                      const RADIAN = Math.PI / 180
+                      const radius = outerRadius + 25
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN)
+                      return (
+                        <text
+                          key={`disc-label-${index}`}
+                          x={x} y={y}
+                          fill="#9ca3af"
+                          textAnchor={x > cx ? 'start' : 'end'}
+                          dominantBaseline="central"
+                          style={{ fontSize: '11px', fontWeight: 500, pointerEvents: 'none' }}
+                        >
+                          {`${name} (${value})`}
+                        </text>
+                      )
+                    }}
+                    labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1, pointerEvents: 'none' }}
+                  >
+                    {disciplinePieData.map((entry, index) => (
+                      <Cell key={`disc-cell-${index}`} fill={entry.fill} stroke="rgba(15, 20, 25, 0.6)" strokeWidth={1} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.[0]) return null
+                      const d = payload[0].payload
+                      return (
+                        <div style={{
+                          background: 'rgba(15, 20, 30, 0.95)',
+                          border: `1px solid ${d.fill}44`,
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          fontSize: 13,
+                          color: '#e5e7eb',
+                          boxShadow: `0 0 15px ${d.fill}22`,
+                        }}>
+                          <div style={{ fontWeight: 600, color: d.fill, marginBottom: 4 }}>{d.name}</div>
+                          <div>{d.value} usuarios ({d.pct.toFixed(1)}%)</div>
+                        </div>
+                      )
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Bridge profiles (usuarios que cruzan disciplinas) */}
+          {disciplineAnalysis?.bridge_profiles?.length > 0 && (
+            <div style={{
+              marginTop: 12,
+              padding: '10px 14px',
+              background: 'rgba(0, 255, 159, 0.04)',
+              borderRadius: 10,
+              border: '1px solid rgba(0, 255, 159, 0.1)',
+            }}>
+              <h4 style={{ fontSize: 12, color: '#00ff9f', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Puentes Interdisciplinares ({disciplineAnalysis.bridge_profiles.length})
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {disciplineAnalysis.bridge_profiles.slice(0, 8).map((bp, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    fontSize: 12, color: '#d1d5db',
+                  }}>
+                    <span style={{ color: '#a78bfa', fontWeight: 500, minWidth: 100 }}>@{bp.login}</span>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {bp.repos_per_discipline && Object.keys(bp.repos_per_discipline).map(disc => (
+                        <span key={disc} style={{
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          background: `${DISCIPLINE_COLORS[disc] || '#888'}22`,
+                          color: DISCIPLINE_COLORS[disc] || '#888',
+                          border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
+                        }}>
+                          {DISCIPLINE_LABELS[disc] || disc} ({bp.repos_per_discipline[disc]})
+                        </span>
+                      ))}
+                    </div>
+                    <span style={{ marginLeft: 'auto', color: '#6b7280', fontSize: 11 }}>
+                      {bp.total_repos || 0} repos
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className={styles.chartHint}>
+            <span>El índice cross-disciplina mide qué fracción de las colaboraciones cruzan fronteras entre disciplinas</span>
+          </p>
+        </div>
+      )}
 
       {/* Panel de detalle de entidad (aparece al click en barra) */}
       {(detailEntity || detailClosing) && (() => {

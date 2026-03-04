@@ -549,8 +549,8 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     const bpPctl = percentileRank(pop.bridgePcts || [], Number(orgBridgePct))
     const infPctl = percentileRank(pop.influences || [], orgTotalUsers * orgReposList.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones con otras entidades` },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - contributors compartidos con otras orgs (puentes inter-org)` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de organizaciones vecinas con las que comparte contributors` },
       { label: 'Diversidad', value: cpPctl, tip: `Percentil ${Math.round(cpPctl * 100)} - polinización cruzada relativa a todas las orgs` },
       { label: 'Puente', value: bpPctl, tip: `Percentil ${Math.round(bpPctl * 100)} - proporción de bridge users vs. población` },
       { label: 'Influencia', value: infPctl, tip: `Percentil ${Math.round(infPctl * 100)} - impacto (contributors × repos) relativo` },
@@ -560,8 +560,8 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     const brPctl = percentileRank(pop.bridgeRatios || [], repoUsers.length > 0 ? repoBridgeUsers.length / repoUsers.length : 0)
     const alcPctl = percentileRank(pop.userCounts || [], repoUsers.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones` },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - diversidad de orgs representadas entre sus contributors` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de contributors directos` },
       { label: 'Diversidad', value: divPctl, tip: `Percentil ${Math.round(divPctl * 100)} - organizaciones distintas que contribuyen` },
       { label: 'Puente', value: brPctl, tip: `Percentil ${Math.round(brPctl * 100)} - ratio de bridge users vs. población` },
       { label: 'Alcance', value: alcPctl, tip: `Percentil ${Math.round(alcPctl * 100)} - contribuidores únicos relativo` },
@@ -577,8 +577,8 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     const cePctl = percentileRank(pop.collabExposures || [], userCollabExposure)
     const vlPctl = percentileRank(pop.langCounts || [], userLangs.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - importancia en la red de colaboración` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - fuerza de conexiones` },
+      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - nº de orgs distintas a las que contribuye (alcance inter-org)` },
+      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de repos a los que contribuye` },
       { label: 'Org Span', value: osPctl, tip: `Percentil ${Math.round(osPctl * 100)} - organizaciones en las que participa vs. población` },
       { label: 'Colaboración', value: cePctl, tip: `Percentil ${Math.round(cePctl * 100)} - exposición colaborativa (repos compartidos)` },
       { label: 'Versatilidad', value: vlPctl, tip: `Percentil ${Math.round(vlPctl * 100)} - diversidad de lenguajes vs. población` },

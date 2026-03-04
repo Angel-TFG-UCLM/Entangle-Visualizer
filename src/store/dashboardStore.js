@@ -108,6 +108,7 @@ const initialState = {
   collaborationAvailable: false,   // bool - si se detectó colaboración real
   collaborationDiscovery: null,    // Resultado completo del discover endpoint
   showCollaborationGraph: false,   // bool - si mostrar la vista fullscreen del grafo
+  autoStartTour: false,            // bool - arrancar tour cósmico automáticamente al abrir
   isDiscovering: false,            // Estado de carga del discovery
   
   // === FILTRO TEMPORAL ===
@@ -684,16 +685,17 @@ export const useDashboardStore = create(
 
       /**
        * Abre la vista fullscreen del grafo de colaboración
+       * @param {{ autoTour?: boolean }} opts
        */
-      openCollaborationGraph: () => {
-        set({ showCollaborationGraph: true }, false, 'openCollaborationGraph')
+      openCollaborationGraph: (opts = {}) => {
+        set({ showCollaborationGraph: true, autoStartTour: !!opts.autoTour }, false, 'openCollaborationGraph')
       },
 
       /**
        * Cierra la vista fullscreen del grafo de colaboración
        */
       closeCollaborationGraph: () => {
-        set({ showCollaborationGraph: false }, false, 'closeCollaborationGraph')
+        set({ showCollaborationGraph: false, autoStartTour: false }, false, 'closeCollaborationGraph')
       },
 
       /**
@@ -763,7 +765,7 @@ export const useDashboardStore = create(
       // ============================================================================
       
       // Estado de lentes y métricas de red
-      activeLens: null,              // null | 'centrality' | 'communities' | 'busFactor' | 'intensity'
+      activeLens: null,              // null | 'centrality' | 'communities' | 'busFactor' | 'intensity' | 'disciplines'
       networkMetrics: null,          // Resultado completo de /collaboration/network-metrics
       isLoadingMetrics: false,
       metricsError: null,
@@ -803,7 +805,7 @@ export const useDashboardStore = create(
       /**
        * Activa/desactiva una lente analítica en el universo
        * Si se pulsa la lente activa, se desactiva (toggle)
-       * @param {'centrality'|'communities'|'busFactor'|'intensity'|null} lens
+       * @param {'centrality'|'communities'|'busFactor'|'intensity'|'disciplines'|null} lens
        */
       setActiveLens: (lens) => {
         const current = get().activeLens

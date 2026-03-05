@@ -82,27 +82,30 @@ function StaggeredTick({ x, y, payload, index, fill }) {
  * Devuelve [ref, isVisible] - cuando el elemento entra en el viewport, isVisible se vuelve true
  */
 function useScrollAnimation(threshold = 0.3) {
-  const ref = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
+  const observerRef = useRef(null)
 
-  useEffect(() => {
-    const element = ref.current
-    if (!element) return
+  // Callback ref: se ejecuta cada vez que el elemento se monta/desmonta
+  const ref = useCallback((node) => {
+    // Limpiar observer anterior
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+    if (!node || isVisible) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true)
-          observer.unobserve(element) // Solo animar una vez
+          observer.disconnect()
         }
       },
       { threshold, rootMargin: '0px' }
     )
-
-    observer.observe(element)
-
-    return () => observer.disconnect()
-  }, [threshold])
+    observer.observe(node)
+    observerRef.current = observer
+  }, [threshold, isVisible])
 
   return [ref, isVisible]
 }
@@ -211,6 +214,7 @@ export default function ChartsSection({ data }) {
     selectedOrg, 
     selectedLanguage, 
     selectedRepo, 
+    selectedDiscipline,
     setFilter, 
     resetFilters,
     // Selección múltiple para análisis de colaboración
@@ -240,6 +244,7 @@ export default function ChartsSection({ data }) {
   const [hoveredPieIndex, setHoveredPieIndex] = useState(null)
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null)
   const [showOthersPanel, setShowOthersPanel] = useState(false) // Panel para "Otros" lenguajes
+  const [otrosPopover, setOtrosPopover] = useState(null) // { x, y, items } - popover para disciplinas agrupadas en "Otros"
   
   // Estado para tipo de colaborador (solo aplica cuando hay repo seleccionado)
   const [collabType, setCollabType] = useState('all') // 'all', 'contributors', 'reviewers'
@@ -282,6 +287,19 @@ export default function ChartsSection({ data }) {
     }
   }, [pieChartVisible, hasAnimatedPie])
 
+  // Cerrar popover de "Otros" al hacer click fuera o pulsar Escape
+  useEffect(() => {
+    if (!otrosPopover) return
+    const handleClick = () => setOtrosPopover(null)
+    const handleKey = (e) => { if (e.key === 'Escape') setOtrosPopover(null) }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [otrosPopover])
+
   // Protección contra datos no disponibles
   // NUEVA ARQUITECTURA: El backend ahora maneja el filtrado dinámico
   // Los datos en charts/tables ya vienen filtrados cuando hay filtros activos
@@ -290,6 +308,24 @@ export default function ChartsSection({ data }) {
   const isLoading = useDashboardStore(state => state.isLoading)
   const isFiltering = useDashboardStore(state => state.isFiltering)
   const networkMetrics = useDashboardStore(state => state.networkMetrics)
+  const loadNetworkMetrics = useDashboardStore(state => state.loadNetworkMetrics)
+  const isLoadingMetrics = useDashboardStore(state => state.isLoadingMetrics)
+  const metricsError = useDashboardStore(state => state.metricsError)
+
+  // Auto-load network metrics for discipline pie chart
+  // Wait until main dashboard data has loaded (!isLoading), then trigger if needed.
+  // Retry on error after a delay.
+  useEffect(() => {
+    if (isLoading || isLoadingMetrics || networkMetrics) return
+    // If there was an error, retry after 5s
+    if (metricsError) {
+      const timer = setTimeout(() => loadNetworkMetrics(), 5000)
+      return () => clearTimeout(timer)
+    }
+    // First load: small delay to let dashboard finish settling
+    const timer = setTimeout(() => loadNetworkMetrics(), 800)
+    return () => clearTimeout(timer)
+  }, [isLoading, isLoadingMetrics, networkMetrics, metricsError, loadNetworkMetrics])
 
   // Vista activa: si hay una vista de favoritos, sus datos tienen prioridad
   const activeViewId = useFavoritesStore(s => s.activeViewId)
@@ -427,14 +463,14 @@ export default function ChartsSection({ data }) {
   // También re-aplica filtros locales cuando cambian los filtros globales (org, language, repo)
   const isFirstRenderRef = useRef(true)
   const prevLocalFiltersRef = useRef({ collabType, includeBots })
-  const prevGlobalFiltersRef = useRef({ selectedOrg, selectedLanguage, selectedRepo })
+  const prevGlobalFiltersRef = useRef({ selectedOrg, selectedLanguage, selectedRepo, selectedDiscipline })
   
   useEffect(() => {
     // Skip la primera ejecución: los datos iniciales ya los cargó loadFullData()
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false
       prevLocalFiltersRef.current = { collabType, includeBots }
-      prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo }
+      prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo, selectedDiscipline }
       return
     }
     
@@ -442,13 +478,14 @@ export default function ChartsSection({ data }) {
     const localChanged = prevLocalFiltersRef.current.collabType !== collabType ||
                           prevLocalFiltersRef.current.includeBots !== includeBots
     
-    // Detectar si cambiaron los filtros GLOBALES (org, language, repo)
+    // Detectar si cambiaron los filtros GLOBALES (org, language, repo, discipline)
     const globalChanged = prevGlobalFiltersRef.current.selectedOrg !== selectedOrg ||
                           prevGlobalFiltersRef.current.selectedLanguage !== selectedLanguage ||
-                          prevGlobalFiltersRef.current.selectedRepo !== selectedRepo
+                          prevGlobalFiltersRef.current.selectedRepo !== selectedRepo ||
+                          prevGlobalFiltersRef.current.selectedDiscipline !== selectedDiscipline
     
     prevLocalFiltersRef.current = { collabType, includeBots }
-    prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo }
+    prevGlobalFiltersRef.current = { selectedOrg, selectedLanguage, selectedRepo, selectedDiscipline }
     
     // Determinar si hay filtros locales activos (no-default)
     const hasActiveLocalFilters = collabType !== 'all' || includeBots
@@ -482,6 +519,7 @@ export default function ChartsSection({ data }) {
         if (selectedRepo) filters.repo = selectedRepo
         if (selectedOrg) filters.org = selectedOrg
         if (selectedLanguage) filters.language = selectedLanguage
+        if (selectedDiscipline) filters.discipline = selectedDiscipline
         
         console.log('🔄 Recargando contribuidores con filtros:', filters)
         const stats = await getDashboardStats(false, filters)
@@ -509,7 +547,7 @@ export default function ChartsSection({ data }) {
     loadFilteredCollaborators()
     
     return () => { cancelled = true }
-  }, [collabType, includeBots, selectedRepo, selectedOrg, selectedLanguage])
+  }, [collabType, includeBots, selectedRepo, selectedOrg, selectedLanguage, selectedDiscipline])
 
   // Reset collabType solo cuando el repo se deselecciona (transición de valor a null)
   const prevSelectedRepoRef = useRef(selectedRepo)
@@ -731,14 +769,114 @@ export default function ChartsSection({ data }) {
     repos: 'Multi-repo',
   }
 
-  const userData = useMemo(() => {
-    // Backend puede enviar dict {byContributions, byRepos} o array (legacy/views)
+  // Mapa login → discipline info (desde node_metrics) — debe ir ANTES de userData
+  // Nota: node_metrics usa keys con prefijo "user_<login>", strip para usar login plano
+  const disciplineMap = useMemo(() => {
+    const nm = networkMetrics?.node_metrics
+    if (!nm) return {}
+    const map = {}
+    for (const [nodeId, m] of Object.entries(nm)) {
+      if (m.discipline) {
+        // Strip "user_" prefix to match plain login used in charts.users
+        const login = nodeId.startsWith('user_') ? nodeId.slice(5) : nodeId
+        map[login] = {
+          discipline: m.discipline,
+          discipline_color: m.discipline_color,
+          discipline_label: m.discipline_label,
+          discipline_confidence: m.discipline_confidence,
+          discipline_top_colors: m.discipline_top_colors || null,
+        }
+      }
+    }
+    return map
+  }, [networkMetrics])
+
+  // Helper: transformar un user raw del backend al formato de display para el chart
+  const mapUserToDisplay = useCallback((user, metric, discMap, selUser) => {
+    // contributionsCollection de GitHub solo cubre el último año.
+    // Fallback: contributions_to_quantum_repos (all-time desde extracted_from)
+    const githubContribs = (user.total_commit_contributions || 0) + (user.total_pr_contributions || 0) +
+      (user.total_pr_review_contributions || 0) + (user.total_issue_contributions || 0)
+    const contributions = user.total_contributions ||
+      user.contributions_last_year ||
+      user.contributions_to_quantum ||
+      githubContribs ||
+      user.contributions_to_quantum_repos ||
+      0
+    const repos = user.relevant_repos_count || user.quantum_repos_count || user.public_repos_count || 0
+    // Usar collab_score del backend si existe (consistente con el sort), sino calcular en cliente
+    const collaborationScore = user.collab_score || Math.round(Math.sqrt(contributions * (repos * 100)))
+    return {
+      login: user.login,
+      name: user.name || user.login,
+      displayName: user.login,
+      avatar_url: user.avatar_url || null,
+      score: metric === 'repos' ? repos : collaborationScore,
+      contributions,
+      repos,
+      organizations: user.organizations || [],
+      has_commits: user.has_commits ?? true,
+      is_mentionable: user.is_mentionable ?? false,
+      commits: user.total_commit_contributions || 0,
+      prs: user.total_pr_contributions || 0,
+      reviews: user.total_pr_review_contributions || 0,
+      issues: user.total_issue_contributions || 0,
+      contributions_to_quantum_repos: user.contributions_to_quantum_repos || 0,
+      bio: user.bio || null,
+      company: user.company || null,
+      location: user.location || null,
+      created_at: user.created_at || null,
+      followers_count: user.followers_count || 0,
+      following_count: user.following_count || 0,
+      public_repos_count: user.public_repos_count || 0,
+      top_languages: user.top_languages || [],
+      quantum_expertise_score: user.quantum_expertise_score || 0,
+      url: user.url || null,
+      website_url: user.website_url || null,
+      twitter_username: user.twitter_username || null,
+      is_hireable: user.is_hireable || false,
+      is_enriched: user.is_enriched ?? true,
+      isSelected: selUser === user.login,
+      ...(discMap[user.login] || {}),
+    }
+  }, [])
+
+  // Mapa completo login → user raw data para lookups (bridge profiles, filtro por disciplina)
+  const allUsersMap = useMemo(() => {
     let sourceUsers = []
     if (charts?.users) {
       if (Array.isArray(charts.users)) {
         sourceUsers = charts.users
       } else {
-        // Dict format: seleccionar según métrica
+        // Combinar ambos arrays para tener todos los usuarios posibles
+        const byContrib = charts.users.byContributions || []
+        const byRepos = charts.users.byRepos || []
+        const seen = new Set()
+        sourceUsers = []
+        for (const u of [...byContrib, ...byRepos]) {
+          if (u.login && !seen.has(u.login)) {
+            seen.add(u.login)
+            sourceUsers.push(u)
+          }
+        }
+      }
+    }
+    if (sourceUsers.length === 0) sourceUsers = chartUsers
+    const map = {}
+    for (const user of sourceUsers) {
+      if (user.login) map[user.login] = user
+    }
+    return map
+  }, [charts?.users, chartUsers])
+
+  const userData = useMemo(() => {
+    let sourceUsers = []
+
+    // Usar datos del backend (ya filtrados por disciplina si el filtro está activo)
+    if (charts?.users) {
+      if (Array.isArray(charts.users)) {
+        sourceUsers = charts.users
+      } else {
         const userMetricToKey = { score: 'byContributions', repos: 'byRepos' }
         sourceUsers = charts.users[userMetricToKey[userMetric]] || charts.users.byContributions || []
       }
@@ -747,58 +885,12 @@ export default function ChartsSection({ data }) {
       sourceUsers = chartUsers
     }
 
-    const usersWithScore = sourceUsers.map(user => {
-      // Soportar múltiples formatos de campos (backend real vs mockData)
-      const contributions = user.total_contributions || 
-        user.contributions_last_year ||
-        user.contributions_to_quantum || // Campo de mockData
-        (
-          (user.total_commit_contributions || 0) +
-          (user.total_pr_contributions || 0) +
-          (user.total_pr_review_contributions || 0) +
-          (user.total_issue_contributions || 0)
-        )
-      const repos = user.relevant_repos_count || user.quantum_repos_count || user.public_repos || 0
-      // Score: raíz cuadrada de (contribuciones × repos) para balancear ambas métricas
-      // Multiplicamos repos por 100 para darle más peso a la diversidad
-      const collaborationScore = Math.round(Math.sqrt(contributions * (repos * 100)))
-      
-      return {
-        login: user.login,
-        name: user.name || user.login,
-        displayName: user.login,
-        avatar_url: user.avatar_url || null,
-        score: userMetric === 'repos' ? repos : collaborationScore,
-        contributions,
-        repos,
-        organizations: user.organizations || [],
-        has_commits: user.has_commits ?? true,
-        is_mentionable: user.is_mentionable ?? false,
-        commits: user.total_commit_contributions || 0,
-        prs: user.total_pr_contributions || 0,
-        reviews: user.total_pr_review_contributions || 0,
-        issues: user.total_issue_contributions || 0,
-        bio: user.bio || null,
-        company: user.company || null,
-        location: user.location || null,
-        created_at: user.created_at || null,
-        followers_count: user.followers_count || 0,
-        following_count: user.following_count || 0,
-        public_repos_count: user.public_repos_count || 0,
-        top_languages: user.top_languages || [],
-        quantum_expertise_score: user.quantum_expertise_score || 0,
-        url: user.url || null,
-        website_url: user.website_url || null,
-        twitter_username: user.twitter_username || null,
-        is_hireable: user.is_hireable || false,
-        isSelected: selectedUser === user.login,
-      }
-    })
-    
+    const usersWithScore = sourceUsers.map(user => mapUserToDisplay(user, userMetric, disciplineMap, selectedUser))
+
     return usersWithScore
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
-  }, [charts?.users, chartUsers, selectedUser, userMetric])
+  }, [charts?.users, chartUsers, selectedUser, userMetric, disciplineMap, mapUserToDisplay])
 
   // GRÁFICO 4: Distribución de lenguajes (Top 6 + "Otros")
   // Guardamos también los lenguajes que componen "Otros" para el tooltip
@@ -853,6 +945,7 @@ export default function ChartsSection({ data }) {
     quantum_hardware: '#ff6b6b',
     classical_tooling: '#ffd166',
     education_research: '#00ff9f',
+    multidisciplinary: '#e879f9',
   }
   const DISCIPLINE_LABELS = {
     quantum_software: 'Software Cuántico',
@@ -860,11 +953,70 @@ export default function ChartsSection({ data }) {
     quantum_hardware: 'Hardware Cuántico',
     classical_tooling: 'Tooling Clásico',
     education_research: 'Educación/Investigación',
+    multidisciplinary: 'Multidisciplinar',
   }
-  const disciplineAnalysis = networkMetrics?.discipline_analysis
+  const DISCIPLINE_ICONS = {
+    quantum_software: Code,
+    quantum_physics: Zap,
+    quantum_hardware: Cpu,
+    classical_tooling: GitFork,
+    education_research: BookOpen,
+    multidisciplinary: Network,
+  }
+  const DISCIPLINE_DESCRIPTIONS = {
+    quantum_software: 'Desarrolladores enfocados en frameworks, compiladores, lenguajes y SDKs para computación cuántica. Construyen las herramientas que permiten programar ordenadores cuánticos.',
+    quantum_physics: 'Investigadores y físicos que trabajan en simulaciones cuánticas, algoritmos variacional y modelado de sistemas cuánticos a nivel fundamental.',
+    quantum_hardware: 'Ingenieros especializados en el diseño de qubits, control de pulsos, corrección de errores y la capa física de los procesadores cuánticos.',
+    classical_tooling: 'Desarrolladores de infraestructura clásica de soporte: CI/CD, testing, documentación, visualización y herramientas DevOps para proyectos cuánticos.',
+    education_research: 'Creadores de contenido educativo, tutoriales, notebooks y materiales académicos que democratizan el acceso a la computación cuántica.',
+    multidisciplinary: 'Perfiles versátiles que contribuyen en múltiples áreas, conectando disciplinas y creando puentes entre comunidades técnicas.',
+  }
+  const DISCIPLINE_EMOJIS = {
+    quantum_software: '💻',
+    quantum_physics: '⚛️',
+    quantum_hardware: '🔧',
+    classical_tooling: '🛠️',
+    education_research: '📚',
+    multidisciplinary: '🌐',
+  }
+  // Disciplina: preferir datos filtrados del backend, fallback client-side, fallback global
+  const disciplineAnalysis = useMemo(() => {
+    // 1. Backend returned filtered discipline distribution
+    if (charts?.disciplineDistribution?.distribution &&
+        Object.keys(charts.disciplineDistribution.distribution).length > 0) {
+      return charts.disciplineDistribution
+    }
+
+    // 2. Backend returned collaborator logins + frontend has networkMetrics → compute client-side
+    const backendLogins = charts?.filteredCollaboratorLogins
+    if (backendLogins?.length > 0 && networkMetrics?.node_metrics) {
+      const loginsSet = new Set(backendLogins)
+      const distribution = {}
+      for (const [nodeId, metrics] of Object.entries(networkMetrics.node_metrics)) {
+        if (nodeId.startsWith('user_')) {
+          const login = nodeId.slice(5)
+          if (loginsSet.has(login) && metrics.discipline) {
+            distribution[metrics.discipline] = (distribution[metrics.discipline] || 0) + 1
+          }
+        }
+      }
+      const total = Object.values(distribution).reduce((s, v) => s + v, 0)
+      if (total > 0) {
+        const distribution_pct = {}
+        for (const [k, v] of Object.entries(distribution)) {
+          distribution_pct[k] = Math.round(v / total * 1000) / 10
+        }
+        return { distribution, distribution_pct, total_classified: total }
+      }
+    }
+
+    // 3. Fallback to global networkMetrics
+    return networkMetrics?.discipline_analysis
+  }, [charts?.disciplineDistribution, charts?.filteredCollaboratorLogins, networkMetrics])
+
   const disciplinePieData = useMemo(() => {
     if (!disciplineAnalysis?.distribution) return []
-    return Object.entries(disciplineAnalysis.distribution)
+    const all = Object.entries(disciplineAnalysis.distribution)
       .map(([key, count]) => ({
         name: DISCIPLINE_LABELS[key] || key,
         value: count,
@@ -873,6 +1025,31 @@ export default function ChartsSection({ data }) {
         pct: disciplineAnalysis.distribution_pct?.[key] || 0,
       }))
       .sort((a, b) => b.value - a.value)
+
+    // Agrupar sectores pequeños (<5%) en "Otros"
+    const MIN_PCT = 5
+    const main = []
+    const others = []
+    for (const d of all) {
+      if (d.pct < MIN_PCT) {
+        others.push(d)
+      } else {
+        main.push(d)
+      }
+    }
+    if (others.length > 0) {
+      const othersValue = others.reduce((s, d) => s + d.value, 0)
+      const othersPct = others.reduce((s, d) => s + d.pct, 0)
+      main.push({
+        name: 'Otros',
+        value: othersValue,
+        key: '_others',
+        fill: '#6B7280',
+        pct: Math.round(othersPct * 10) / 10,
+        _otherItems: others,
+      })
+    }
+    return main
   }, [disciplineAnalysis])
 
   // Verificar si hay algún sector/barra seleccionado
@@ -986,8 +1163,41 @@ export default function ChartsSection({ data }) {
   // Handlers
   // Click normal: abrir panel de detalle
   // Ctrl/Cmd + Click: selección múltiple / filtro
-  const openEntityDetail = useCallback((type, data) => {
+  const openEntityDetail = useCallback(async (type, data) => {
     setDetailClosing(false)
+    // Si es un usuario con datos incompletos (no está en top 10), fetch del backend
+    if (type === 'user' && data?.login && !data._fetched) {
+      const hasFullData = (data.contributions > 0 || data.score > 0 || data.commits > 0 || data.followers_count > 0)
+      if (!hasFullData) {
+        try {
+          const { getUserProfile } = await import('../../services/api')
+          const profile = await getUserProfile(data.login)
+          if (profile) {
+            const merged = {
+              ...data,
+              ...profile,
+              // Recalcular campos derivados
+              contributions: profile.total_contributions || data.contributions || 0,
+              repos: profile.relevant_repos_count || data.repos || 0,
+              commits: profile.total_commit_contributions || 0,
+              prs: profile.total_pr_contributions || 0,
+              reviews: profile.total_pr_review_contributions || 0,
+              issues: profile.total_issue_contributions || 0,
+              contributions_to_quantum_repos: profile.contributions_to_quantum_repos || 0,
+              is_enriched: profile.is_enriched ?? true,
+              _fetched: true,
+            }
+            const contribs = merged.contributions
+            const reps = merged.repos
+            merged.score = Math.round(Math.sqrt(contribs * (reps * 100)))
+            setDetailEntity({ type, data: merged })
+            return
+          }
+        } catch {
+          // Silenciar — se muestra con datos parciales
+        }
+      }
+    }
     setDetailEntity({ type, data })
   }, [])
 
@@ -1165,6 +1375,7 @@ export default function ChartsSection({ data }) {
       const orgsList = Array.isArray(data.organizations) 
         ? data.organizations.map(o => typeof o === 'string' ? o : o?.login).filter(Boolean)
         : []
+      
       return (
         <div className={styles.customTooltip}>
           <div className={styles.tooltipHeader}>
@@ -1220,6 +1431,70 @@ export default function ChartsSection({ data }) {
     }
     return null
   }
+
+  // Tooltip para el gráfico de disciplinas (mismo estilo que los demás)
+  const DisciplineTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload
+      const isOtros = d.key === '_others'
+      return (
+        <div className={styles.customTooltip}>
+          <div className={styles.tooltipHeader}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: `${d.fill}33`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', background: d.fill }} />
+            </div>
+            <div>
+              <p className={styles.tooltipLabel}>{d.name}</p>
+            </div>
+          </div>
+          <div className={styles.tooltipStats}>
+            <p><span style={{ color: d.fill }}>Usuarios:</span> <strong>{d.value.toLocaleString()}</strong></p>
+            <p><span style={{ color: '#9ca3af' }}>Porcentaje:</span> <strong>{d.pct.toFixed(1)}%</strong></p>
+          </div>
+          {isOtros && d._otherItems?.length > 0 && (
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <p style={{ fontSize: 10, color: '#9ca3af', margin: '0 0 4px' }}>Incluye:</p>
+              {d._otherItems.map((item, i) => (
+                <p key={i} style={{ fontSize: 11, margin: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.fill, flexShrink: 0 }} />
+                  <span style={{ color: '#e5e7eb' }}>{item.name}:</span>
+                  <strong style={{ color: item.fill }}>{item.value}</strong>
+                  <span style={{ color: '#6b7280', fontSize: 10 }}>({item.pct.toFixed(1)}%)</span>
+                </p>
+              ))}
+            </div>
+          )}
+          <span className={styles.tooltipFooter}>
+            {isOtros
+              ? 'click para ver disciplinas'
+              : selectedDiscipline === d.key ? 'click para quitar filtro' : 'click para filtrar contribuidores'}
+          </span>
+        </div>
+      )
+    }
+    return null
+  }
+
+  // Click en sector del pie de disciplinas → filtrar contribuidores via backend
+  // Recharts pasa (entry, index, event) al onClick del Pie
+  const handleDisciplineSliceClick = useCallback((entry, _index, event) => {
+    // entry puede ser el objeto Recharts (con payload) o nuestro dato directo
+    const key = entry?.key || entry?.payload?.key
+    if (!key) return
+    if (key === '_others') {
+      // Mostrar popover interactivo con las disciplinas agrupadas
+      const items = entry?._otherItems || entry?.payload?._otherItems || []
+      if (items.length > 0 && event) {
+        const rect = event.currentTarget?.closest?.('svg')?.getBoundingClientRect?.()
+        const x = event.clientX - (rect?.left || 0)
+        const y = event.clientY - (rect?.top || 0)
+        setOtrosPopover(prev => prev ? null : { x, y, items })
+      }
+      return
+    }
+    setOtrosPopover(null)
+    setFilter('discipline', key)
+  }, [setFilter])
 
   // Tooltip especial para PieChart que muestra detalle de "Otros"
   const PieTooltip = ({ active, payload }) => {
@@ -2172,131 +2447,270 @@ export default function ChartsSection({ data }) {
       {disciplinePieData.length > 0 && (
         <div
           ref={disciplineChartRef}
-          className={`${styles.chartCard} ${styles.scrollReveal} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
+          className={`${styles.chartCard} ${styles.chartCardWide} ${styles.scrollReveal} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
         >
           <div className={styles.titleRow}>
-            <h3 className={styles.chartTitle}>🧬 Comunidades Interdisciplinares</h3>
+            <h3 className={styles.chartTitle}>Comunidades Interdisciplinares</h3>
+            {selectedDiscipline && (
+              <button
+                className={styles.activeFilterBadge}
+                onClick={() => setFilter('discipline', selectedDiscipline)}
+                title="Quitar filtro de disciplina"
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: DISCIPLINE_COLORS[selectedDiscipline] || '#888', display: 'inline-block' }} />
+                {DISCIPLINE_LABELS[selectedDiscipline] || selectedDiscipline}
+                <span style={{ marginLeft: 4, opacity: 0.6 }}>✕</span>
+              </button>
+            )}
           </div>
           <p className={styles.chartSubtitle}>
             Clasificación automática de usuarios por área de expertise
             {disciplineAnalysis?.cross_discipline_index != null && (
               <span style={{ marginLeft: 8, color: '#00ff9f', fontWeight: 600 }}>
-                - Indice cross-disciplina: {(disciplineAnalysis.cross_discipline_index * 100).toFixed(1)}%
+                — Índice cross-disciplina: {disciplineAnalysis.cross_discipline_index.toFixed(1)}%
               </span>
             )}
           </p>
-          <div className={styles.chartContainer}>
-            {disciplineChartVisible ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={disciplinePieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    innerRadius={35}
-                    dataKey="value"
-                    isAnimationActive={true}
-                    animationBegin={0}
-                    animationDuration={800}
-                    animationEasing="ease-out"
-                    label={({ name, value, cx, cy, midAngle, outerRadius, index }) => {
-                      const RADIAN = Math.PI / 180
-                      const radius = outerRadius + 25
-                      const x = cx + radius * Math.cos(-midAngle * RADIAN)
-                      const y = cy + radius * Math.sin(-midAngle * RADIAN)
-                      return (
-                        <text
-                          key={`disc-label-${index}`}
-                          x={x} y={y}
-                          fill="#9ca3af"
-                          textAnchor={x > cx ? 'start' : 'end'}
-                          dominantBaseline="central"
-                          style={{ fontSize: '11px', fontWeight: 500, pointerEvents: 'none' }}
-                        >
-                          {`${name} (${value})`}
-                        </text>
-                      )
+          <div className={styles.disciplineLayout}>
+            <div className={styles.chartContainer}>
+              {isFiltering && (
+                <div className={styles.chartLoadingOverlay}>
+                  <div className={styles.chartLoadingSpinner}></div>
+                  <span>Actualizando...</span>
+                </div>
+              )}
+              {/* Caso especial: una sola disciplina → display tipo spotlight */}
+              {disciplinePieData.length === 1 && !disciplinePieData[0]._otherItems ? (() => {
+                const sole = disciplinePieData[0]
+                const DIcon = DISCIPLINE_ICONS[sole.key] || Zap
+                return (
+                  <div className={styles.singleDisciplineDisplay}>
+                    <div className={styles.singleDisciplineGlow} style={{ background: sole.fill }} />
+                    <div className={styles.singleDisciplineIconWrap} style={{ background: `${sole.fill}18`, borderColor: `${sole.fill}55` }}>
+                      <DIcon size={48} style={{ color: sole.fill }} />
+                    </div>
+                    <span className={styles.singleDisciplineEmoji}>{DISCIPLINE_EMOJIS[sole.key] || '⚛️'}</span>
+                    <h4 className={styles.singleDisciplineName} style={{ color: sole.fill }}>{sole.name}</h4>
+                    <div className={styles.singleDisciplineStats}>
+                      <span className={styles.singleDisciplineCount} style={{ color: sole.fill }}>{sole.value.toLocaleString()}</span>
+                      <span className={styles.singleDisciplineCountLabel}>colaboradores</span>
+                    </div>
+                    <p className={styles.singleDisciplineDesc}>
+                      {DISCIPLINE_DESCRIPTIONS[sole.key] || 'Disciplina especializada dentro del ecosistema cuántico.'}
+                    </p>
+                    <div className={styles.singleDisciplineBadge} style={{ borderColor: `${sole.fill}44`, background: `${sole.fill}12` }}>
+                      <span style={{ color: sole.fill, fontWeight: 600 }}>100%</span>
+                      <span style={{ color: '#9ca3af' }}>de los contribuidores en esta categoría</span>
+                    </div>
+                    {selectedDiscipline === sole.key ? (
+                      <button
+                        className={styles.singleDisciplineButton}
+                        style={{ borderColor: `${sole.fill}55`, color: sole.fill }}
+                        onClick={() => setFilter('discipline', sole.key)}
+                      >
+                        Quitar filtro de disciplina
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.singleDisciplineButton}
+                        style={{ borderColor: `${sole.fill}55`, color: sole.fill }}
+                        onClick={() => setFilter('discipline', sole.key)}
+                      >
+                        Filtrar por {sole.name}
+                      </button>
+                    )}
+                  </div>
+                )
+              })() : (
+              /* Caso normal: múltiples disciplinas → pie chart */
+              <>
+              {disciplineChartVisible ? (
+                <div style={{ position: 'relative' }}>
+                <ResponsiveContainer width="100%" height={420}>
+                  <PieChart>
+                    <Pie
+                      data={disciplinePieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={140}
+                      innerRadius={50}
+                      dataKey="value"
+                      isAnimationActive={true}
+                      animationBegin={0}
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                      style={{ cursor: 'pointer' }}
+                      onClick={handleDisciplineSliceClick}
+                      label={({ name, value, cx, cy, midAngle, outerRadius, index }) => {
+                        const RADIAN = Math.PI / 180
+                        const radius = outerRadius + 30
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN)
+                        return (
+                          <text
+                            key={`disc-label-${index}`}
+                            x={x} y={y}
+                            fill="#9ca3af"
+                            textAnchor={x > cx ? 'start' : 'end'}
+                            dominantBaseline="central"
+                            style={{ fontSize: '11px', fontWeight: 500, pointerEvents: 'none' }}
+                          >
+                            {`${name} (${value})`}
+                          </text>
+                        )
+                      }}
+                      labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1, pointerEvents: 'none' }}
+                    >
+                      {disciplinePieData.map((entry, index) => {
+                        const isSelected = selectedDiscipline === entry.key
+                        const isDimmed = selectedDiscipline && !isSelected
+                        return (
+                          <Cell
+                            key={`disc-cell-${index}`}
+                            fill={entry.fill}
+                            stroke={isSelected ? entry.fill : 'rgba(15, 20, 25, 0.6)'}
+                            strokeWidth={isSelected ? 3 : 1}
+                            style={{
+                              cursor: 'pointer',
+                              opacity: isDimmed ? 0.35 : 1,
+                              filter: isSelected ? `brightness(1.2) drop-shadow(0 0 8px ${entry.fill}88)` : 'none',
+                              transition: 'opacity 0.3s ease, filter 0.3s ease',
+                            }}
+                          />
+                        )
+                      })}
+                    </Pie>
+                    <Tooltip content={<DisciplineTooltip />} cursor={false} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Popover interactivo para disciplinas agrupadas en "Otros" */}
+                {otrosPopover && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: Math.min(otrosPopover.x, 280),
+                      top: Math.max(otrosPopover.y - 20, 0),
+                      zIndex: 50,
+                      background: 'rgba(15, 20, 30, 0.96)',
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      minWidth: 200,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                      backdropFilter: 'blur(12px)',
                     }}
-                    labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1, pointerEvents: 'none' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
-                    {disciplinePieData.map((entry, index) => (
-                      <Cell key={`disc-cell-${index}`} fill={entry.fill} stroke="rgba(15, 20, 25, 0.6)" strokeWidth={1} />
+                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Filtrar por disciplina
+                    </p>
+                    {otrosPopover.items.map((item, i) => (
+                      <div
+                        key={i}
+                        onClick={() => { setOtrosPopover(null); setFilter('discipline', item.key) }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 8px', margin: '2px 0', borderRadius: 6,
+                          cursor: 'pointer', transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.fill, flexShrink: 0 }} />
+                        <span style={{ color: '#e5e7eb', fontSize: 12, flex: 1 }}>{item.name}</span>
+                        <strong style={{ color: item.fill, fontSize: 12 }}>{item.value}</strong>
+                        <span style={{ color: '#6b7280', fontSize: 10 }}>({item.pct.toFixed(1)}%)</span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.[0]) return null
-                      const d = payload[0].payload
-                      return (
-                        <div style={{
-                          background: 'rgba(15, 20, 30, 0.95)',
-                          border: `1px solid ${d.fill}44`,
-                          borderRadius: 10,
-                          padding: '10px 14px',
-                          fontSize: 13,
-                          color: '#e5e7eb',
-                          boxShadow: `0 0 15px ${d.fill}22`,
-                        }}>
-                          <div style={{ fontWeight: 600, color: d.fill, marginBottom: 4 }}>{d.name}</div>
-                          <div>{d.value} usuarios ({d.pct.toFixed(1)}%)</div>
-                        </div>
-                      )
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+                  </div>
+                )}
+                </div>
+              ) : (
+                <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+                </div>
+              )}
+              </>
+              )}
+            </div>
+
+            {/* Bridge profiles (usuarios que cruzan disciplinas) */}
+            {disciplineAnalysis?.bridge_profiles?.length > 0 && (
+              <div className={styles.bridgePanel}>
+                <h4 style={{ fontSize: 13, color: '#e879f9', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  Puentes Interdisciplinares ({disciplineAnalysis.bridge_profiles.length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {disciplineAnalysis.bridge_profiles.map((bp, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                        fontSize: 13, color: '#d1d5db',
+                        padding: '6px 8px',
+                        borderBottom: i < disciplineAnalysis.bridge_profiles.length - 1 ? '1px solid rgba(232, 121, 249, 0.08)' : 'none',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s ease',
+                      }}
+                      className={styles.bridgeProfileRow}
+                      onClick={() => {
+                        // Buscar el user en userData (top 10 visible) primero
+                        const userMatch = userData.find(u => u.login === bp.login)
+                        if (userMatch) {
+                          openEntityDetail('user', { ...userMatch, bridge_repos_per_discipline: bp.repos_per_discipline })
+                        } else {
+                          // Buscar en lista completa y usar mapUserToDisplay
+                          const fullUser = allUsersMap[bp.login]
+                          if (fullUser) {
+                            const mapped = mapUserToDisplay(fullUser, userMetric, disciplineMap, selectedUser)
+                            openEntityDetail('user', { ...mapped, bridge_repos_per_discipline: bp.repos_per_discipline })
+                          } else {
+                            // Solo datos mínimos del bridge profile + disciplineMap
+                            const discInfo = disciplineMap[bp.login] || {}
+                            openEntityDetail('user', {
+                              login: bp.login, name: bp.login, avatar_url: null,
+                              score: 0, contributions: 0, repos: bp.total_repos || 0,
+                              organizations: [], commits: 0, prs: 0, reviews: 0, issues: 0,
+                              bio: null, company: null, location: null, top_languages: [],
+                              ...discInfo, bridge_repos_per_discipline: bp.repos_per_discipline,
+                            })
+                          }
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#c084fc', fontWeight: 600, fontSize: 13 }}>@{bp.login}</span>
+                        <span style={{ color: '#6b7280', fontSize: 11 }}>
+                          {bp.total_repos || 0} repos
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {bp.repos_per_discipline && Object.keys(bp.repos_per_discipline).map(disc => (
+                          <span key={disc} style={{
+                            padding: '2px 7px',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            background: `${DISCIPLINE_COLORS[disc] || '#888'}22`,
+                            color: DISCIPLINE_COLORS[disc] || '#888',
+                            border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
+                          }}>
+                            {DISCIPLINE_LABELS[disc] || disc} ({bp.repos_per_discipline[disc]})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Bridge profiles (usuarios que cruzan disciplinas) */}
-          {disciplineAnalysis?.bridge_profiles?.length > 0 && (
-            <div style={{
-              marginTop: 12,
-              padding: '10px 14px',
-              background: 'rgba(0, 255, 159, 0.04)',
-              borderRadius: 10,
-              border: '1px solid rgba(0, 255, 159, 0.1)',
-            }}>
-              <h4 style={{ fontSize: 12, color: '#00ff9f', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                Puentes Interdisciplinares ({disciplineAnalysis.bridge_profiles.length})
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {disciplineAnalysis.bridge_profiles.slice(0, 8).map((bp, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    fontSize: 12, color: '#d1d5db',
-                  }}>
-                    <span style={{ color: '#a78bfa', fontWeight: 500, minWidth: 100 }}>@{bp.login}</span>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {bp.repos_per_discipline && Object.keys(bp.repos_per_discipline).map(disc => (
-                        <span key={disc} style={{
-                          padding: '1px 6px',
-                          borderRadius: 4,
-                          fontSize: 10,
-                          background: `${DISCIPLINE_COLORS[disc] || '#888'}22`,
-                          color: DISCIPLINE_COLORS[disc] || '#888',
-                          border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
-                        }}>
-                          {DISCIPLINE_LABELS[disc] || disc} ({bp.repos_per_discipline[disc]})
-                        </span>
-                      ))}
-                    </div>
-                    <span style={{ marginLeft: 'auto', color: '#6b7280', fontSize: 11 }}>
-                      {bp.total_repos || 0} repos
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <p className={styles.chartHint}>
-            <span>El índice cross-disciplina mide qué fracción de las colaboraciones cruzan fronteras entre disciplinas</span>
+            <span><span className={styles.kbdKey}>Click</span> en sector para filtrar contribuidores</span>
+            <span>·</span>
+            <span><span className={styles.kbdKey}>Click</span> en puente para ver detalles</span>
           </p>
         </div>
       )}
@@ -2763,33 +3177,113 @@ export default function ChartsSection({ data }) {
               )}
 
               {/* === USER SPECIFIC SECTIONS === */}
+              {/* User discipline classification */}
+              {type === 'user' && (() => {
+                // Intentar obtener disciplina del propio data o del disciplineMap
+                const discInfo = data.discipline ? data : (disciplineMap[data.login] || null)
+                if (!discInfo?.discipline) return null
+                const discColor = discInfo.discipline_color || DISCIPLINE_COLORS[discInfo.discipline] || '#888'
+                const discLabel = discInfo.discipline_label || DISCIPLINE_LABELS[discInfo.discipline] || discInfo.discipline
+                const isMulti = discInfo.discipline === 'multidisciplinary'
+                const topColors = discInfo.discipline_top_colors || []
+                // Check bridge profile data
+                const bridgeData = data.bridge_repos_per_discipline || 
+                  disciplineAnalysis?.bridge_profiles?.find(bp => bp.login === data.login)?.repos_per_discipline || null
+
+                return (
+                  <div className={styles.entityDetailSection}>
+                    <h4 className={styles.entityDetailSectionTitle}>Disciplina</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: bridgeData ? 8 : 0 }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '4px 12px', borderRadius: 6,
+                        background: `${discColor}18`,
+                        color: discColor,
+                        border: `1px solid ${discColor}44`,
+                        fontSize: 12, fontWeight: 600,
+                      }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: discColor }} />
+                        {discLabel}
+                      </span>
+                      {discInfo.discipline_confidence > 0 && (
+                        <span style={{ fontSize: 11, color: '#6b7280' }}>
+                          {(discInfo.discipline_confidence * 100).toFixed(0)}% confianza
+                        </span>
+                      )}
+                    </div>
+                    {isMulti && topColors.length >= 2 && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                        {topColors.map((tc, i) => {
+                          const cLabel = DISCIPLINE_LABELS[tc.discipline] || tc.discipline
+                          const cColor = tc.color || DISCIPLINE_COLORS[tc.discipline] || '#888'
+                          return (
+                            <span key={i} style={{
+                              padding: '2px 8px', borderRadius: 4, fontSize: 10,
+                              background: `${cColor}22`, color: cColor,
+                              border: `1px solid ${cColor}44`,
+                            }}>
+                              {cLabel}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {bridgeData && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                        {Object.entries(bridgeData).map(([disc, count]) => (
+                          <span key={disc} style={{
+                            padding: '2px 7px', borderRadius: 4, fontSize: 10,
+                            background: `${DISCIPLINE_COLORS[disc] || '#888'}22`,
+                            color: DISCIPLINE_COLORS[disc] || '#888',
+                            border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
+                          }}>
+                            {DISCIPLINE_LABELS[disc] || disc}: {count} repos
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* User contribution breakdown */}
-              {type === 'user' && (data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) && (
+              {type === 'user' && (data.contributions > 0 || data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) && (
                 <div className={styles.entityDetailSection}>
                   <h4 className={styles.entityDetailSectionTitle}>Desglose de contribuciones</h4>
-                  <div className={styles.entityDetailBreakdown}>
-                    {[
-                      { key: 'commits', label: 'Commits', color: '#22C55E', icon: GitCommit },
-                      { key: 'prs', label: 'Pull Requests', color: '#3B82F6', icon: GitPullRequest },
-                      { key: 'reviews', label: 'Reviews', color: '#F59E0B', icon: Eye },
-                      { key: 'issues', label: 'Issues', color: '#EF4444', icon: AlertCircle },
-                    ].filter(item => data[item.key] > 0).map(item => (
-                      <div key={item.key} className={styles.entityDetailBreakdownRow}>
-                        <span className={styles.entityDetailBreakdownLabel} style={{ color: item.color }}>
-                          <item.icon size={11} /> {item.label}
-                        </span>
-                        <div className={styles.entityDetailBreakdownBar}>
-                          <div style={{ width: `${data.contributions > 0 ? Math.min(100, (data[item.key] / data.contributions) * 100) : 0}%`, background: item.color }} />
+                  {(data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) ? (
+                    <div className={styles.entityDetailBreakdown}>
+                      {[
+                        { key: 'commits', label: 'Commits', color: '#22C55E', icon: GitCommit },
+                        { key: 'prs', label: 'Pull Requests', color: '#3B82F6', icon: GitPullRequest },
+                        { key: 'reviews', label: 'Reviews', color: '#F59E0B', icon: Eye },
+                        { key: 'issues', label: 'Issues', color: '#EF4444', icon: AlertCircle },
+                      ].filter(item => data[item.key] > 0).map(item => (
+                        <div key={item.key} className={styles.entityDetailBreakdownRow}>
+                          <span className={styles.entityDetailBreakdownLabel} style={{ color: item.color }}>
+                            <item.icon size={11} /> {item.label}
+                          </span>
+                          <div className={styles.entityDetailBreakdownBar}>
+                            <div style={{ width: `${data.contributions > 0 ? Math.min(100, (data[item.key] / data.contributions) * 100) : 0}%`, background: item.color }} />
+                          </div>
+                          <span className={styles.entityDetailBreakdownValue}>{data[item.key].toLocaleString()}</span>
                         </div>
-                        <span className={styles.entityDetailBreakdownValue}>{data[item.key].toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: '#9ca3af', padding: '4px 0' }}>
+                      {data.contributions_to_quantum_repos > 0 ? (
+                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> contribuciones a repos quantum<br/>
+                        <small style={{ color: '#6b7280' }}>Desglose no disponible (sin actividad en el último año en GitHub)</small></>
+                      ) : (
+                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> contribuciones al repositorio</>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* User profile info */}
-              {type === 'user' && (data.company || data.location || data.created_at || data.following_count > 0) && (
+              {type === 'user' && (
                 <div className={styles.entityDetailSection}>
                   <h4 className={styles.entityDetailSectionTitle}>Perfil</h4>
                   {data.company && (
@@ -2810,10 +3304,27 @@ export default function ChartsSection({ data }) {
                       <span className={styles.entityDetailMetaValuePlain}>{formatDetailDate(data.created_at)}</span>
                     </div>
                   )}
+                  {data.followers_count > 0 && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Followers</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.followers_count.toLocaleString()}</span>
+                    </div>
+                  )}
                   {data.following_count > 0 && (
                     <div className={styles.entityDetailMetaRow}>
                       <span className={styles.entityDetailMetaLabel}><Users size={12} /> Following</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.following_count.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {data.has_commits != null && (
+                    <div className={styles.entityDetailMetaRow}>
+                      <span className={styles.entityDetailMetaLabel}><GitCommit size={12} /> Rol</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.has_commits ? 'Contributor (commits)' : data.is_mentionable ? 'Reviewer / Triage' : 'Miembro'}</span>
+                    </div>
+                  )}
+                  {!data.company && !data.location && !data.created_at && data.followers_count === 0 && data.following_count === 0 && (
+                    <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic', padding: '4px 0' }}>
+                      Perfil no enriquecido — solo datos de colaboración disponibles
                     </div>
                   )}
                 </div>

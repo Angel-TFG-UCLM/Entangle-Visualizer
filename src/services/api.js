@@ -138,6 +138,7 @@ export async function getDashboardStats(forceRefresh = false, filters = {}) {
     if (filters.repo) params.repo = filters.repo;
     if (filters.collabType) params.collab_type = filters.collabType;
     if (filters.includeBots !== undefined) params.include_bots = filters.includeBots;
+    if (filters.discipline) params.discipline = filters.discipline;
     
     const response = await apiClient.get('/dashboard/stats', { params });
     
@@ -202,6 +203,23 @@ export async function getUsers(params = {}) {
     return response.data;
   } catch (error) {
     console.error('[getUsers] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener perfil completo de un usuario por login.
+ * Usado cuando el usuario no está en el top 10 del dashboard.
+ * Endpoint: GET /api/v1/users/profile/:login
+ * @param {string} login - Login del usuario
+ * @returns {Promise<Object>}
+ */
+export async function getUserProfile(login) {
+  try {
+    const response = await apiClient.get(`/users/profile/${encodeURIComponent(login)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getUserProfile] Error:', error);
     throw error;
   }
 }

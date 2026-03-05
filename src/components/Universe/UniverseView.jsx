@@ -11,7 +11,7 @@
  *   ◈ Conexiones      = Canales de Entrelazamiento (ondas sinusoidales)
  *   ◈ Fondo           = Vacío Cuántico           (lattice + fluctuaciones)
  *   ◈ Interacción     = Colapso de función de onda
- *   ◈ Rayos Cósmicos  = Estrellas fugaces con estelas multicolor
+ *   ◈ Rayos Cósmicos  = Partículas relativistas con estelas multicolor
  *   ◈ Auroras         = Cintas de luz ondulante neón (verde/cian/violeta)
  *   ◈ Ondas Grav.     = Ripples concéntricos desde orgs grandes
  *   ◈ Espuma Cuántica = Fluctuaciones del vacío (partículas virtuales pop in/out)
@@ -1275,7 +1275,7 @@ const PARTICLE_FRAGMENT = /* glsl */`
 // PARTÍCULAS CUÁNTICAS (Users) - 100% GPU via GLSL ShaderMaterial
 // ============================================================================
 
-function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity, multiOrgColors, activeNodeIdsRef }) {
+function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, userDensity, multiOrgColors, multiDiscColors, activeNodeIdsRef }) {
   const ref = useRef()
   const glowMap = useMemo(() => createGlowTexture(), [])
 
@@ -1345,6 +1345,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
 
   // Solo actualizar 2 uniforms por frame - 0% CPU para partículas
   const lastHighlight = useRef(undefined)
+  const lastLensActive = useRef(false) // track lens on/off for brightness recalc
   const lastLens = useRef(null)
   const lensBlendCurrent = useRef(0)
   const lensRevealTime = useRef(0) // time when color animation should start
@@ -1365,6 +1366,21 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     }
     return index.length > 0 ? index : null
   }, [allUsers, multiOrgColors])
+
+  // Pre-compute multi-disc index: para cada user multidisciplinar,
+  // almacenar su índice en allUsers + colores de disciplinas + seed
+  const multiDiscIndex = useMemo(() => {
+    if (!multiDiscColors) return null
+    const index = []
+    for (let i = 0; i < allUsers.length; i++) {
+      const colors = multiDiscColors[allUsers[i].id]
+      if (colors) {
+        const seed = ((i * 6271 + 839) % 991) / 991
+        index.push({ idx: i, colors, seed })
+      }
+    }
+    return index.length > 0 ? index : null
+  }, [allUsers, multiDiscColors])
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progressRef.current[progressKey]
@@ -1443,15 +1459,56 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
       if (anyChanged) colors.needsUpdate = true
     }
 
-    // Highlight: solo cuando cambia la selección
+    // Multi-disc color cycling: transicionar entre colores de disciplinas para users multidisciplinares
+    // Solo cuando la lente de disciplinas está activa (lensBlendCurrent > 0.5)
+    if (multiDiscIndex && lensBlendCurrent.current > 0.5) {
+      const t = clock.getElapsedTime()
+      const colors = geo.attributes.aLensColor
+      let anyChanged = false
+      for (let k = 0; k < multiDiscIndex.length; k++) {
+        const { idx, colors: discColors, seed } = multiDiscIndex[k]
+        const period = 2.0 + seed * 2.5
+        const phase = (t + seed * 80) / period
+        const totalColors = discColors.length
+        const ci = Math.floor(phase) % totalColors
+        const ni = (ci + 1) % totalColors
+        const raw = phase - Math.floor(phase)
+        const holdFraction = 0.65
+        let blend
+        if (raw < holdFraction) {
+          blend = 0
+        } else {
+          const tt = (raw - holdFraction) / (1 - holdFraction)
+          blend = tt * tt * (3 - 2 * tt)
+        }
+        const c0 = discColors[ci], c1 = discColors[ni]
+        const r = (c0.r + (c1.r - c0.r) * blend) * 2.2
+        const g = (c0.g + (c1.g - c0.g) * blend) * 2.2
+        const b = (c0.b + (c1.b - c0.b) * blend) * 2.2
+        colors.array[idx * 3]     = r
+        colors.array[idx * 3 + 1] = g
+        colors.array[idx * 3 + 2] = b
+        anyChanged = true
+      }
+      if (anyChanged) colors.needsUpdate = true
+    }
+
+    // Highlight/brightness: recalcular cuando cambia selección O cuando la lente se activa/desactiva
     const hlChanged = lastHighlight.current !== highlightSet
-    if (hlChanged) {
+    const lensNowActive = lensData !== null
+    const lensToggled = lastLensActive.current !== lensNowActive
+    if (hlChanged || lensToggled) {
       lastHighlight.current = highlightSet
+      lastLensActive.current = lensNowActive
       const hasSel = highlightSet !== null
       const bright = geo.attributes.aBrightness
       for (let i = 0; i < allUsers.length; i++) {
-        // Seleccionados brillan más (1.5), no seleccionados casi invisibles (0.02)
-        bright.array[i] = !hasSel ? 1.0 : highlightSet.has(allUsers[i].id) ? 1.5 : 0.02
+        // Con filtro: seleccionados 1.5, resto casi invisibles 0.02
+        // Sin filtro + lente activa: 1.5 para que brille igual que con filtro
+        // Sin filtro sin lente: 1.0 (base normal)
+        bright.array[i] = hasSel
+          ? (highlightSet.has(allUsers[i].id) ? 1.5 : 0.02)
+          : (lensNowActive ? 1.5 : 1.0)
       }
       bright.needsUpdate = true
     }
@@ -2582,7 +2639,7 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeN
 }
 
 // ============================================================================
-// COSMIC RAYS - estrellas fugaces cruzando el universo con estelas luminosas
+// COSMIC RAYS - partículas relativistas cruzando el universo con estelas luminosas
 // Algunas partículas intentan escapar y colisionan con la Dyson Shell
 // ============================================================================
 
@@ -5161,7 +5218,7 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 13,
       priorityIds: fkPriorityIds,
       title: firstKeyOrg.label,
-      text: `En ${firstKeyOrg.year}, ${firstKeyOrg.label} irrumpe con ${fkRepos.length} repos y ${fkStars.toLocaleString()} ★.${fkTopRepo ? ` Su proyecto insignia, ${fkTopRepo.full_name || fkTopRepo.name} (${(fkTopRepo.stars || 0).toLocaleString()} ★), se convierte en referencia global.` : ''}${sameEraOrgs.length > 0 ? ` En esta misma etapa se incorporan ${sameEraOrgs.join(' y ')}: la industria apuesta por el open-source cuántico.` : ' La industria apuesta por construir en abierto.'}`,
+      text: `En ${firstKeyOrg.year}, ${firstKeyOrg.label} irrumpe con ${fkRepos.length} repos y ${fkStars.toLocaleString()} ★.${fkTopRepo ? ` Su proyecto insignia, ${fkTopRepo.name} (${(fkTopRepo.stars || 0).toLocaleString()} ★), se convierte en referencia global.` : ''}${fkLangs.length > 0 ? ` Stack principal: ${fkLangs.join(', ')}.` : ''}${sameEraOrgs.length > 0 ? ` En esta misma etapa se incorporan ${sameEraOrgs.join(' y ')}: la industria apuesta por el open-source cuántico.` : ' La industria apuesta por construir en abierto.'}`,
     })
   }
 
@@ -5237,16 +5294,17 @@ function generateTourWaypoints(universeData, temporalRange) {
   if (topRepo && topStars > 50) {
     const trPos = positions[topRepo.id]
     const ownerOrg = orgNodes.find(o => (orgRepos[o.id] || []).some(r => r.id === topRepo.id))
-    // Top 3 repos para contexto
-    const top3Names = topStarredRepos.slice(0, 3).map(r => `${r.name} (${(r.stars || 0).toLocaleString()} ★)`).join(', ')
-    const starPriority = [topRepo.id, ...(ownerOrg ? [ownerOrg.id] : []), ...topStarredRepos.slice(0, 3).map(r => r.id)]
+    // Top 3 repos para contexto (excluyendo el propio topRepo)
+    const otherTopRepos = topStarredRepos.filter(r => r.id !== topRepo.id).slice(0, 3)
+    const top3Names = otherTopRepos.map(r => `${r.name} (${(r.stars || 0).toLocaleString()} ★)`).join(', ')
+    const starPriority = [topRepo.id, ...(ownerOrg ? [ownerOrg.id] : []), ...otherTopRepos.map(r => r.id)]
     waypoints.push({
       year: topRepo.pushed_at_year || midY + 1,
       ...(trPos ? camFor(trPos, 28) : { camPos: [100, 150, 250], camTarget: [0, 0, 0] }),
       duration: 12,
       priorityIds: starPriority,
       title: `★ ${topRepo.name}`,
-      text: `${topRepo.full_name || topRepo.name}: ${topStars.toLocaleString()} ★${ownerOrg ? `, de ${oName(ownerOrg)}` : ''}${topRepo.language ? `, en ${topRepo.language}` : ''}. El repo más influyente del ecosistema. Otros destacados: ${top3Names}. En total, ${totalStarsAll.toLocaleString()} ★ acumuladas en todo el ecosistema.`,
+      text: `${topRepo.name}: ${topStars.toLocaleString()} ★${ownerOrg ? `, de ${oName(ownerOrg)}` : ''}${topRepo.language ? `, en ${topRepo.language}` : ''}. El repo más influyente del ecosistema. Otros destacados: ${top3Names}. En total, ${totalStarsAll.toLocaleString()} ★ acumuladas en todo el ecosistema.`,
     })
   }
 
@@ -5385,7 +5443,7 @@ function generateTourWaypoints(universeData, temporalRange) {
   return waypoints
 }
 
-const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, disciplineHighlightSet, tunnelPath, favoriteIdSet, multiOrgColors, activeNodeIdsRef, tourCameraRef, tourBigBangReplay, simpleMode, cameraFlyingRef }) {
+const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, disciplineHighlightSet, tunnelPath, favoriteIdSet, multiOrgColors, multiDiscColors, activeNodeIdsRef, tourCameraRef, tourBigBangReplay, simpleMode, cameraFlyingRef }) {
   // === PROGRESO VIA REF - CERO re-renders de React desde el render-loop ===
   // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
   const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
@@ -5632,7 +5690,7 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
 
       {/* Stage 4: Partículas (users) - 27K+ vertices × 6 atributos (MÁS PESADO) */}
       {mountStage >= 4 && showUsers && (
-        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} multiOrgColors={multiOrgColors} activeNodeIdsRef={activeNodeIdsRef} />
+        <QuantumParticles userNodes={userNodes} positions={positions} onHover={handleHover} onClick={guardedSelect} progressRef={bpRef} progressKey="particles" highlightSet={highlightSet} lensData={lensData} lensRevealDelay={lensRevealDelay} userDensity={userDensity} multiOrgColors={multiOrgColors} multiDiscColors={multiDiscColors} activeNodeIdsRef={activeNodeIdsRef} />
       )}
 
       {/* Stage 5: Bonds (user-repo connections) */}
@@ -5952,32 +6010,61 @@ export default function UniverseView() {
       activeNodeIdsRef.current = genesisFilter
       tourGenesisFilterRef.current = genesisFilter
 
-      let postTourAngleOffset = 0
       let postTourInitialized = false
       let postTourEndTime = 0
+      let postTourStartRadius = 0
+      let postTourStartY = 0
+      let postTourStartAngle = 0
+      let postTourStartTarget = [0, 0, 0]
 
       // ── TICK: solo cámara (lerp + órbita). Sin auto-avance de steps ──
       const tick = (now) => {
         const rawElapsed = now - t0
 
-        // ── Post-tour: rotación lenta panorámica ──
+        // ── Post-tour: transición suave a rotación panorámica ──
+        // Estrategia: rotar desde el ángulo actual de inmediato (sin aceleración),
+        // y solo transicionar radio + altura con un ease-out suave y largo.
         if (tourEndedRef.current) {
           if (!postTourInitialized) {
             const camX = tourCameraRef.current.position.x
+            const camY = tourCameraRef.current.position.y
             const camZ = tourCameraRef.current.position.z
-            postTourAngleOffset = Math.atan2(camX, camZ)
+            postTourStartAngle = Math.atan2(camX, camZ)
+            postTourStartRadius = Math.sqrt(camX * camX + camZ * camZ)
+            postTourStartY = camY
+            postTourStartTarget = [
+              tourCameraRef.current.target.x,
+              tourCameraRef.current.target.y,
+              tourCameraRef.current.target.z,
+            ]
             postTourEndTime = now
             postTourInitialized = true
           }
           const sinceEnd = (now - postTourEndTime) / 1000
-          const angle = postTourAngleOffset - sinceEnd * 0.1
-          const radius = 620
+          const targetRadius = 620
+          const targetY = 280
+          const rotSpeed = 0.1
+
+          // El ángulo rota desde el primer frame a velocidad constante (sin aceleración)
+          const angle = postTourStartAngle - sinceEnd * rotSpeed
+
+          // Radio y altura hacen ease-out largo (~5s) para transición suave sin parón
+          const shapeT = Math.min(sinceEnd / 5, 1)
+          const easeOut = 1 - (1 - shapeT) * (1 - shapeT) // ease-out quadratic
+          const curRadius = postTourStartRadius + (targetRadius - postTourStartRadius) * easeOut
+          const curY = postTourStartY + (targetY - postTourStartY) * easeOut
+
           tourCameraRef.current.position.set(
-            Math.sin(angle) * radius,
-            280,
-            Math.cos(angle) * radius
+            Math.sin(angle) * curRadius,
+            curY,
+            Math.cos(angle) * curRadius
           )
-          tourCameraRef.current.target.set(0, 30, 0)
+          // Target también hace ease-out al centro
+          tourCameraRef.current.target.set(
+            postTourStartTarget[0] * (1 - easeOut),
+            postTourStartTarget[1] + (30 - postTourStartTarget[1]) * easeOut,
+            postTourStartTarget[2] * (1 - easeOut)
+          )
           tourRafRef.current = requestAnimationFrame(tick)
           return
         }
@@ -6363,17 +6450,20 @@ export default function UniverseView() {
   }, [])
 
   // Enviar datos al worker cuando cambian las dependencias del grafo
-  // Layout arranca inmediatamente con métricas locales si las del backend
-  // aún no están disponibles. Cuando llegan, se re-lanza con datos completos.
+  // Espera a que las métricas del backend estén resueltas (cargadas o fallidas)
+  // para evitar un doble layout (primero sin métricas, luego con) que causa
+  // una redistribución visible después de levantar la pantalla de carga.
+  const metricsSettled = metricsLoadAttempted && !isLoadingMetrics
   useEffect(() => {
     if (!filteredGraph?.nodes?.length) { setUniverseData(null); return }
+    if (!metricsSettled) return // aún cargando métricas → esperar
     const id = ++layoutRequestIdRef.current
     layoutWorkerRef.current?.postMessage({
       graph: filteredGraph,
       nodeMetrics: networkMetrics?.node_metrics ?? null,
       requestId: id,
     })
-  }, [filteredGraph, networkMetrics])
+  }, [filteredGraph, networkMetrics, metricsSettled])
 
   //  Ocultar scrollbar del body al entrar al universo (incluida pantalla de carga) 
   useEffect(() => {
@@ -6486,14 +6576,22 @@ export default function UniverseView() {
   }, [entityFilter, disciplineFilter])
 
   // Discipline filter → set of user IDs matching selected disciplines
+  // Multidisciplinary users also match if any of their component disciplines is selected
   const disciplineHighlightSet = useMemo(() => {
     if (disciplineFilter.size === 0 || !networkMetrics?.node_metrics || !universeData) return null
     const nm = networkMetrics.node_metrics
     const ids = new Set()
     universeData.userNodes.forEach(n => {
       const m = nm[n.id]
-      if (m?.discipline && disciplineFilter.has(m.discipline)) {
+      if (!m?.discipline) return
+      // Direct match (including explicit "multidisciplinary" filter)
+      if (disciplineFilter.has(m.discipline)) {
         ids.add(n.id)
+      // Multidisciplinary user: match if any component discipline is in filter
+      } else if (m.discipline === 'multidisciplinary' && m.discipline_top_colors?.length) {
+        for (const tc of m.discipline_top_colors) {
+          if (disciplineFilter.has(tc.discipline)) { ids.add(n.id); break }
+        }
       }
     })
     return ids.size > 0 ? ids : null
@@ -6668,19 +6766,51 @@ export default function UniverseView() {
     const isDeactivating = activeLens === lensId
     const isSwitching = activeLens && !isDeactivating // switching from one lens to another
 
-    // Deactivating or switching: no overlay needed, just animate colors back/to new lens
+    // Deactivating: reverse overlay animation (fade in → disable lens → fade out)
     if (isDeactivating) {
-      lensWithOverlay.current = false
-      setActiveLens(lensId) // toggles to null
-      lensTransitionRef.current = false
+      lensWithOverlay.current = false // quick color revert (100ms delay) so it finishes behind blur
+      setLensTransitioning(true)
+      setLensTransitionColor(LENS_COLORS[lensId] || '#ffffff')
+      setLensLoadingLabel('')
+
+      try {
+        // Wait for canvas to blur + overlay to appear
+        await new Promise(r => setTimeout(r, 450))
+        // Clear discipline sub-filter when deactivating disciplines lens
+        if (lensId === 'disciplines') setDisciplineFilter(new Set())
+        // Disable the lens behind the overlay
+        setActiveLens(lensId) // toggles to null
+        // Brief pause for colors to reset behind blur
+        await new Promise(r => setTimeout(r, 250))
+      } finally {
+        setLensTransitioning(false)
+        setLensLoadingLabel('')
+        lensTransitionRef.current = false
+      }
       return
     }
 
     if (isSwitching) {
-      // Switching between lenses: quick transition without overlay
-      lensWithOverlay.current = false
-      setActiveLens(lensId)
-      lensTransitionRef.current = false
+      // Switching between lenses: overlay to hide the instant of no-lens colors
+      lensWithOverlay.current = true
+      setLensTransitioning(true)
+      setLensTransitionColor(LENS_COLORS[lensId] || '#ffffff')
+      setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
+
+      try {
+        // Wait for canvas to blur + overlay to appear
+        await new Promise(r => setTimeout(r, 450))
+        // Clear discipline sub-filter when switching away from disciplines
+        if (activeLens === 'disciplines') setDisciplineFilter(new Set())
+        // Switch lens behind the blur
+        setActiveLens(lensId)
+        // Brief pause for new lens colors to apply
+        await new Promise(r => setTimeout(r, 200))
+      } finally {
+        setLensTransitioning(false)
+        setLensLoadingLabel('')
+        lensTransitionRef.current = false
+      }
       return
     }
 
@@ -6805,15 +6935,15 @@ export default function UniverseView() {
       })
     } else if (activeLens === 'disciplines') {
       // Discipline lens: color users by their classified discipline
-      // Repos and orgs get dimmed to let user discipline colors stand out
+      // Repos and orgs get heavily dimmed to let user discipline colors stand out
       Object.entries(nm).forEach(([id, m]) => {
         if (m.discipline_color) {
           const c = new THREE.Color(m.discipline_color)
-          // Boost brightness for visibility on dark background
-          map[id] = { r: c.r * 1.6, g: c.g * 1.6, b: c.b * 1.6 }
+          // Strong brightness boost so disciplines pop as vividly as other analytic lenses
+          map[id] = { r: c.r * 2.2, g: c.g * 2.2, b: c.b * 2.2 }
         } else if (id.startsWith('repo_') || id.startsWith('org_')) {
-          // Dim repos/orgs to let user discipline colors pop
-          map[id] = { r: 0.08, g: 0.08, b: 0.12 }
+          // Heavily dim repos/orgs for maximum contrast
+          map[id] = { r: 0.04, g: 0.04, b: 0.06 }
         }
       })
     }
@@ -6853,6 +6983,24 @@ export default function UniverseView() {
     })
     return Object.keys(result).length > 0 ? result : null
   }, [activeLens, universeData, networkMetrics])
+
+  // ====================================================================
+  // MULTI-DISC COLOR MAP: multidisciplinary users → discipline colors
+  // For animating transitions between discipline colors (like multi-org in communities)
+  // ====================================================================
+  const multiDiscColors = useMemo(() => {
+    if (activeLens !== 'disciplines' || !networkMetrics?.node_metrics) return null
+    const nm = networkMetrics.node_metrics
+    const hexToRgb = (hex) => { const c = new THREE.Color(hex); return { r: c.r, g: c.g, b: c.b } }
+    const result = {}
+    Object.entries(nm).forEach(([nodeId, m]) => {
+      if (m.discipline === 'multidisciplinary' && m.discipline_top_colors?.length >= 2) {
+        const colors = m.discipline_top_colors.map(tc => hexToRgb(tc.color))
+        result[nodeId] = colors
+      }
+    })
+    return Object.keys(result).length > 0 ? result : null
+  }, [activeLens, networkMetrics])
 
   // ====================================================================
   // AUTOCOMPLETE: construido desde universeData (siempre disponible)
@@ -7047,6 +7195,7 @@ export default function UniverseView() {
             tunnelPath={tunnelingPath}
             favoriteIdSet={favoriteIdSet}
             multiOrgColors={multiOrgColors}
+            multiDiscColors={multiDiscColors}
             activeNodeIdsRef={activeNodeIdsRef}
             tourCameraRef={tourCameraRef}
             tourBigBangReplay={tourBigBangReplay}
@@ -7457,12 +7606,17 @@ export default function UniverseView() {
               { key: 'quantum_hardware', label: 'Hardware Cuántico', color: '#ff6b6b' },
               { key: 'classical_tooling', label: 'Tooling Clásico', color: '#ffd166' },
               { key: 'education_research', label: 'Educación/Investigación', color: '#00ff9f' },
+              { key: 'multidisciplinary', label: 'Multidisciplinar', color: '#e879f9' },
             ].map(({ key, label, color }) => (
               <button
                 key={key}
                 className={`${styles.disciplineFilterItem} ${disciplineFilter.has(key) ? styles.disciplineFilterItemActive : ''}`}
                 onClick={(e) => {
                   e.stopPropagation()
+                  // Auto-activate disciplines lens if not already active
+                  if (activeLens !== 'disciplines') {
+                    setActiveLens('disciplines')
+                  }
                   setDisciplineFilter(prev => {
                     const next = new Set(prev)
                     next.has(key) ? next.delete(key) : next.add(key)
@@ -7829,6 +7983,18 @@ export default function UniverseView() {
                 <span className={styles.detailDisciplineLabel}>{nm.discipline_label || nm.discipline}</span>
                 {nm.discipline_confidence != null && (
                   <span className={styles.detailDisciplineConf}>{Math.round(nm.discipline_confidence * 100)}% confianza</span>
+                )}
+                {/* Multidisciplinary: show component disciplines with mini bars */}
+                {nm.discipline === 'multidisciplinary' && nm.discipline_top_colors?.length >= 2 && (
+                  <div className={styles.detailMultiDiscBreakdown}>
+                    {nm.discipline_top_colors.map((tc, i) => (
+                      <div key={i} className={styles.detailMultiDiscRow}>
+                        <span className={styles.detailMultiDiscDot} style={{ background: tc.color }} />
+                        <span className={styles.detailMultiDiscName}>{tc.label}</span>
+                        <span className={styles.detailMultiDiscPct}>{tc.score_pct}%</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -8770,7 +8936,7 @@ export default function UniverseView() {
       {/* Botones de acción inferiores */}
       <div className={`${styles.bottomActions} ${tourUIClass}`}>
         {!tourActive && !tourFading && temporalRange && (
-          <button className={styles.tourBtn} onClick={startTour}>
+          <button className={styles.tourBtn} onClick={() => startTour()}>
             <FiPlay size={13} />
             <span>Tour Cósmico</span>
           </button>
@@ -8876,8 +9042,8 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(100,100,255,0.1)', color: '#6666ff' }}>≋</div>
                   <div>
-                    <h4>Vacío Cuántico</h4>
-                    <p>La <strong>rejilla de fondo</strong> y las partículas que parpadean aleatoriamente representan las <em>fluctuaciones del vacío cuántico</em>. En la mecánica cuántica, incluso el espacio vacío bulle con energía - pares de partículas aparecen y desaparecen constantemente. La rejilla oscila sutilmente, simulando el tejido del espacio-tiempo.</p>
+                    <h4>Vacío Cuántico <span className={styles.helpCardTag}>Espuma + Rejilla</span></h4>
+                    <p>El espacio entre entidades no está vacío: <strong>200 partículas</strong> de espuma cuántica parpadean con ciclos de creación/aniquilación (pares partícula-antipartícula virtuales) y un <em>jitter de Heisenberg</em> que las desplaza constantemente. Debajo, una <strong>rejilla de interferencia</strong> de 70×70 puntos ondula con 5 fuentes de onda superpuestas, creando un patrón tricolor (verde constructivo, violeta destructivo, cian nodos) que nunca se repite. Juntos simulan las fluctuaciones del vacío cuántico.</p>
                   </div>
                 </div>
 
@@ -8940,8 +9106,32 @@ export default function UniverseView() {
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(100,150,255,0.1)', color: '#88aaff' }}>⩕</div>
                   <div>
-                    <h4>Campo de Interferencia</h4>
-                    <p>La <strong>rejilla ondulante</strong> del fondo es un <em>patrón de interferencia</em> - el resultado de ondas cuánticas superponiéndose constructiva y destructivamente. Como el famoso experimento de la doble rendija, las crestas y valles forman un patrón periódico que pulsa lentamente, recordando que las partículas cuánticas se comportan también como ondas.</p>
+                    <h4>Rejilla de Interferencia</h4>
+                    <p>Una <strong>cuadrícula de 4900 puntos</strong> (70×70) en el plano horizontal forma el &quot;suelo&quot; del universo. 5 fuentes de onda (una central de alta frecuencia + 4 periféricas) generan un <em>patrón de interferencia</em> en constante cambio. Los puntos oscilan verticalmente según la amplitud combinada y se colorean en tres tonos: <span style={{color:'#00ff88'}}>verde</span> (máximos constructivos), <span style={{color:'#aa44ff'}}>violeta</span> (destructivos) y <span style={{color:'#00ccff'}}>cian</span> (nodos). Las fuentes se desplazan lentamente, generando una textura que nunca se repite — como el experimento de la doble rendija con múltiples rendijas.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,200,255,0.1)', color: '#00ccff' }}>☄</div>
+                  <div>
+                    <h4>Rayos Cósmicos <span className={styles.helpCardTag}>Partículas Relativistas</span></h4>
+                    <p>Hasta <strong>8 partículas relativistas</strong> simultáneas surcan el universo con estelas de cinta de 48 vértices y una paleta de 6 colores (cian, magenta, dorado, esmeralda, naranja plasma, violeta). El 55% son <em>rayos de escape</em> que viajan a 1000–1500 u/s desde el interior hacia la Esfera de Dyson — al impactar (R≥3500) generan una <strong>onda de choque</strong> y un flash del color del rayo. El 45% restante son <em>rayos normales</em> más lentos que cruzan el interior sin impactar, como radiación cósmica de fondo.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(30,60,180,0.12)', color: '#4488ff' }}>◎</div>
+                  <div>
+                    <h4>Esfera de Dyson <span className={styles.helpCardTag}>Frontera del Universo</span></h4>
+                    <p>Una <strong>esfera geodésica</strong> (icosaedro subdividido 4×, ~1280 triángulos) a radio 3500 envuelve todo el universo visible. Sus aristas emiten un brillo tenue azul profundo con <strong>12 pulsos de energía</strong> viajando continuamente por la malla. Cuando un rayo cósmico impacta, se propaga una <em>onda de choque gaussiana</em> que ilumina las aristas progresivamente durante 2.5s. Al seleccionar una entidad, los impactos se atenúan un 85% para no distraer.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(68,136,255,0.1)', color: '#4488ff' }}>〰</div>
+                  <div>
+                    <h4>Ondas Gravitacionales</h4>
+                    <p>Hasta <strong>4 anillos concéntricos</strong> emanan de las 8 organizaciones más masivas del ecosistema. Cada onda se expande en el plano horizontal durante 4–7 segundos hasta un radio de 90–150 unidades, en azul profundo con blending aditivo. Solo aparecen en organizaciones con visibilidad &gt; 0.3 — como en la relatividad general, solo los cuerpos más masivos generan perturbaciones gravitacionales detectables.</p>
                   </div>
                 </div>
               </div>
@@ -9091,6 +9281,9 @@ export default function UniverseView() {
                   <div>
                     <h4>Lente de Disciplinas</h4>
                     <p>Clasifica automáticamente cada usuario en una de <strong>5 disciplinas</strong> (Software Cuántico, Física Cuántica, Hardware Cuántico, Tooling Clásico, Educación/Investigación) analizando sus biografías, organizaciones, lenguajes de programación y temas de repositorios. El <em>índice cross-disciplina</em> mide qué porcentaje de las colaboraciones cruzan fronteras disciplinares. Los <em>puentes interdisciplinares</em> son usuarios que contribuyen a repos de ≥2 disciplinas diferentes.</p>
+                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(232,121,249,0.08)', borderRadius: 8, borderLeft: '3px solid #e879f9', fontSize: '11.5px', lineHeight: 1.5 }}>
+                      <strong style={{ color: '#e879f9' }}>✦ Usuarios Multidisciplinares:</strong> cuando un usuario tiene señales repartidas entre <strong>2 o más disciplinas</strong> sin que ninguna domine claramente, se clasifica como <em>Multidisciplinar</em>. Con la lente activa, estas partículas <em>transicionan suavemente</em> entre los colores de sus disciplinas — igual que los bridge users transicionan entre colores de comunidad. Los perfiles multidisciplinares son los más valiosos: cruzan fronteras del conocimiento.
+                    </p>
                   </div>
                 </div>
 
@@ -9205,7 +9398,7 @@ export default function UniverseView() {
                     <div className={styles.helpControlKey}><FiSettings size={13} /></div>
                     <div>
                       <strong>Ajustes</strong>
-                      <p>El menú de ajustes permite: activar/desactivar <em>fronteras zonales</em>, mostrar/ocultar <em>bots</em>, y <em>resaltar</em> tipos específicos de entidades con filtros de color para organizaciones, repositorios, usuarios normales, bridge users y canales de colaboración.</p>
+                      <p>El menú de ajustes permite: activar/desactivar <em>fronteras zonales</em>, mostrar/ocultar <em>bots</em>, <em>resaltar</em> tipos específicos de entidades con filtros de color, y activar el <strong>Modo Simple</strong> — que desactiva todos los efectos ambientales (rayos cósmicos, Dyson Shell, ondas gravitacionales, espuma cuántica, rejilla de interferencia) dejando solo los datos reales visibles, como enfriar un procesador cuántico a millikelvins.</p>
                     </div>
                   </div>
 

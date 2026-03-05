@@ -18,17 +18,24 @@
    - 4.4 [Decoherencia Cuántica (Shockwaves)](#44-decoherencia-cuántica-shockwaves)
    - 4.5 [Entrelazamiento Cuántico (Sync Flashes)](#45-entrelazamiento-cuántico-sync-flashes)
    - 4.6 [Radiación de Hawking](#46-radiación-de-hawking)
-5. [Elementos Visuales Estáticos](#5-elementos-visuales-estáticos)
-   - 5.1 [Nubes de Probabilidad](#51-nubes-de-probabilidad)
-   - 5.2 [Ejes de Bloch](#52-ejes-de-bloch)
-   - 5.3 [Anillos de Energía](#53-anillos-de-energía)
-   - 5.4 [Patrón de Interferencia](#54-patrón-de-interferencia)
-6. [Interacciones del Usuario como Fenómenos Cuánticos](#6-interacciones-del-usuario-como-fenómenos-cuánticos)
-   - 6.1 [Colapso de la Función de Onda (Click/Selección)](#61-colapso-de-la-función-de-onda-clickselección)
-   - 6.2 [Dimming Selectivo (Decoherencia del Entorno)](#62-dimming-selectivo-decoherencia-del-entorno)
-   - 6.3 [Anillos de Selección (Observación Cuántica)](#63-anillos-de-selección-observación-cuántica)
-7. [Implementación Técnica](#7-implementación-técnica)
-8. [Glosario de Términos Cuánticos](#8-glosario-de-términos-cuánticos)
+   - 4.7 [Rayos Cósmicos (CosmicRays)](#47-rayos-cósmicos-cosmicrays)
+   - 4.8 [Ondas Gravitacionales (GravitationalWaves)](#48-ondas-gravitacionales-gravitationalwaves)
+5. [Efectos Ambientales del Vacío](#5-efectos-ambientales-del-vacío)
+   - 5.1 [Espuma Cuántica (QuantumFoam)](#51-espuma-cuántica-quantumfoam)
+   - 5.2 [Campo de Interferencia (InterferenceGrid)](#52-campo-de-interferencia-interferencegrid)
+   - 5.3 [Esfera de Dyson (ElectronOrbits)](#53-esfera-de-dyson-electronorbits)
+6. [Elementos Visuales Estáticos](#6-elementos-visuales-estáticos)
+   - 6.1 [Nubes de Probabilidad](#61-nubes-de-probabilidad)
+   - 6.2 [Ejes de Bloch](#62-ejes-de-bloch)
+   - 6.3 [Anillos de Energía](#63-anillos-de-energía)
+7. [Interacciones del Usuario como Fenómenos Cuánticos](#7-interacciones-del-usuario-como-fenómenos-cuánticos)
+   - 7.1 [Colapso de la Función de Onda (Click/Selección)](#71-colapso-de-la-función-de-onda-clickselección)
+   - 7.2 [Dimming Selectivo (Decoherencia del Entorno)](#72-dimming-selectivo-decoherencia-del-entorno)
+   - 7.3 [Anillos de Selección (Observación Cuántica)](#73-anillos-de-selección-observación-cuántica)
+8. [Tour Cósmico y Auto-Tour](#8-tour-cósmico-y-auto-tour)
+9. [Modo Simple](#9-modo-simple)
+10. [Implementación Técnica](#10-implementación-técnica)
+11. [Glosario de Términos Cuánticos](#11-glosario-de-términos-cuánticos)
 
 ---
 
@@ -184,51 +191,111 @@ La elección de esta metáfora no es casual. ENTANGLE estudia repositorios de so
 - **Color:** Cyan (#00f7ff ×1.2) con blending aditivo y opacidad baja (0.3), creando un halo tenue que rodea cada procesador.
 - **Significado:** Los procesadores cuánticos (organizaciones) no son sistemas cerrados — emiten "radiación" en forma de contribuciones open source, documentación, y conocimiento que irradia más allá de sus límites organizacionales.
 
+### 4.7 Rayos Cósmicos (CosmicRays)
+
+**Concepto real:** Los rayos cósmicos son partículas subatómicas de alta energía (protones, núcleos atómicos, electrones) que viajan por el espacio a velocidades cercanas a la de la luz. Al interactuar con campos magnéticos o barreras materiales, producen cascadas de partículas secundarias y destellos de radiación Cherenkov.
+
+**Aplicación en ENTANGLE:**
+- **Dos tipos de rayos:** 55% son *rayos de escape* que nacen en el interior del universo (R=100–500) y se dirigen hacia fuera a gran velocidad (1000–1500 u/s). El 45% restante son *rayos normales* que nacen en la periferia (R=200–800) y cruzan el interior a menor velocidad (200–480 u/s), simulando la radiación cósmica de fondo que atraviesa el universo.
+- **Estela de cinta:** Cada rayo deja una estela tipo ribbon de 48 vértices que se desvanece progresivamente, imitando la ionización que producen los rayos cósmicos reales al atravesar materia.
+- **Paleta de 6 colores:** Cian eléctrico (`#00f7ff`), magenta (`#ff44cc`), dorado (`#ffcc00`), verde esmeralda (`#44ff88`), naranja plasma (`#ff6633`) y violeta cuántico (`#aa77ff`). El shader interpola entre los 6 colores por rayo, representando los diferentes tipos de partículas que componen la radiación cósmica.
+- **Colisión con la Esfera de Dyson:** Los rayos de escape que alcanzan R ≥ 3500 impactan contra la esfera geodésica, generando una onda de choque luminosa y un flash en el epicentro (ver §5.3). El impacto hereda el color del rayo. Tras el impacto, el rayo muere 0.4s después. Los rayos normales nunca alcanzan la barrera — simplemente se disipan al agotar su tiempo de vida.
+- **Máximo 8 rayos simultáneos**, spawn rate proporcional a `dt × 1.8`.
+- **Significado:** Visualiza la radiación de alta energía que permea cualquier campo cuántico y cuyas interacciones con barreras (la Dyson Shell) producen fenómenos observables — exactamente como los detectores de partículas reales registran impactos en sus paredes.
+
+### 4.8 Ondas Gravitacionales (GravitationalWaves)
+
+**Concepto real:** Las ondas gravitacionales son perturbaciones del espacio-tiempo predichas por la relatividad general de Einstein (1915) y detectadas por primera vez por LIGO en 2015 (Nobel de Física 2017). Se producen cuando masas enormes aceleran (fusión de agujeros negros, estrellas de neutrones), propagándose como ondulaciones concéntricas a la velocidad de la luz.
+
+**Aplicación en ENTANGLE:**
+- **Anillos concéntricos:** Hasta 4 ondas simultáneas se propagan como anillos en el plano XZ desde los 8 procesadores cuánticos (organizaciones) más grandes del ecosistema — los objetos más "masivos" del universo.
+- **Parámetros por onda:** Radio máximo 90–150 unidades, velocidad 28–43 u/s, grosor 3.5–7 unidades, duración 4–7 segundos. Cada onda nace con fade-in (primer 15% de vida) y se desvanece progresivamente.
+- **Spawn selectivo:** Solo emanan de organizaciones cuya visibilidad supera 0.3, y solo cada 1.5–4s, reforzando que las ondas gravitacionales son eventos infrecuentes desde fuentes masivas.
+- **Color:** Azul profundo (`#4488ff`) con blending aditivo, diferenciado del cian de otros efectos para evocar la escala gravitacional (mayor longitud de onda).
+- **Significado:** Las organizaciones más grandes generan "perturbaciones gravitacionales" en el tejido del ecosistema — su influencia se propaga como ondas que afectan a todo el espacio circundante, análogo a cómo las fusiones de objetos compactos distorsionan el espacio-tiempo.
+
 ---
 
-## 5. Elementos Visuales Estáticos
+## 5. Efectos Ambientales del Vacío
 
-### 5.1 Nubes de Probabilidad
+### 5.1 Espuma Cuántica (QuantumFoam)
+
+**Concepto real:** La espuma cuántica (quantum foam) es una hipótesis de John Wheeler (1955) que describe la estructura del espacio-tiempo a escala de Planck ($\sim 10^{-35}$ m). A esas escalas, las fluctuaciones cuánticas del vacío son tan intensas que el espacio-tiempo deja de ser liso y adquiere una topología "espumosa" donde partículas virtuales aparecen y desaparecen continuamente según el principio de incertidumbre energía-tiempo ($\Delta E \cdot \Delta t \geq \hbar/2$).
+
+**Aplicación en ENTANGLE:**
+- **200 partículas** distribuidas esféricamente en un volumen de radio 30–1000 unidades y altura ±200 unidades, llenando el espacio entre las entidades del grafo.
+- **Parpadeo de creación/aniquilación:** Cada partícula sigue un ciclo de parpadeo (`rise → fall → flash`) con un segundo armónico sinusoidal fuera de fase, simulando la aparición y aniquilación espontánea de pares partícula-antipartícula virtuales.
+- **Jitter de Heisenberg:** Desplazamientos sinusoidales de ±2.5 unidades en las tres coordenadas con frecuencias irracionales, reflejando la incertidumbre posicional a escala cuántica.
+- **Tamaño y velocidad únicos:** Tamaños de 1.8–4.8, velocidades de parpadeo de 0.15–0.50 por partícula.
+- **Color:** Mezcla blanco–cian (`#ffffff` → `#00eeff`), evocando la energía del punto cero.
+- **Significado:** Visualiza que el "vacío" del universo de ENTANGLE no está verdaderamente vacío — está lleno de fluctuaciones cuánticas que representan la actividad latente del ecosistema: contribuciones menores, forks efímeros, issues temporales que aparecen y desaparecen.
+
+### 5.2 Campo de Interferencia (InterferenceGrid)
+
+**Concepto real:** La interferencia cuántica es el fenómeno donde dos o más funciones de onda se superponen, produciendo patrones de refuerzo constructivo (máximos) y destructivo (mínimos). El experimento de la doble rendija de Young demuestra que incluso partículas individuales producen estos patrones, revelando su naturaleza ondulatoria. La distribución de probabilidad resultante sigue: $|\psi_1 + \psi_2|^2 = |\psi_1|^2 + |\psi_2|^2 + 2\text{Re}(\psi_1^*\psi_2)$, donde el último término es la interferencia.
+
+**Aplicación en ENTANGLE:**
+- **Rejilla de 70×70 = 4900 puntos** en el plano XZ a Y = −50, extendiéndose de −2000 a +2000 en ambos ejes, formando el "suelo" del universo.
+- **5 fuentes de onda:** Una fuente central de frecuencia alta (0.035) y 4 fuentes periféricas con frecuencias variadas (0.018–0.028). Cada fuente se desplaza lentamente (`sin/cos(t × speed)`), generando un patrón de interferencia cambiante que nunca se repite.
+- **Modulación vertical:** Los puntos se desplazan en Y según la amplitud combinada de todas las fuentes, multiplicada por un factor de 35 y un boost central, creando una superficie ondulante tridimensional.
+- **Tricolor:** Verde positivo (`#00ff88`), violeta negativo (`#aa44ff`), cian neutro (`#00ccff`) — los máximos constructivos, destructivos y nodos de la interferencia.
+- **Significado:** Visualiza el campo de probabilidad cuántica subyacente al ecosistema: las ondas de contribución de diferentes organizaciones interfieren entre sí, creando regiones de alta y baja actividad colaborativa — un patrón emergente de la superposición de múltiples esfuerzos independientes.
+
+### 5.3 Esfera de Dyson (ElectronOrbits)
+
+**Concepto real:** Una esfera de Dyson es una megaestructura hipotética (Freeman Dyson, 1960) que envolvería completamente una estrella para capturar toda su energía radiante. En el contexto de la física cuántica, la frontera de un sistema cuántico aislado actúa como una "barrera de potencial" — una superficie donde las funciones de onda interactúan con las condiciones de contorno del sistema.
+
+**Aplicación en ENTANGLE:**
+- **Esfera geodésica icosaédrica:** Un icosaedro subdivido 4 veces (~1280 triángulos) escalado a R = 3500, formando una malla de vértices y aristas luminosas que envuelve todo el universo visible. La geometría geodésica (triángulos casi equiláteros) evoca la estabilidad estructural de las esferas de Dyson teóricas y los domos geodésicos de Buckminster Fuller.
+- **12 pulsos de energía:** Esferas de luz que viajan continuamente por las aristas de la estructura geodésica, saltando aleatoriamente entre aristas adyacentes. Cada pulso ilumina progresivamente los nodos por los que pasa, simulando flujos de energía cuántica por la barrera.
+- **Impactos de rayos cósmicos:** Cuando un rayo cósmico de escape alcanza R ≥ 3500, se registra un impacto en la esfera. El procesamiento genera dos efectos superpuestos:
+  - *Onda de choque:* Gaussiana que se propaga a 1500 u/s desde el epicentro (sigma = 400), iluminando las aristas a su paso durante 2.5 segundos.
+  - *Flash en el epicentro:* Gaussiana estática (sigma = 500) centrada en el punto de impacto, que decae como $(1 - t/T)^{1.5}$.
+  - Ambos efectos heredan el color del rayo impactante (de la paleta de 6 colores).
+- **Atenuación dimensional (`uDimmed`):** Cuando el usuario selecciona una entidad o aplica un filtro/lente, los impactos se atenúan un 85%, evitando distracciones visuales durante la inspección de datos.
+- **Rotación lenta:** La esfera rota a 0.005 rad/s, lo suficiente para dar sensación de vida sin marear.
+- **Colores base:** Aristas en azul profundo (`#0a2a4a`), pulsos en cian brillante (`#00ccff`), nodos en cian claro (`#44ddff`).
+- **Significado:** La esfera de Dyson es la "barrera de potencial" del universo cuántico de ENTANGLE — el límite físico del ecosistema. Los impactos de rayos cósmicos contra ella visualizan cómo la energía (contribuciones, conocimiento) del interior del ecosistema interactúa con sus fronteras, produciendo fenómenos observables como la radiación que escapa de un sistema cuántico confinado.
+
+---
+
+## 6. Elementos Visuales Estáticos
+
+### 6.1 Nubes de Probabilidad
 
 **Concepto real:** La función de onda |ψ|² describe la distribución de probabilidad de encontrar una partícula en una posición dada. En el modelo atómico, los orbitales electrónicos (s, p, d, f) son nubes de probabilidad con formas características.
 
 **Implementación:** 10 partículas por qubit distribuidas esféricamente con animación orbital continua. La distribución sigue φ = arccos(2r-1) para uniformidad sobre la esfera.
 
-### 5.2 Ejes de Bloch
+### 6.2 Ejes de Bloch
 
 **Concepto real:** La esfera de Bloch es una representación geométrica del espacio de estados de un qubit. El eje Z conecta |0⟩ (polo norte) con |1⟩ (polo sur).
 
 **Implementación:** Líneas verticales visibles pero con opacidad muy baja (15%), que indican el eje computacional de cada qubit.
 
-### 5.3 Anillos de Energía
+### 6.3 Anillos de Energía
 
 **Concepto real:** Los procesadores cuánticos requieren pulsos de microondas para manipular qubits. Estos pulsos se propagan como ondas desde el procesador.
 
 **Implementación:** Anillos que se expanden desde cada procesador con opacidad decreciente y escala creciente (hasta ×6), reciclándose cíclicamente.
 
-### 5.4 Patrón de Interferencia
-
-**Concepto real:** El experimento de la doble rendija demuestra la dualidad onda-partícula. Las partículas cuánticas producen un patrón de franjas de interferencia al pasar por dos rendijas.
-
-**Implementación:** 600 partículas en un plano trasero cuya distribución sigue `cos²(x × 0.15 + t)`, recreando el patrón de bandas brillantes y oscuras alternadas.
-
 ---
 
-## 6. Interacciones del Usuario como Fenómenos Cuánticos
+## 7. Interacciones del Usuario como Fenómenos Cuánticos
 
-### 6.1 Colapso de la Función de Onda (Click/Selección)
+### 7.1 Colapso de la Función de Onda (Click/Selección)
 
 **Concepto real:** En la interpretación de Copenhague, el acto de medir (observar) un sistema cuántico causa el "colapso" de su función de onda, pasando de una superposición de estados a un estado definido. Antes de la medición, el sistema existe en todos los estados posibles simultáneamente.
 
-**Aplicación:** Hacer click en cualquier entidad es un acto de "observación" que colapsa su estado: la cámara hace zoom adaptativo (distancia según tipo: user=4, repo=10, org=18), el panel de detalle revela información concreta, y las entidades no relacionadas se atenúan.
+**Aplicación:** Hacer click en cualquier entidad es un acto de "observación" que colapsa su estado: la cámara vuela hacia la entidad con offsets pre-asignados por tipo (user: 4/2.5/4, repo: 10/6/10, org: 18/10/18), el panel de detalle revela información concreta con tooltips de radar específicos por tipo (centralidad, conectividad, diversidad…), y las entidades no relacionadas se atenúan. Durante el vuelo de cámara, el cálculo de labels visibles se suprime (`cameraFlyingRef`) para evitar micro-freezes.
 
-### 6.2 Dimming Selectivo (Decoherencia del Entorno)
+### 7.2 Dimming Selectivo (Decoherencia del Entorno)
 
 **Concepto real:** Al observar un subsistema cuántico, los grados de libertad no observados se "desacoplan" — un efecto de la decoherencia ambiental que reduce el estado cuántico global a un estado mixto donde solo el subsistema observado mantiene coherencia.
 
-**Aplicación:** Al seleccionar una entidad, se calcula el conjunto de IDs relacionados (la org + sus repos + sus usuarios, recursivamente). Las entidades *no* relacionadas reducen su opacidad al 6-8%, simulando la decoherencia de los estados no observados. Los canales de entrelazamiento y nubes de probabilidad también se atenúan globalmente.
+**Aplicación:** Al seleccionar una entidad, se calcula el conjunto de IDs relacionados (la org + sus repos + sus usuarios, recursivamente). Las entidades *no* relacionadas reducen su opacidad al 6-8%, simulando la decoherencia de los estados no observados. Los canales de entrelazamiento, nubes de probabilidad y la esfera de Dyson también se atenúan (impactos reducidos al 85%). Un sistema de `strictHoverBlock` permite seguir navegando con hover libre incluso con una entidad seleccionada; el bloqueo de hover solo se aplica cuando hay filtros, lentes o búsquedas activas.
 
-### 6.3 Anillos de Selección (Observación Cuántica)
+### 7.3 Anillos de Selección (Observación Cuántica)
 
 **Concepto real:** En la representación visual de estados cuánticos, los orbitales se muestran como trayectorias circulares o toroidales que describen la evolución temporal del estado observado.
 
@@ -236,7 +303,56 @@ La elección de esta metáfora no es casual. ENTANGLE estudia repositorios de so
 
 ---
 
-## 7. Implementación Técnica
+## 8. Tour Cósmico y Auto-Tour
+
+**Concepto:** El Tour Cósmico es una secuencia cinemática automatizada que guía al usuario por el universo 3D, mostrando los diferentes niveles de la visualización con narración contextual. Funciona como un "viaje de observación cuántica dirigida" donde la cámara recorre waypoints predefinidos con interpolación suave y órbita cinemática continua.
+
+### Funcionamiento
+
+- **Inicio manual:** El usuario puede iniciar el tour desde el panel de ayuda (pestaña "Tour Cósmico") o desde un botón dedicado.
+- **Auto-Tour:** Si está habilitado en la configuración del dashboard (`autoStartTour`), el tour se inicia automáticamente tras el Big Bang (retardo de ~8.8 segundos para que la animación de materialización se complete). El auto-tour solo se dispara una vez por sesión (`autoTourFiredRef`).
+- **Waypoints narrativos:** La cámara visita secuencialmente distintas regiones del universo (procesadores, qubits, partículas, conexiones, Dyson Shell), con lerp suave hacia cada destino y un slider temporal que marca el progreso.
+- **Post-tour:** Al completar todos los waypoints, la cámara entra en modo panorámico orbital (radio 620, altura 280, velocidad −0.1 rad/s) ofreciendo una vista cenital del universo completo.
+- **Controles:** El usuario puede interrumpir el tour en cualquier momento haciendo click o interactuando con el canvas.
+
+### Analogía cuántica
+
+El tour equivale a un experimento de "tomografía cuántica" — una secuencia de mediciones planificadas en diferentes bases que, en conjunto, reconstruyen completamente el estado del sistema cuántico. Cada waypoint es una "base de medición" diferente que revela un aspecto del ecosistema.
+
+---
+
+## 9. Modo Simple
+
+El **Modo Simple** es un toggle accesible desde el panel de Ajustes (icono ⚙️) que desactiva todos los efectos ambientales decorativos, manteniendo únicamente los componentes con datos reales.
+
+### Efectos desactivados en Modo Simple
+
+| Efecto | Concepto cuántico |
+|---|---|
+| CosmicRays | Rayos cósmicos + colisiones |
+| ElectronOrbits (Dyson Shell) | Esfera geodésica + impactos |
+| GravitationalWaves | Ondas gravitacionales concéntricas |
+| QuantumFoam | Espuma cuántica (partículas virtuales) |
+| InterferenceGrid | Campo de interferencia en el suelo |
+| InterferenceField | Patrón de interferencia de fondo |
+
+### Componentes que permanecen activos
+
+Todos los elementos con significado de datos: procesadores (orgs), qubits (repos), partículas (users), canales de entrelazamiento (conexiones), nubes de probabilidad, ejes de Bloch, anillos de energía, Hawking radiation, decoherencia shockwaves, tunneling pulses y sync flashes.
+
+### Otros ajustes disponibles
+
+| Ajuste | Descripción |
+|---|---|
+| Fronteras zonales | Muestra/oculta los límites de zonas de distribución |
+| Bots visibles | Muestra/oculta cuentas bot detectadas |
+| Favoritos | Filtra por entidades marcadas como favoritas |
+
+**Analogía cuántica:** El Modo Simple equivale a reducir la temperatura del sistema cuántico hasta que las fluctuaciones térmicas (efectos decorativos) se congelan, dejando solo los estados fundamentales (datos) visibles — como enfriar un procesador cuántico a millikelvins para eliminar el ruido.
+
+---
+
+## 10. Implementación Técnica
 
 ### Stack tecnológico
 - **Three.js** — Motor 3D WebGL
@@ -250,7 +366,10 @@ La elección de esta metáfora no es casual. ENTANGLE estudia repositorios de so
 - **BufferGeometry + bufferAttribute:** Fluctuaciones, nubes, interferencia y canales usan geometría programática directa — mínimo overhead JS.
 - **Materiales compartidos:** geometrías y materiales se crean una vez con `useMemo()` y se reusan.
 - **Blending aditivo:** Los efectos luminosos usan `THREE.AdditiveBlending` en vez de transparency estándar, reduciendo el overhead de sorting.
-- **Hitboxes invisibles:** Esferas transparentes de mayor tamaño que las entidades facilitan el click sin coste de render visible.
+- **Hitboxes invisibles:** Esferas transparentes calibradas (org: r=4.5, repo: r=2.5, puntos threshold: 2) facilitan el click sin coste de render visible. Una visibilidad mínima de 0.4 impide seleccionar entidades atenuadas.
+- **Sistema de tooltips sin re-renders:** Los tooltips del panel de detalle usan `useRef` + manipulación directa del DOM en vez de `useState`, eliminando re-renders de React en cada movimiento de ratón (~9400 líneas de componente no se re-renderizan por un hover).
+- **Vuelo de cámara optimizado:** Offsets `Vector3` pre-asignados por tipo de entidad (evita garbage collection). Durante el vuelo, `ViewportLabels` se suprime via `cameraFlyingRef` compartido, y el `postMessage` al worker de detalle se aplaza con `requestAnimationFrame`.
+- **Transiciones CSS específicas:** El panel de detalle usa `transition` solo en `opacity, background, border-color, box-shadow` (no `all`) con `will-change: transform, opacity` para promoción a capa GPU.
 
 ### Animación secuenciada (Build Director)
 ```
@@ -274,25 +393,30 @@ entanglement: [5.5s,  1.8s]  // Canales se dibujan
 
 ---
 
-## 8. Glosario de Términos Cuánticos
+## 11. Glosario de Términos Cuánticos
 
 | Término | Definición | Uso en ENTANGLE |
 |---|---|---|
-| **Qubit** | Unidad fundamental de información cuántica, superposición de |0⟩ y |1⟩ | Repositorios |
+| **Qubit** | Unidad fundamental de información cuántica, superposición de \|0⟩ y \|1⟩ | Repositorios |
 | **Entrelazamiento** | Correlación cuántica no local entre partículas | Conexiones entre repos vía bridge users |
 | **Superposición** | Estado que existe en múltiples valores simultáneamente | Entidades no seleccionadas (todos los estados posibles) |
 | **Colapso de función de onda** | Resolución de superposición al medir/observar | Click del usuario sobre una entidad |
 | **Decoherencia** | Pérdida de coherencia cuántica por interacción con el entorno | Dimming de entidades no relacionadas / ondas expansivas |
-| **Principio de incertidumbre** | Imposibilidad de conocer posición y momento simultáneamente con precisión infinita | Micro-vibración de todas las entidades |
+| **Principio de incertidumbre** | Imposibilidad de conocer posición y momento simultáneamente con precisión infinita | Micro-vibración de todas las entidades + jitter de QuantumFoam |
 | **Efecto túnel** | Partícula atravesando una barrera de potencial clásicamente imposible | Pulsos viajando por canales de entrelazamiento |
 | **Radiación de Hawking** | Emisión de radiación por agujeros negros | Micropartículas escapando de procesadores |
 | **Esfera de Bloch** | Representación geométrica del estado de un qubit | Ejes verticales a través de cada qubit |
-| **Vacío cuántico** | Estado de energía mínima que contiene fluctuaciones | Lattice de fondo + partículas virtuales |
-| **Doble rendija** | Experimento fundamental que demuestra la dualidad onda-partícula | Patrón de interferencia en el plano trasero |
+| **Vacío cuántico** | Estado de energía mínima que contiene fluctuaciones | QuantumFoam (partículas virtuales parpadeando) |
+| **Doble rendija** | Experimento fundamental que demuestra la dualidad onda-partícula | InterferenceGrid (campo de interferencia en el suelo) |
 | **Procesador cuántico** | Hardware que manipula qubits | Toros rotando (organizaciones) |
 | **Canal de entrelazamiento** | Medio de transmisión de información cuántica | Ondas sinusoidales entre entidades |
-| **Diagramas de Feynman** | Representación gráfica de interacciones entre partículas | Estelas de partículas |
+| **Rayos cósmicos** | Partículas de alta energía que viajan por el espacio | CosmicRays (estrellas fugaces de 6 colores) |
+| **Esfera de Dyson** | Megaestructura que envuelve una estrella | ElectronOrbits (esfera geodésica icosaédrica a R=3500) |
+| **Ondas gravitacionales** | Perturbaciones del espacio-tiempo por masas aceleradas | GravitationalWaves (anillos desde las 8 orgs más grandes) |
+| **Espuma cuántica** | Estructura del espacio-tiempo a escala de Planck | QuantumFoam (200 partículas virtuales parpadeando) |
+| **Interferencia cuántica** | Superposición de funciones de onda con refuerzo/cancelación | InterferenceGrid (5 fuentes, 4900 puntos, 3 colores) |
 | **Inflación cósmica** | Expansión exponencial del universo primitivo | Onda expansiva del Genesis |
+| **Tomografía cuántica** | Reconstrucción del estado completo de un sistema cuántico | Tour Cósmico (secuencia de waypoints observacionales) |
 
 ---
 

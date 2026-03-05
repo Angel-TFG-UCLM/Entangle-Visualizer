@@ -12,6 +12,10 @@
   margin-bottom: var(--spacing-2xl);
 }
 
+.chartCardWide {
+  grid-column: 1 / -1;
+}
+
 /* === CHART CARD === */
 .chartCard {
   background: var(--color-card);
@@ -737,10 +741,214 @@
   box-shadow: 0 4px 12px rgba(0, 212, 228, 0.2);
 }
 
+/* === SINGLE DISCIPLINE SPOTLIGHT (cuando solo hay 1 disciplina) === */
+.singleDisciplineDisplay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+  animation: disciplineFadeIn 0.6s ease-out;
+}
+
+@keyframes disciplineFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.singleDisciplineGlow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -55%);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.12;
+  filter: blur(80px);
+  animation: disciplineGlowPulse 6s ease-in-out infinite;
+}
+
+@keyframes disciplineGlowPulse {
+  0%, 100% { opacity: 0.08; }
+  50% { opacity: 0.18; }
+}
+
+.singleDisciplineIconWrap {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  margin-bottom: 1rem;
+  position: relative;
+  animation: disciplineIconFloat 3s ease-in-out infinite;
+}
+
+@keyframes disciplineIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.singleDisciplineEmoji {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.singleDisciplineName {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem;
+}
+
+.singleDisciplineStats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.singleDisciplineCount {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.singleDisciplineCountLabel {
+  font-size: 0.95rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.singleDisciplineDesc {
+  color: #9ca3af;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  max-width: 420px;
+  margin: 0 0 1.25rem;
+}
+
+.singleDisciplineBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.singleDisciplineButton {
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.singleDisciplineButton:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* === DISCIPLINE CHART: pie + bridge side-by-side === */
+.disciplineLayout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.disciplineLayout > .chartContainer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bridgePanel {
+  flex: 0 0 380px;
+  padding: 14px 16px;
+  background: rgba(232, 121, 249, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(232, 121, 249, 0.1);
+  max-height: 420px;
+  overflow-y: auto;
+  /* Scrollbar sutil */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 121, 249, 0.2) transparent;
+}
+
+.bridgePanel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.bridgePanel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bridgePanel::-webkit-scrollbar-thumb {
+  background: rgba(232, 121, 249, 0.25);
+  border-radius: 2px;
+}
+
+@media (max-width: 900px) {
+  .disciplineLayout {
+    flex-direction: column;
+  }
+  .bridgePanel {
+    flex: none;
+    width: 100%;
+    max-height: 240px;
+  }
+}
+
+.bridgeProfileRow:hover {
+  background: rgba(232, 121, 249, 0.08) !important;
+}
+
+/* Active filter badge (shown in title row) */
+.activeFilterBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 121, 249, 0.3);
+  background: rgba(232, 121, 249, 0.1);
+  color: #e879f9;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.activeFilterBadge:hover {
+  background: rgba(232, 121, 249, 0.2);
+  border-color: rgba(232, 121, 249, 0.5);
+}
+
 /* === CHART CONTAINER CON OVERLAY === */
 .chartContainer {
   position: relative;
-  min-height: 350px;
+  min-height: 300px;
 }
 
 /* Overlay de carga para gráficos */

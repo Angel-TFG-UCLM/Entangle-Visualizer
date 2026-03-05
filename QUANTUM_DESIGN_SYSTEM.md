@@ -415,13 +415,15 @@ Cuando el backend está offline, aparece un banner sticky bajo el header:
 
 | Categoría | Cantidad | Elementos |
 |-----------|----------|-----------|
-| Componentes React dedicados | 4 activos | QuantumBackground, QuantumDivider, BlochSphere, WavefunctionCollapse |
+| Componentes React dedicados (Dashboard) | 4 activos | QuantumBackground, QuantumDivider, BlochSphere, WavefunctionCollapse |
+| Componentes 3D del Universo | 5 ambientales + datos | CosmicRays, ElectronOrbits (Dyson Shell), GravitationalWaves, QuantumFoam, InterferenceGrid + entidades de datos (Processors, Qubits, Particles, Connections…) |
 | Animaciones CSS (`@keyframes`) | 15+ | quantumShift, quantumPulse, orbitalPulse, superposition, decoherence, scanlineScroll, scanSweep, tunneling, phraseFade, scrollbarPulse, coreBreathe, haloPulse, orbitSpin, badgePop, retryPulse |
 | Visualizaciones SVG | 4 | Circuito cuántico, átomo spinner, núcleo NetworkGraph, BlochSphere |
 | Animaciones SVG (`<animateMotion>`) | 3 usos | Electrones del spinner, electrones del NetworkGraph, pulsos de energía |
 | Texto/notación cuántica | 8 | Frases carga, `\|ψ⟩`, `\|FILTERED⟩`, `\|n⟩` rankings, `⟨name\|`, ecuación Schrödinger, operadores Ĥ/σ̂/Û, expertise labels |
 | Efectos hover | 3 | WavefunctionCollapse, tunneling, operadores |
 | Canvas API | 1 | QuantumBackground (partículas) |
+| Shaders GLSL personalizados | 8 | CosmicRay (vertex+fragment), Dyson Shell edges (vertex+fragment), Dyson Shell nodes (vertex+fragment), QuantumFoam (vertex+fragment) |
 
 ### Tecnologías utilizadas
 
@@ -444,19 +446,25 @@ Cuando el backend está offline, aparece un banner sticky bajo el header:
 | Concepto | Dónde se usa |
 |----------|-------------|
 | Superposición cuántica | Logo ENTANGLE (ghost text), estado checking `α\|0⟩+β\|1⟩`, WavefunctionCollapse (onda distribuida), frases de carga |
-| Colapso de la función de onda | WavefunctionCollapse (onda → delta), tooltips ("medición colapsada"), `\|FILTERED⟩` badge |
-| Entrelazamiento cuántico | QuantumBackground (flashes entre partículas lejanas), puntos orbitales (par EPR) |
+| Colapso de la función de onda | WavefunctionCollapse (onda → delta), tooltips ("medición colapsada"), `\|FILTERED⟩` badge, click → panel detalle en Universo 3D |
+| Entrelazamiento cuántico | QuantumBackground (flashes entre partículas lejanas), puntos orbitales (par EPR), bridge users (sync flashes en Universo 3D) |
 | Notación de Dirac (bra-ket) | Status badge (`\|0⟩`, `\|1⟩`), rankings (`\|n⟩`), filtered badge (`\|FILTERED⟩`), tooltips (`⟨name\|`), BlochSphere, circuito |
 | Ecuación de Schrödinger | Hero section (iℏ ∂\|ψ⟩/∂t = Ĥ\|ψ⟩) |
-| Esfera de Bloch | Componente BlochSphere (representación geométrica del qubit) |
+| Esfera de Bloch | Componente BlochSphere (representación geométrica del qubit), ejes Bloch en repos del Universo 3D |
 | Circuitos cuánticos | Footer (H, CNOT, Z, medición) |
 | Puertas cuánticas | Operadores decorativos (Ĥ, σ̂, Û), puerta Hadamard en frases de carga |
-| Decoherencia | Banner offline (pérdida de coherencia = pérdida de conexión) |
-| Efecto túnel | Hover en filas de tabla (tunneling sweep) |
+| Decoherencia | Banner offline, dimming selectivo en Universo 3D, shockwaves desde procesadores |
+| Efecto túnel | Hover en filas de tabla (tunneling sweep), pulsos viajeros por canales en Universo 3D |
 | Delta de Dirac | WavefunctionCollapse (estado colapsado) |
 | Modelo atómico | Spinner de carga (órbitas + electrones), núcleo del NetworkGraph |
 | Función de onda | QuantumDivider (ψ(x), φ(x)), WavefunctionCollapse (\|ψ\|²) |
 | Estados propios (eigenstates) | Rankings `\|n⟩`, expertise labels (Ground State, Superposed, Entangled, Qubit Master) |
+| Rayos cósmicos | CosmicRays en Universo 3D (estrellas fugaces de 6 colores con colisión contra Dyson Shell) |
+| Esfera de Dyson | ElectronOrbits en Universo 3D (esfera geodésica icosaédrica R=3500, impactos con ondas de choque) |
+| Ondas gravitacionales | GravitationalWaves en Universo 3D (anillos concéntricos desde las orgs más grandes) |
+| Espuma cuántica | QuantumFoam en Universo 3D (200 partículas virtuales parpadeando, jitter de Heisenberg) |
+| Interferencia cuántica | InterferenceGrid en Universo 3D (campo de 4900 puntos con 5 fuentes de onda) |
+| Tomografía cuántica | Tour Cósmico (recorrido guiado por waypoints como secuencia de mediciones en diferentes bases) |
 | **Decoherencia cuántica** | **Transición de salida del Universo (7 fases: UI fade, universe collapse, canvas implosion, singularity pulse, shockwave expand, particle burst, collapse flash)** |
 
 ---

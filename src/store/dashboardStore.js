@@ -94,6 +94,7 @@ const initialState = {
   selectedOrg: null,        // string | null - login de la organización (filtro simple)
   selectedLanguage: null,   // string | null - lenguaje de programación
   selectedRepo: null,       // string | null - full_name del repositorio (filtro simple)
+  selectedDiscipline: null, // string | null - disciplina interdisciplinar (e.g. 'quantum_algorithms')
   dataSource: 'mock',       // 'mock' | 'backend' - origen de los datos actuales
   
   // === SELECCIÓN MÚLTIPLE PARA ANÁLISIS DE COLABORACIÓN ===
@@ -296,6 +297,7 @@ export const useDashboardStore = create(
         let newOrg = state.selectedOrg
         let newLanguage = state.selectedLanguage
         let newRepo = state.selectedRepo
+        let newDiscipline = state.selectedDiscipline
         
         switch (filterType) {
           case 'org':
@@ -311,16 +313,22 @@ export const useDashboardStore = create(
             newRepo = shouldClear ? null : value
             break
           
+          case 'discipline':
+            newDiscipline = shouldClear ? null : value
+            break
+          
           default:
             console.warn(`Tipo de filtro desconocido: ${filterType}`)
             return
         }
         
-        // Actualizar estado de filtros primero
+        // Actualizar estado de filtros + activar loader inmediatamente
         set({
           selectedOrg: newOrg,
           selectedLanguage: newLanguage,
           selectedRepo: newRepo,
+          selectedDiscipline: newDiscipline,
+          isFiltering: true,
         }, false, `setFilter/${filterType}/${value}`)
         
         // Si hay una vista activa, los filtros se aplican localmente en ChartsSection
@@ -328,13 +336,14 @@ export const useDashboardStore = create(
         try {
           const favStore = (await import('./favoritesStore')).default
           if (favStore.getState().activeViewId) {
+            set({ isFiltering: false }, false, 'setFilter/viewLocal')
             console.log(`🔍 Vista activa: filtro local aplicado (${filterType}=${shouldClear ? 'null' : value})`)
             return
           }
         } catch { /* continuar con flujo normal */ }
         
         // Recargar datos del backend con los nuevos filtros
-        const hasFilters = newOrg || newLanguage || newRepo
+        const hasFilters = newOrg || newLanguage || newRepo || newDiscipline
         
         // Cancelar cualquier petición de filtro anterior en vuelo
         if (filterAbortController) {
@@ -346,13 +355,14 @@ export const useDashboardStore = create(
         if (hasFilters) {
           // Con filtros: llamar al backend para datos filtrados
           // Usamos isFiltering para mostrar overlay sin resetear animaciones
-          set({ isFiltering: true }, false, 'setFilter/loading')
+          // isFiltering ya está en true desde el set() inicial
           try {
             const { getDashboardStats } = await import('../services/api')
             const stats = await getDashboardStats(false, {
               org: newOrg,
               language: newLanguage,
-              repo: newRepo
+              repo: newRepo,
+              discipline: newDiscipline
             })
             
             // Verificar que esta petición no fue cancelada por una más reciente
@@ -386,7 +396,7 @@ export const useDashboardStore = create(
               isFiltering: false,
             }, false, 'setFilter/filteredDataLoaded')
             
-            console.log(`🔍 Datos filtrados cargados: org=${newOrg}, language=${newLanguage}, repo=${newRepo}`)
+            console.log(`🔍 Datos filtrados cargados: org=${newOrg}, language=${newLanguage}, repo=${newRepo}, discipline=${newDiscipline}`)
           } catch (error) {
             if (currentController.signal.aborted) return
             console.warn('Error cargando datos filtrados:', error)
@@ -394,7 +404,7 @@ export const useDashboardStore = create(
           }
         } else {
           // Sin filtros: recargar datos base desde caché
-          set({ isFiltering: true }, false, 'setFilter/restoringBase')
+          // isFiltering ya está en true desde el set() inicial
           try {
             const { getDashboardStats } = await import('../services/api')
             const stats = await getDashboardStats(false)
@@ -448,6 +458,7 @@ export const useDashboardStore = create(
           selectedOrg: null,
           selectedLanguage: null,
           selectedRepo: null,
+          selectedDiscipline: null,
           isFiltering: true,
         }, false, 'resetFilters')
         

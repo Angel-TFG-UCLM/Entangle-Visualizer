@@ -7,8 +7,9 @@
  * Panel con overlay, categorías y switches individuales.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDevStore, FEATURE_DEFINITIONS } from '../../store/devStore'
+import useAdminStore from '../../store/adminStore'
 import styles from './DevMenu.module.css'
 
 export default function DevMenu() {
@@ -24,7 +25,21 @@ export default function DevMenu() {
     disableCategory,
   } = useDevStore()
 
+  const {
+    isAuthenticated,
+    authenticate,
+    checkHasPassword,
+    setupPassword,
+    hasPassword,
+    isAuthLoading,
+    authError,
+  } = useAdminStore()
+
+  const [password, setPassword] = useState('')
+  const [devAuthError, setDevAuthError] = useState(null)
+  const [isSetup, setIsSetup] = useState(false)
   const panelRef = useRef(null)
+  const passwordInputRef = useRef(null)
 
   // ─── Keyboard shortcut: Ctrl+Shift+D ───
   const handleKeyDown = useCallback((e) => {
@@ -41,6 +56,41 @@ export default function DevMenu() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  // Check if password exists when menu opens
+  useEffect(() => {
+    if (isDevMenuOpen && hasPassword === null) {
+      checkHasPassword().then(has => setIsSetup(!has))
+    }
+    if (isDevMenuOpen) {
+      setPassword('')
+      setDevAuthError(null)
+    }
+  }, [isDevMenuOpen, hasPassword, checkHasPassword])
+
+  // Focus password input when auth gate shows
+  useEffect(() => {
+    if (isDevMenuOpen && !isAuthenticated && passwordInputRef.current) {
+      setTimeout(() => passwordInputRef.current?.focus(), 100)
+    }
+  }, [isDevMenuOpen, isAuthenticated])
+
+  const handleAuthSubmit = useCallback(async (e) => {
+    e.preventDefault()
+    if (!password.trim()) return
+    setDevAuthError(null)
+    try {
+      if (isSetup) {
+        await setupPassword(password)
+        await authenticate(password)
+      } else {
+        await authenticate(password)
+      }
+      setPassword('')
+    } catch (err) {
+      setDevAuthError(err.response?.data?.detail || 'Contraseña incorrecta')
+    }
+  }, [password, isSetup, authenticate, setupPassword])
 
   // Click outside
   const handleOverlayClick = useCallback((e) => {
@@ -62,11 +112,45 @@ export default function DevMenu() {
           <div className={styles.titleRow}>
             <span className={styles.devIcon}>⚛</span>
             <h3 className={styles.title}>Dev Menu</h3>
-            <span className={styles.badge}>{activeCount}/{totalCount}</span>
+            {isAuthenticated && <span className={styles.badge}>{activeCount}/{totalCount}</span>}
           </div>
           <button className={styles.closeBtn} onClick={closeDevMenu}>✕</button>
         </div>
 
+        {/* Auth gate */}
+        {!isAuthenticated ? (
+          <div className={styles.authGate}>
+            <div className={styles.authIcon}>🔒</div>
+            <p className={styles.authTitle}>
+              {isSetup ? 'Configurar contraseña de admin' : 'Acceso restringido'}
+            </p>
+            <p className={styles.authSubtitle}>
+              {isSetup ? 'Crea una contraseña para proteger este panel' : 'Introduce la contraseña de administrador'}
+            </p>
+            <form onSubmit={handleAuthSubmit} className={styles.authForm}>
+              <input
+                ref={passwordInputRef}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isSetup ? 'Nueva contraseña' : 'Contraseña'}
+                className={styles.authInput}
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                className={styles.authSubmitBtn}
+                disabled={isAuthLoading || !password.trim()}
+              >
+                {isAuthLoading ? '...' : isSetup ? 'Configurar' : 'Entrar'}
+              </button>
+            </form>
+            {(devAuthError || authError) && (
+              <p className={styles.authError}>{devAuthError || authError}</p>
+            )}
+          </div>
+        ) : (
+          <>
         {/* Global actions */}
         <div className={styles.globalActions}>
           <button className={styles.globalBtn} onClick={enableAll}>
@@ -122,6 +206,8 @@ export default function DevMenu() {
         <div className={styles.footer}>
           <span className={styles.footerNote}>Ctrl+Shift+D para toggle · Esc para cerrar</span>
         </div>
+          </>
+        )}
       </div>
     </div>
   )

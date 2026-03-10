@@ -771,6 +771,93 @@ export default apiClient;
 
 
 // ============================================================================
+// CHAT API — Asistente IA del ecosistema cuántico
+// ============================================================================
+
+/**
+ * Envía un mensaje al agente de IA via streaming SSE.
+ * Permite recibir pasos de razonamiento en tiempo real y cancelar.
+ * 
+ * @param {string} message - Pregunta del usuario
+ * @param {Array|null} history - Historial de conversación previo
+ * @param {Object} callbacks - Callbacks para los distintos eventos
+ * @param {function} callbacks.onThinking - ({tool, description, round}) => void
+ * @param {function} callbacks.onToolResult - ({tool, summary}) => void
+ * @param {function} callbacks.onReply - ({content, history, tools_used}) => void
+ * @param {function} callbacks.onError - (errorMsg) => void
+ * @param {AbortSignal} [signal] - AbortController signal para cancelar
+ * @returns {Promise<void>}
+ */
+export async function sendChatMessageStream(message, history = null, callbacks = {}, signal = null) {
+  const url = `${BASE_URL}/chat/stream`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Error desconocido');
+    callbacks.onError?.(errText);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    
+    // Parsear líneas SSE (formato: "data: {...}\n\n")
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop(); // último fragmento incompleto
+
+    for (const line of lines) {
+      const stripped = line.replace(/^data:\s*/, '').trim();
+      if (!stripped) continue;
+
+      try {
+        const event = JSON.parse(stripped);
+        switch (event.type) {
+          case 'thinking':
+            callbacks.onThinking?.(event);
+            break;
+          case 'tool_result':
+            callbacks.onToolResult?.(event);
+            break;
+          case 'reply':
+            callbacks.onReply?.(event);
+            break;
+          case 'error':
+            callbacks.onError?.(event.content);
+            break;
+        }
+      } catch (e) {
+        console.warn('[SSE] Error parsing event:', stripped, e);
+      }
+    }
+  }
+}
+
+/**
+ * Envía un mensaje al agente de IA (versión no-streaming, fallback).
+ * @param {string} message - Pregunta del usuario
+ * @param {Array|null} history - Historial de conversación previo
+ * @returns {Promise<{reply: string, history: Array, tools_used: string[]}>}
+ */
+export async function sendChatMessage(message, history = null) {
+  const response = await apiClient.post('/chat', { message, history }, { timeout: 120000 });
+  return response.data;
+}
+
+
+// ============================================================================
 // ADMIN API — Panel de administración protegido
 // ============================================================================
 

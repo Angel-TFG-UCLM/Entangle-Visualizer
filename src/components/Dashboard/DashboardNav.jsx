@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart3, PieChart, Network, Table2, Gauge, ChevronUp } from 'lucide-react'
+import { BarChart3, PieChart, Network, Gauge, ChevronUp } from 'lucide-react'
 import styles from './DashboardNav.module.css'
 
 /**
@@ -29,7 +29,6 @@ const NAV_ITEMS = [
   { id: 'section-kpis',    label: 'KPIs',                icon: Gauge,    scrollPadding: 200  },
   { id: 'section-charts',  label: 'Gráficos',            icon: BarChart3, scrollPadding: -90  },
   { id: 'section-network', label: 'Red de Colaboración',  icon: Network,  scrollPadding: -107  },
-  { id: 'section-tables',  label: 'Tablas de Detalle',    icon: Table2,   scrollPadding: -107  },
 ]
 
 export default function DashboardNav() {

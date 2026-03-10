@@ -27,7 +27,7 @@ export const FEATURE_DEFINITIONS = {
     features: {
       heroKpis:           { label: 'Hero KPIs',            default: true },
       chartsSection:      { label: 'Gráficos Principales', default: true },
-      detailTables:       { label: 'Tablas de Detalle',    default: true },
+      detailTables:       { label: 'Tablas de Detalle',    default: false },
     },
   },
   colaboracion: {

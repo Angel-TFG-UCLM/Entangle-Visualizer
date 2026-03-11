@@ -130,7 +130,7 @@ export const useDevStore = create(
     }),
     {
       name: 'entangle-dev-features',
-      version: 1,
+      version: 2,
       partialize: (state) => ({ features: state.features }),
       merge: (persisted, current) => {
         // Ensure new features from FEATURE_DEFINITIONS are always present
@@ -141,6 +141,7 @@ export const useDevStore = create(
         return merged
       },
       migrate: (persisted, version) => {
+        const features = { ...persisted.features }
         // v0 → v1: Deshabilitar por defecto las 4 features avanzadas
         if (version === 0 || version === undefined) {
           const FORCE_DISABLED = [
@@ -149,11 +150,13 @@ export const useDevStore = create(
             'orgComparisonRadar',
             'techStackMap',
           ]
-          const features = { ...persisted.features }
           FORCE_DISABLED.forEach(k => { features[k] = false })
-          return { ...persisted, features }
         }
-        return persisted
+        // v1 → v2: Deshabilitar detailTables por defecto
+        if (version < 2) {
+          features.detailTables = false
+        }
+        return { ...persisted, features }
       },
     }
   )

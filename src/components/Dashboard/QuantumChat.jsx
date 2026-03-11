@@ -60,11 +60,16 @@ export default function QuantumChat() {
   const [history, setHistory] = useState(null)
   const [tools, setTools] = useState([])
   const [thinkingSteps, setThinkingSteps] = useState([])  // pasos de razonamiento en tiempo real
+  const [statusMsg, setStatusMsg] = useState('')           // estado actual del agente (SSE status)
+  const [elapsedSec, setElapsedSec] = useState(0)          // segundos transcurridos
+  const [activeAgent, setActiveAgent] = useState(null)      // "DATA" | "UI" — qué worker responde
   const bodyRef = useRef(null)
   const inputRef = useRef(null)
   const sectionRef = useRef(null)
   const cardRef = useRef(null)
   const abortRef = useRef(null)  // AbortController para cancelar
+  const timerRef = useRef(null)  // intervalo del timer
+  const agentRef = useRef(null)  // persiste intent del router entre callbacks
 
   /* dos ondas superpuestas con frecuencias distintas */
   const wave1 = useMemo(() => buildWavePath(800, 56, 4.5, 0.40), [])
@@ -100,8 +105,13 @@ export default function QuantumChat() {
       abortRef.current.abort()
       abortRef.current = null
     }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setLoading(false)
     setThinkingSteps([])
+    setStatusMsg('')
+    setElapsedSec(0)
+    setActiveAgent(null)
+    agentRef.current = null
     setMsgs(prev => [...prev, { role: 'assistant', content: 'Razonamiento cancelado por el usuario.', cancelled: true }])
   }, [])
 
@@ -113,6 +123,16 @@ export default function QuantumChat() {
     if (!expanded) setExpanded(true)
     setLoading(true)
     setThinkingSteps([])
+    setStatusMsg('Clasificando tu pregunta…')
+    setElapsedSec(0)
+    setActiveAgent(null)
+    agentRef.current = null
+
+    // Timer de segundos transcurridos
+    const start = Date.now()
+    timerRef.current = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - start) / 1000))
+    }, 1000)
 
     // Crear AbortController para esta petición
     const controller = new AbortController()
@@ -120,22 +140,45 @@ export default function QuantumChat() {
 
     try {
       await sendChatMessageStream(t, history, {
+        onStatus: (event) => {
+          if (event.message) setStatusMsg(event.message)
+        },
+        onRouting: (event) => {
+          const intent = event.intent || null
+          setActiveAgent(intent)
+          agentRef.current = intent
+          setStatusMsg(intent === 'UI'
+            ? 'Conectando con Asistente UI…'
+            : 'Conectando con Analista de datos…')
+        },
         onThinking: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
+          setStatusMsg(`Ejecutando: ${event.description || 'herramienta'}`)
         },
         onToolResult: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
+          setStatusMsg(event.summary || 'Datos recibidos')
         },
         onReply: (event) => {
-          setMsgs(prev => [...prev, { role: 'assistant', content: event.content }])
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+          const capturedAgent = agentRef.current
+          setMsgs(prev => [...prev, { role: 'assistant', content: event.content, agent: capturedAgent }])
           setHistory(event.history)
-          if (event.tools_used?.length) setTools(prev => [...new Set([...prev, ...event.tools_used])])
+          if (event.tools_used?.length) setTools(event.tools_used)
           setThinkingSteps([])
+          setStatusMsg('')
+          setElapsedSec(0)
+          setActiveAgent(null)
+          agentRef.current = null
           setLoading(false)
         },
         onError: (errMsg) => {
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
           setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || 'Error de conexión con el agente de IA.', err: true }])
           setThinkingSteps([])
+          setStatusMsg('')
+          setElapsedSec(0)
+          setActiveAgent(null)
           setLoading(false)
         },
       }, controller.signal)
@@ -143,8 +186,12 @@ export default function QuantumChat() {
       if (err.name === 'AbortError') return // cancelado por el usuario
       setMsgs(prev => [...prev, { role: 'assistant', content: 'Error de conexión con el agente de IA.', err: true }])
     } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
       setLoading(false)
       setThinkingSteps([])
+      setStatusMsg('')
+      setElapsedSec(0)
+      setActiveAgent(null)
       abortRef.current = null
     }
   }, [loading, history, expanded])
@@ -153,9 +200,10 @@ export default function QuantumChat() {
 
   const close = () => {
     if (abortRef.current) abortRef.current.abort()
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setExpanded(false)
     // Limpiar estado tras la animación de cierre (clip-path 0.38s)
-    setTimeout(() => { setMsgs([]); setHistory(null); setTools([]); setThinkingSteps([]) }, 400)
+    setTimeout(() => { setMsgs([]); setHistory(null); setTools([]); setThinkingSteps([]); setStatusMsg(''); setElapsedSec(0); setActiveAgent(null) }, 400)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -217,6 +265,12 @@ export default function QuantumChat() {
                   )}
                   <div className={styles.bubble}>
                     <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMathDelimiters(m.content)}</ReactMarkdown>
+                    {m.role === 'assistant' && m.agent && (
+                      <span className={`${styles.msgAgent} ${m.agent === 'UI' ? styles.msgAgentUI : styles.msgAgentData}`}>
+                        <span className={styles.msgAgentDot} />
+                        {m.agent === 'UI' ? 'Asistente UI' : 'Analista de datos'}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -233,7 +287,9 @@ export default function QuantumChat() {
                       <>
                         <div className={styles.thinkingHeader}>
                           <span className={styles.thinkingPulse} />
-                          Razonando…
+                          {statusMsg || 'Razonando…'}
+                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'UI' ? styles.agentBadgeUI : styles.agentBadgeData}`}>{activeAgent === 'UI' ? 'Asistente UI' : 'Analista'}</span>}
+                          {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                         </div>
                         <div className={styles.thinkingSteps}>
                           {thinkingSteps.map((step, i) => (
@@ -256,7 +312,9 @@ export default function QuantumChat() {
                     ) : (
                       <div className={styles.thinkingHeader}>
                         <span className={styles.thinkingPulse} />
-                        Pensando…
+                        {statusMsg || 'Pensando…'}
+                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'UI' ? styles.agentBadgeUI : styles.agentBadgeData}`}>{activeAgent === 'UI' ? 'Asistente UI' : 'Analista'}</span>}
+                        {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                       </div>
                     )}
                   </div>

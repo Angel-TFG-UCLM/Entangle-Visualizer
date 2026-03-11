@@ -808,6 +808,11 @@ export async function sendChatMessageStream(message, history = null, callbacks =
   const decoder = new TextDecoder();
   let buffer = '';
 
+  // Tiempo mínimo (ms) que cada mensaje de estado permanece visible
+  // antes de que el siguiente lo sobreescriba.
+  const MIN_STATUS_MS = 400;
+  let lastStatusTs = 0;
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -824,12 +829,31 @@ export async function sendChatMessageStream(message, history = null, callbacks =
 
       try {
         const event = JSON.parse(stripped);
+
+        // Para eventos intermedios (no reply/error), garantizar que el
+        // mensaje de estado anterior se haya mostrado al menos MIN_STATUS_MS
+        // antes de reemplazarlo. Esto evita que mensajes consecutivos que
+        // llegan en un mismo chunk se vean como un flash imperceptible.
+        const isIntermediate = event.type !== 'reply' && event.type !== 'error';
+        if (isIntermediate && lastStatusTs > 0) {
+          const gap = Date.now() - lastStatusTs;
+          if (gap < MIN_STATUS_MS) {
+            await new Promise(r => setTimeout(r, MIN_STATUS_MS - gap));
+          }
+        }
+
         switch (event.type) {
           case 'thinking':
             callbacks.onThinking?.(event);
             break;
           case 'tool_result':
             callbacks.onToolResult?.(event);
+            break;
+          case 'status':
+            callbacks.onStatus?.(event);
+            break;
+          case 'routing':
+            callbacks.onRouting?.(event);
             break;
           case 'reply':
             callbacks.onReply?.(event);
@@ -838,6 +862,13 @@ export async function sendChatMessageStream(message, history = null, callbacks =
             callbacks.onError?.(event.content);
             break;
         }
+
+        if (isIntermediate) {
+          lastStatusTs = Date.now();
+        }
+
+        // Ceder control al navegador para que React renderice
+        await new Promise(r => setTimeout(r, 0));
       } catch (e) {
         console.warn('[SSE] Error parsing event:', stripped, e);
       }

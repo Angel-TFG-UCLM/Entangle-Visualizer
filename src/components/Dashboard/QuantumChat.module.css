@@ -74,18 +74,18 @@
   display: grid;
   grid-template-rows: 0fr;
   clip-path: inset(100% 0 0 0);
-  /* Al cerrar: clip-path anima primero, grid colapsa después */
+  /* Al cerrar: ambos animan juntos para que la barra suba suavemente */
   transition:
-    grid-template-rows 0.01s 0.38s,
+    grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1),
     clip-path 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chatAreaOpen {
   grid-template-rows: 1fr;
   clip-path: inset(0 0 0 0);
-  /* Al abrir: grid instantáneo, clip-path revela suavemente */
+  /* Al abrir: ambos animan juntos */
   transition:
-    grid-template-rows 0.01s,
+    grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1),
     clip-path 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -94,6 +94,13 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Altura fija solo cuando el chat está abierto — evita resize
+   por contenido dinámico (toolsBar, thinkingSteps, etc.).
+   Fuera de .chatAreaOpen, el grid 0fr colapsa chatInner a 0. */
+.chatAreaOpen .chatInner {
+  height: min(575px, 66vh);
 }
 
 /* ─── Chat header ─── */
@@ -211,8 +218,8 @@
 /* ─── Chat body (mensajes) ─── */
 .chatBody {
   position: relative;
-  min-height: min(520px, 62vh);
-  max-height: min(520px, 62vh);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 1rem 1.15rem;
   text-align: left;
@@ -592,6 +599,39 @@
   letter-spacing: 0.02em;
 }
 
+.elapsed {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: var(--font-family-mono, monospace);
+  letter-spacing: 0.04em;
+  min-width: 2ch;
+  text-align: right;
+}
+
+/* Badge indicador del agente activo (Analista / Asistente) */
+.agentBadge {
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  margin-left: 6px;
+}
+.agentBadgeData {
+  background: rgba(0, 212, 228, 0.15);
+  color: #00D4E4;
+  border: 1px solid rgba(0, 212, 228, 0.3);
+}
+.agentBadgeUI {
+  background: rgba(157, 111, 219, 0.15);
+  color: #9D6FDB;
+  border: 1px solid rgba(157, 111, 219, 0.3);
+}
+
 .thinkingPulse {
   width: 7px;
   height: 7px;
@@ -949,6 +989,50 @@
   .chatBody { min-height: min(350px, 55vh); max-height: min(350px, 55vh); padding: 0.75rem; }
   .bubble { max-width: 90%; }
   .disclaimer { font-size: 0.5rem; }
+}
+
+/* ─── Etiqueta persistente de agente en burbujas ─── */
+.msgAgent {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  justify-content: flex-end;
+  margin-top: 0.45rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  line-height: 1;
+  user-select: none;
+  font-family: var(--font-family-mono, monospace);
+  opacity: 0;
+  animation: agentLabelIn 0.4s ease-out 0.3s forwards;
+}
+.msgAgentDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.msgAgentData {
+  color: rgba(0, 212, 228, 0.55);
+}
+.msgAgentData .msgAgentDot {
+  background: rgba(0, 212, 228, 0.6);
+  box-shadow: 0 0 4px rgba(0, 212, 228, 0.3);
+}
+.msgAgentUI {
+  color: rgba(157, 111, 219, 0.55);
+}
+.msgAgentUI .msgAgentDot {
+  background: rgba(157, 111, 219, 0.6);
+  box-shadow: 0 0 4px rgba(157, 111, 219, 0.3);
+}
+@keyframes agentLabelIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ─── AI Disclaimer ─── */

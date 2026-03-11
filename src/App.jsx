@@ -33,6 +33,7 @@ import ViewBar from './components/Dashboard/ViewBar'
 import DevMenu from './components/Dashboard/DevMenu'
 import AdminPanel from './components/Dashboard/AdminPanel'
 import QuantumChat from './components/Dashboard/QuantumChat'
+import FloatingChat from './components/Dashboard/FloatingChat'
 import { useDevStore } from './store/devStore'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
@@ -604,6 +605,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* FLOATING CHAT — FAB fijo en esquina inferior derecha */}
+      <FloatingChat />
 
       {/* DEV MENU */}
       <DevMenu />

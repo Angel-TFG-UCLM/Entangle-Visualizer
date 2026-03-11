@@ -2638,70 +2638,96 @@ export default function ChartsSection({ data }) {
             {/* Bridge profiles (usuarios que cruzan disciplinas) */}
             {disciplineAnalysis?.bridge_profiles?.length > 0 && (
               <div className={styles.bridgePanel}>
-                <h4 style={{ fontSize: 13, color: '#e879f9', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  Puentes Interdisciplinares ({disciplineAnalysis.bridge_profiles.length})
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {disciplineAnalysis.bridge_profiles.map((bp, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: 4,
-                        fontSize: 13, color: '#d1d5db',
-                        padding: '6px 8px',
-                        borderBottom: i < disciplineAnalysis.bridge_profiles.length - 1 ? '1px solid rgba(232, 121, 249, 0.08)' : 'none',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        transition: 'background 0.2s ease',
-                      }}
-                      className={styles.bridgeProfileRow}
-                      onClick={() => {
-                        // Buscar el user en userData (top 10 visible) primero
-                        const userMatch = userData.find(u => u.login === bp.login)
-                        if (userMatch) {
-                          openEntityDetail('user', { ...userMatch, bridge_repos_per_discipline: bp.repos_per_discipline })
-                        } else {
-                          // Buscar en lista completa y usar mapUserToDisplay
-                          const fullUser = allUsersMap[bp.login]
-                          if (fullUser) {
-                            const mapped = mapUserToDisplay(fullUser, userMetric, disciplineMap, selectedUser)
-                            openEntityDetail('user', { ...mapped, bridge_repos_per_discipline: bp.repos_per_discipline })
-                          } else {
-                            // Solo datos mínimos del bridge profile + disciplineMap
-                            const discInfo = disciplineMap[bp.login] || {}
-                            openEntityDetail('user', {
-                              login: bp.login, name: bp.login, avatar_url: null,
-                              score: 0, contributions: 0, repos: bp.total_repos || 0,
-                              organizations: [], commits: 0, prs: 0, reviews: 0, issues: 0,
-                              bio: null, company: null, location: null, top_languages: [],
-                              ...discInfo, bridge_repos_per_discipline: bp.repos_per_discipline,
-                            })
-                          }
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: '#c084fc', fontWeight: 600, fontSize: 13 }}>@{bp.login}</span>
-                        <span style={{ color: '#6b7280', fontSize: 11 }}>
-                          {bp.total_repos || 0} repos
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {bp.repos_per_discipline && Object.keys(bp.repos_per_discipline).map(disc => (
-                          <span key={disc} style={{
-                            padding: '2px 7px',
-                            borderRadius: 4,
-                            fontSize: 10,
-                            background: `${DISCIPLINE_COLORS[disc] || '#888'}22`,
-                            color: DISCIPLINE_COLORS[disc] || '#888',
-                            border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
-                          }}>
-                            {DISCIPLINE_LABELS[disc] || disc} ({bp.repos_per_discipline[disc]})
-                          </span>
-                        ))}
-                      </div>
+                <div className={styles.bridgePanelHeader}>
+                  <div className={styles.bridgePanelHeaderIcon}>
+                    <Network size={16} />
+                  </div>
+                  <div>
+                    <div className={styles.bridgePanelTitle}>Puentes Interdisciplinares</div>
+                    <div className={styles.bridgePanelCount}>
+                      {disciplineAnalysis.bridge_profiles.length} usuario{disciplineAnalysis.bridge_profiles.length !== 1 ? 's' : ''} multidisciplinar{disciplineAnalysis.bridge_profiles.length !== 1 ? 'es' : ''}
                     </div>
-                  ))}
+                  </div>
+                </div>
+                <div className={styles.bridgePanelBody}>
+                  {disciplineAnalysis.bridge_profiles.map((bp, i) => {
+                    const avatarUrl = allUsersMap[bp.login]?.avatar_url || userData.find(u => u.login === bp.login)?.avatar_url || null
+                    const disciplineKeys = bp.repos_per_discipline ? Object.keys(bp.repos_per_discipline) : []
+                    const isTop3 = i < 3
+                    return (
+                      <div
+                        key={i}
+                        className={styles.bridgeProfileRow}
+                        onClick={() => {
+                          const userMatch = userData.find(u => u.login === bp.login)
+                          if (userMatch) {
+                            openEntityDetail('user', { ...userMatch, bridge_repos_per_discipline: bp.repos_per_discipline })
+                          } else {
+                            const fullUser = allUsersMap[bp.login]
+                            if (fullUser) {
+                              const mapped = mapUserToDisplay(fullUser, userMetric, disciplineMap, selectedUser)
+                              openEntityDetail('user', { ...mapped, bridge_repos_per_discipline: bp.repos_per_discipline })
+                            } else {
+                              const discInfo = disciplineMap[bp.login] || {}
+                              openEntityDetail('user', {
+                                login: bp.login, name: bp.login, avatar_url: null,
+                                score: 0, contributions: 0, repos: bp.total_repos || 0,
+                                organizations: [], commits: 0, prs: 0, reviews: 0, issues: 0,
+                                bio: null, company: null, location: null, top_languages: [],
+                                ...discInfo, bridge_repos_per_discipline: bp.repos_per_discipline,
+                              })
+                            }
+                          }
+                        }}
+                      >
+                        <span className={`${styles.bridgeRank} ${isTop3 ? styles.bridgeRankTop : styles.bridgeRankNormal}`}>
+                          {i + 1}
+                        </span>
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={bp.login}
+                            className={styles.bridgeAvatar}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className={styles.bridgeAvatarFallback}>
+                            {bp.login.charAt(0)}
+                          </span>
+                        )}
+                        <div className={styles.bridgeProfileInfo}>
+                          <div className={styles.bridgeProfileMeta}>
+                            <span className={styles.bridgeProfileLogin}>@{bp.login}</span>
+                            <span className={styles.bridgeProfileRepoCount}>
+                              {bp.total_repos || 0} repos
+                            </span>
+                          </div>
+                          <div className={styles.bridgeDisciplineTags}>
+                            {disciplineKeys.map(disc => (
+                              <span
+                                key={disc}
+                                className={styles.bridgeDisciplineTag}
+                                style={{
+                                  background: `${DISCIPLINE_COLORS[disc] || '#888'}15`,
+                                  color: DISCIPLINE_COLORS[disc] || '#888',
+                                  border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}30`,
+                                }}
+                              >
+                                <span
+                                  className={styles.bridgeDisciplineTagDot}
+                                  style={{ background: DISCIPLINE_COLORS[disc] || '#888' }}
+                                />
+                                {DISCIPLINE_LABELS[disc] || disc}
+                                <span className={styles.bridgeDisciplineTagCount}>
+                                  {bp.repos_per_discipline[disc]}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

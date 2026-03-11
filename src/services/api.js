@@ -785,6 +785,7 @@ export default apiClient;
  * @param {function} callbacks.onToolResult - ({tool, summary}) => void
  * @param {function} callbacks.onReply - ({content, history, tools_used}) => void
  * @param {function} callbacks.onError - (errorMsg) => void
+ * @param {function} [callbacks.onAction] - ({action, data}) => void — acción del agente en el frontend
  * @param {AbortSignal} [signal] - AbortController signal para cancelar
  * @returns {Promise<void>}
  */
@@ -854,6 +855,9 @@ export async function sendChatMessageStream(message, history = null, callbacks =
             break;
           case 'routing':
             callbacks.onRouting?.(event);
+            break;
+          case 'action':
+            callbacks.onAction?.(event);
             break;
           case 'reply':
             callbacks.onReply?.(event);

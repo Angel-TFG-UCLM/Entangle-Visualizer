@@ -15,6 +15,8 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { sendChatMessageStream } from '../../services/api'
+import { useDashboardStore } from '../../store/dashboardStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import styles from './QuantumChat.module.css'
 
 /**
@@ -62,7 +64,7 @@ export default function QuantumChat() {
   const [thinkingSteps, setThinkingSteps] = useState([])  // pasos de razonamiento en tiempo real
   const [statusMsg, setStatusMsg] = useState('')           // estado actual del agente (SSE status)
   const [elapsedSec, setElapsedSec] = useState(0)          // segundos transcurridos
-  const [activeAgent, setActiveAgent] = useState(null)      // "DATA" | "UI" — qué worker responde
+  const [activeAgent, setActiveAgent] = useState(null)      // "DATA" | "DASHBOARD" | "UNIVERSE"
   const bodyRef = useRef(null)
   const inputRef = useRef(null)
   const sectionRef = useRef(null)
@@ -115,6 +117,112 @@ export default function QuantumChat() {
     setMsgs(prev => [...prev, { role: 'assistant', content: 'Razonamiento cancelado por el usuario.', cancelled: true }])
   }, [])
 
+  /**
+   * Maneja acciones del agente IA que afectan al frontend.
+   * Acciones soportadas:
+   *   - OPEN_UNIVERSE:  Abre el Quantum Universe 3D
+   *   - CREATE_VIEW:    Crea una vista personalizada con las orgs indicadas
+   */
+  const handleAction = useCallback(async (event) => {
+    const { action, data } = event
+    console.log('[QuantumChat] Action received:', action, data)
+
+    if (action === 'OPEN_UNIVERSE') {
+      const store = useDashboardStore.getState()
+      store.openCollaborationGraph({ autoTour: data?.autoTour || false })
+      return
+    }
+
+    if (action === 'CREATE_VIEW') {
+      const orgNames = data?.orgs || []
+      if (orgNames.length === 0) {
+        console.warn('[QuantumChat] CREATE_VIEW: no orgs in action data')
+        return
+      }
+
+      try {
+        const store = useDashboardStore.getState()
+        const favStore = useFavoritesStore.getState()
+
+        // Combinar todas las fuentes de orgs: filters (439 orgs) + graph/data (top 15 con avatar)
+        const filterOrgs = store.filters?.organizations || []
+        const graphOrgs = store.data?.organizations || []
+
+        // Índice rápido login→org (graph tiene avatar_url, filters solo login+name)
+        const graphIndex = new Map()
+        for (const o of graphOrgs) {
+          if (o.login) graphIndex.set(o.login.toLowerCase(), o)
+        }
+
+        // Merge: filters es la lista completa; enriquecer con avatar de graph cuando exista
+        const allOrgs = filterOrgs.length > 0 ? filterOrgs : graphOrgs
+        console.log(`[QuantumChat] CREATE_VIEW: buscando ${orgNames.length} orgs en ${allOrgs.length} disponibles`)
+
+        // Fuzzy-match: 1) exacto login/name, 2) substring login/name
+        const matched = []
+        const used = new Set()
+        for (const name of orgNames) {
+          const lower = name.trim().toLowerCase()
+          if (!lower) continue
+
+          // Paso 1: coincidencia exacta (login o name)
+          let found = allOrgs.find(
+            o => !used.has(o.login) && (o.login?.toLowerCase() === lower || o.name?.toLowerCase() === lower)
+          )
+
+          // Paso 2: substring (login contiene el término o viceversa)
+          if (!found) {
+            found = allOrgs.find(
+              o => !used.has(o.login) && (
+                o.login?.toLowerCase().includes(lower) || lower.includes(o.login?.toLowerCase()) ||
+                o.name?.toLowerCase().includes(lower) || lower.includes(o.name?.toLowerCase() || '')
+              )
+            )
+          }
+
+          if (found) {
+            used.add(found.login)
+            const graphInfo = graphIndex.get(found.login.toLowerCase())
+            // IMPORTANTE: el ID debe llevar prefijo org_ para que get_view_data
+            // lo reconozca como organización (same as FavoritesPanel convention)
+            matched.push({
+              id: `org_${found.login}`,
+              type: 'org',
+              name: found.name || found.login,
+              avatar_url: graphInfo?.avatar_url || '',
+            })
+          } else {
+            console.warn(`[QuantumChat] CREATE_VIEW: org "${name}" no encontrada`)
+          }
+        }
+
+        console.log(`[QuantumChat] CREATE_VIEW: matched ${matched.length}/${orgNames.length} orgs:`, matched.map(m => m.id))
+
+        if (matched.length === 0) {
+          console.warn('[QuantumChat] CREATE_VIEW: ninguna org coincidió, vista no creada')
+          return
+        }
+
+        // Calcular nombre incremental: "Vista Autogenerada #N"
+        const existingAuto = favStore.views.filter(v => v.name?.startsWith('Vista Autogenerada'))
+        const nextNum = existingAuto.length + 1
+        const viewName = `Vista Autogenerada #${nextNum}`
+
+        // Crear la vista y activarla (sin tocar favoritos — son independientes)
+        const entityIds = matched.map(m => m.id)
+        console.log(`[QuantumChat] CREATE_VIEW: creando "${viewName}" con ${entityIds.length} entidades`)
+        const view = await favStore.createView(viewName, entityIds, data?.color || '#00ffaa')
+        if (view?.id) {
+          await favStore.activateView(view.id)
+          console.log(`[QuantumChat] CREATE_VIEW: vista "${viewName}" activada (id=${view.id})`)
+        }
+      } catch (err) {
+        console.error('[QuantumChat] Error creating view:', err)
+      }
+      return
+    }
+  }, [])
+
   const send = useCallback(async (text) => {
     const t = (text ?? '').trim()
     if (!t || loading) return
@@ -147,9 +255,11 @@ export default function QuantumChat() {
           const intent = event.intent || null
           setActiveAgent(intent)
           agentRef.current = intent
-          setStatusMsg(intent === 'UI'
-            ? 'Conectando con Asistente UI…'
-            : 'Conectando con Analista de datos…')
+          setStatusMsg(intent === 'DATA'
+            ? 'Conectando con Analista de datos…'
+            : intent === 'UNIVERSE'
+              ? 'Conectando con Experto Universo…'
+              : 'Conectando con Experto Dashboard…')
         },
         onThinking: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
@@ -158,6 +268,9 @@ export default function QuantumChat() {
         onToolResult: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
           setStatusMsg(event.summary || 'Datos recibidos')
+        },
+        onAction: (event) => {
+          handleAction(event)
         },
         onReply: (event) => {
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
@@ -266,9 +379,9 @@ export default function QuantumChat() {
                   <div className={styles.bubble}>
                     <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMathDelimiters(m.content)}</ReactMarkdown>
                     {m.role === 'assistant' && m.agent && (
-                      <span className={`${styles.msgAgent} ${m.agent === 'UI' ? styles.msgAgentUI : styles.msgAgentData}`}>
+                      <span className={`${styles.msgAgent} ${m.agent === 'DATA' ? styles.msgAgentData : styles.msgAgentUI}`}>
                         <span className={styles.msgAgentDot} />
-                        {m.agent === 'UI' ? 'Asistente UI' : 'Analista de datos'}
+                        {m.agent === 'DATA' ? 'Analista de datos' : m.agent === 'UNIVERSE' ? 'Experto Universo' : 'Experto Dashboard'}
                       </span>
                     )}
                   </div>
@@ -288,7 +401,7 @@ export default function QuantumChat() {
                         <div className={styles.thinkingHeader}>
                           <span className={styles.thinkingPulse} />
                           {statusMsg || 'Razonando…'}
-                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'UI' ? styles.agentBadgeUI : styles.agentBadgeData}`}>{activeAgent === 'UI' ? 'Asistente UI' : 'Analista'}</span>}
+                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}</span>}
                           {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                         </div>
                         <div className={styles.thinkingSteps}>
@@ -313,7 +426,7 @@ export default function QuantumChat() {
                       <div className={styles.thinkingHeader}>
                         <span className={styles.thinkingPulse} />
                         {statusMsg || 'Pensando…'}
-                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'UI' ? styles.agentBadgeUI : styles.agentBadgeData}`}>{activeAgent === 'UI' ? 'Asistente UI' : 'Analista'}</span>}
+                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}</span>}
                         {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                       </div>
                     )}

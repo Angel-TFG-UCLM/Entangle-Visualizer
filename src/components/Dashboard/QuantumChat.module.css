@@ -374,7 +374,7 @@
 }
 
 .bubble {
-  max-width: 82%;
+  max-width: 90%;
   padding: 0.6rem 0.85rem;
   border-radius: 12px;
   font-size: 0.78rem;
@@ -489,7 +489,8 @@
 
 /* ─── Tables ─── */
 .bubble table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   margin: 0.45rem 0;
   font-size: 0.72rem;

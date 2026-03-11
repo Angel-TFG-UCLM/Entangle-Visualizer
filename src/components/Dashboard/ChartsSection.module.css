@@ -884,29 +884,258 @@
 }
 
 .bridgePanel {
-  flex: 0 0 380px;
-  padding: 14px 16px;
-  background: rgba(232, 121, 249, 0.04);
-  border-radius: 10px;
-  border: 1px solid rgba(232, 121, 249, 0.1);
+  flex: 0 0 400px;
+  padding: 0;
+  background: rgba(15, 18, 30, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 14px;
+  border: 1px solid rgba(232, 121, 249, 0.12);
   max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(232, 121, 249, 0.06) inset;
+}
+
+.bridgePanelHeader {
+  padding: 16px 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(232, 121, 249, 0.08);
+  background: linear-gradient(135deg, rgba(232, 121, 249, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
+  flex-shrink: 0;
+}
+
+.bridgePanelHeaderIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(232, 121, 249, 0.12);
+  border: 1px solid rgba(232, 121, 249, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e879f9;
+  flex-shrink: 0;
+}
+
+.bridgePanelTitle {
+  font-size: 13px;
+  color: #e2e8f0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.bridgePanelCount {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.bridgePanelBody {
+  padding: 8px 10px;
   overflow-y: auto;
-  /* Scrollbar sutil */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(232, 121, 249, 0.2) transparent;
+  scrollbar-color: rgba(232, 121, 249, 0.18) transparent;
 }
 
-.bridgePanel::-webkit-scrollbar {
-  width: 4px;
+.bridgePanelBody::-webkit-scrollbar {
+  width: 5px;
 }
 
-.bridgePanel::-webkit-scrollbar-track {
+.bridgePanelBody::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.bridgePanel::-webkit-scrollbar-thumb {
-  background: rgba(232, 121, 249, 0.25);
-  border-radius: 2px;
+.bridgePanelBody::-webkit-scrollbar-thumb {
+  background: rgba(232, 121, 249, 0.2);
+  border-radius: 3px;
+}
+
+.bridgePanelBody::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 121, 249, 0.35);
+}
+
+.bridgeProfileRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.bridgeProfileRow:hover {
+  background: rgba(232, 121, 249, 0.07) !important;
+  box-shadow: 0 0 0 1px rgba(232, 121, 249, 0.1) inset;
+}
+
+.bridgeProfileRow:active {
+  transform: scale(0.995);
+}
+
+.bridgeRank {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.bridgeRankTop {
+  background: linear-gradient(135deg, rgba(232, 121, 249, 0.25), rgba(139, 92, 246, 0.2));
+  color: #e879f9;
+  border: 1px solid rgba(232, 121, 249, 0.3);
+  box-shadow: 0 0 8px rgba(232, 121, 249, 0.15);
+}
+
+.bridgeRankNormal {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+.bridgeAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 2px solid rgba(232, 121, 249, 0.15);
+  background: rgba(232, 121, 249, 0.08);
+  transition: border-color 0.2s ease;
+}
+
+.bridgeProfileRow:hover .bridgeAvatar {
+  border-color: rgba(232, 121, 249, 0.35);
+}
+
+.bridgeAvatarFallback {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(232, 121, 249, 0.08);
+  border: 2px solid rgba(232, 121, 249, 0.15);
+  color: #c084fc;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bridgeProfileInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bridgeProfileMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bridgeProfileLogin {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.bridgeProfileRow:hover .bridgeProfileLogin {
+  color: #c084fc;
+}
+
+.bridgeProfileStats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.bridgeProfileRepoCount {
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.12);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.bridgeDisciplineTags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.bridgeDisciplineTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  transition: filter 0.15s ease;
+}
+
+.bridgeProfileRow:hover .bridgeDisciplineTag {
+  filter: brightness(1.15);
+}
+
+.bridgeDisciplineTagDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bridgeDisciplineTagCount {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.bridgeEmptyState {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
 }
 
 @media (max-width: 900px) {
@@ -916,12 +1145,8 @@
   .bridgePanel {
     flex: none;
     width: 100%;
-    max-height: 240px;
+    max-height: 280px;
   }
-}
-
-.bridgeProfileRow:hover {
-  background: rgba(232, 121, 249, 0.08) !important;
 }
 
 /* Active filter badge (shown in title row) */

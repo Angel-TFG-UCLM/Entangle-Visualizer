@@ -190,8 +190,12 @@ const useFavoritesStore = create(
         // ─── Vista Activa ────────────────────────────────────
 
         /**
-         * Activa una vista y carga sus datos filtrados
+         * Activa una vista y carga sus datos filtrados.
+         * Usa caché local: si ya tenemos datos de esta vista, los reutiliza
+         * sin hacer petición al backend (el backend también cachea en MongoDB).
          */
+        _viewDataCache: {},
+
         activateView: async (viewId) => {
           if (!viewId) {
             // Desactivar vista → volver al dashboard global
@@ -199,10 +203,18 @@ const useFavoritesStore = create(
             return;
           }
 
+          // Caché local: reutilizar datos si ya los cargamos antes
+          const cached = get()._viewDataCache[viewId];
+          if (cached) {
+            set({ activeViewId: viewId, activeViewData: cached, isLoadingViewData: false });
+            return;
+          }
+
           set({ activeViewId: viewId, isLoadingViewData: true, error: null });
           try {
             const data = await getViewData(viewId);
-            set({ activeViewData: data, isLoadingViewData: false });
+            const cache = { ...get()._viewDataCache, [viewId]: data };
+            set({ activeViewData: data, isLoadingViewData: false, _viewDataCache: cache });
           } catch (err) {
             set({ error: err.message, isLoadingViewData: false });
             console.error('Error cargando datos de vista:', err);
@@ -210,20 +222,31 @@ const useFavoritesStore = create(
         },
 
         /**
-         * Recarga los datos de la vista activa
+         * Recarga los datos de la vista activa (invalida caché local)
          */
         refreshActiveView: async () => {
-          const { activeViewId } = get();
+          const { activeViewId, _viewDataCache } = get();
           if (!activeViewId) return;
           
-          set({ isLoadingViewData: true });
+          // Invalidar caché local de esta vista
+          const cache = { ..._viewDataCache };
+          delete cache[activeViewId];
+          
+          set({ isLoadingViewData: true, _viewDataCache: cache });
           try {
             const data = await getViewData(activeViewId);
-            set({ activeViewData: data, isLoadingViewData: false });
+            set({
+              activeViewData: data,
+              isLoadingViewData: false,
+              _viewDataCache: { ...get()._viewDataCache, [activeViewId]: data },
+            });
           } catch (err) {
             set({ error: err.message, isLoadingViewData: false });
           }
         },
+
+        /** Invalida toda la caché local de vistas (tras refresh-metrics) */
+        clearViewDataCache: () => set({ _viewDataCache: {} }),
 
         /**
          * Obtiene la vista activa actual

@@ -31,6 +31,16 @@ const VIEW_COLORS = [
   '#ffd93d', '#6bcb77', '#4d96ff', '#ff922b',
 ]
 
+/* Caché in-memory de hijos de favoritos (evita re-fetch al colapsar/expandir) */
+const _childrenCache = new Map()
+async function getCachedChildren(entityId) {
+  if (_childrenCache.has(entityId)) return _childrenCache.get(entityId)
+  const data = await getFavoriteChildren(entityId)
+  const children = data.children || []
+  _childrenCache.set(entityId, children)
+  return children
+}
+
 /* ────────── Sub-componente: Repo expandible dentro del árbol ────────── */
 function TreeNodeRepo({ repo, depth, getTypeIcon }) {
   const [expanded, setExpanded] = useState(false)
@@ -42,8 +52,8 @@ function TreeNodeRepo({ repo, depth, getTypeIcon }) {
     if (!children) {
       setLoadingChildren(true)
       try {
-        const data = await getFavoriteChildren(repo.id)
-        setChildren(data.children || [])
+        const result = await getCachedChildren(repo.id)
+        setChildren(result)
       } catch (err) {
         console.error('Error cargando colaboradores:', err)
         setChildren([])
@@ -125,8 +135,8 @@ function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
     if (!children) {
       setLoadingChildren(true)
       try {
-        const data = await getFavoriteChildren(entity.id)
-        setChildren(data.children || [])
+        const result = await getCachedChildren(entity.id)
+        setChildren(result)
       } catch (err) {
         console.error('Error cargando hijos:', err)
         setChildren([])

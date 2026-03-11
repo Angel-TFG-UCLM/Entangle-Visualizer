@@ -253,3 +253,87 @@
   color: rgba(255, 255, 255, 0.2);
   font-style: italic;
 }
+
+/* ─── Auth Gate ─── */
+.authGate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.authIcon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.authTitle {
+  color: #e5e7eb;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.authSubtitle {
+  color: #6b7280;
+  font-size: 12px;
+  margin: 0 0 16px;
+  line-height: 1.4;
+}
+
+.authForm {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.authInput {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(0, 212, 228, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #e5e7eb;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.authInput:focus {
+  border-color: rgba(0, 212, 228, 0.5);
+}
+
+.authInput::placeholder {
+  color: #4b5563;
+}
+
+.authSubmitBtn {
+  background: rgba(0, 212, 228, 0.15);
+  border: 1px solid rgba(0, 212, 228, 0.3);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #00D4E4;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.authSubmitBtn:hover:not(:disabled) {
+  background: rgba(0, 212, 228, 0.25);
+  border-color: rgba(0, 212, 228, 0.5);
+}
+
+.authSubmitBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.authError {
+  color: #f87171;
+  font-size: 11px;
+  margin: 10px 0 0;
+}

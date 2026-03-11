@@ -11,7 +11,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { FiX } from 'react-icons/fi'
 import styles from './CollaborationBanner.module.css'
 
 export default function CollaborationBanner() {
@@ -23,8 +22,8 @@ export default function CollaborationBanner() {
   } = useDashboardStore()
   
   const [visible, setVisible] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
   const [inView, setInView] = useState(false)
+  const [autoTour, setAutoTour] = useState(false)
   const wrapperRef = useRef(null)
   
   /* IntersectionObserver — revela el banner al hacer scroll */
@@ -40,25 +39,26 @@ export default function CollaborationBanner() {
   }, [])
   
   useEffect(() => {
-    if (collaborationAvailable && !dismissed) {
+    if (collaborationAvailable) {
       const timer = setTimeout(() => setVisible(true), 400)
       return () => clearTimeout(timer)
     } else {
       setVisible(false)
     }
-  }, [collaborationAvailable, dismissed])
+  }, [collaborationAvailable])
   
-  const shouldShow = collaborationAvailable && !dismissed && !isDiscovering
+  const shouldShow = collaborationAvailable && !isDiscovering
   const revealed = shouldShow && visible && inView
   
   const metrics = collaborationDiscovery?.metrics
   
-  const handleClick = () => openCollaborationGraph()
+  const handleClick = () => openCollaborationGraph({ autoTour })
   
-  const handleDismiss = (e) => {
+  const handleToggle = (e) => {
     e.stopPropagation()
-    setDismissed(true)
+    setAutoTour(v => !v)
   }
+  
   
   return (
     <div ref={wrapperRef} className={`${styles.wrapper} ${revealed ? styles.wrapperVisible : ''}`}>
@@ -125,6 +125,14 @@ export default function CollaborationBanner() {
         </p>
       </div>
       
+      {/* Toggle Tour Cósmico */}
+      <div className={styles.tourToggle} onClick={handleToggle} title="Iniciar Tour Cósmico al entrar">
+        <div className={`${styles.toggleTrack} ${autoTour ? styles.toggleTrackOn : ''}`}>
+          <div className={`${styles.toggleThumb} ${autoTour ? styles.toggleThumbOn : ''}`} />
+        </div>
+        <span className={`${styles.toggleLabel} ${autoTour ? styles.toggleLabelOn : ''}`}>Tour</span>
+      </div>
+      
       {/* Botón CTA */}
       <div className={styles.cta}>
         <span className={styles.ctaText}>Entrar</span>
@@ -134,10 +142,6 @@ export default function CollaborationBanner() {
         <div className={styles.ctaGlow} />
       </div>
       
-      {/* Cerrar */}
-      <button className={styles.dismissBtn} onClick={handleDismiss} aria-label="Descartar">
-        <FiX size={14} />
-      </button>
     </div>
     </div>
   )

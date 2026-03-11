@@ -242,13 +242,13 @@ export default function KPISection({ data }) {
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'repos'} />
         </div>
+        {hasFilters && (
+          <div className={styles.statBadge}>
+            <span className={styles.badgeText}>|FILTERED⟩</span>
+          </div>
+        )}
         <div className={styles.statHeader}>
           <Database className={styles.statIcon} size={32} />
-          {hasFilters && (
-            <div className={styles.statBadge}>
-              <span className={styles.badgeText}>|FILTERED⟩</span>
-            </div>
-          )}
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>
@@ -270,13 +270,13 @@ export default function KPISection({ data }) {
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'users'} />
         </div>
+        {hasFilters && (
+          <div className={styles.statBadge}>
+            <span className={styles.badgeText}>|FILTERED⟩</span>
+          </div>
+        )}
         <div className={styles.statHeader}>
           <Users className={styles.statIcon} size={32} />
-          {hasFilters && (
-            <div className={styles.statBadge}>
-              <span className={styles.badgeText}>|FILTERED⟩</span>
-            </div>
-          )}
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>
@@ -298,13 +298,13 @@ export default function KPISection({ data }) {
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'orgs'} />
         </div>
+        {hasFilters && (
+          <div className={styles.statBadge}>
+            <span className={styles.badgeText}>|FILTERED⟩</span>
+          </div>
+        )}
         <div className={styles.statHeader}>
           <Building2 className={styles.statIcon} size={32} />
-          {hasFilters && (
-            <div className={styles.statBadge}>
-              <span className={styles.badgeText}>|FILTERED⟩</span>
-            </div>
-          )}
         </div>
         <div className={styles.statContent}>
           <h3 className={styles.statValue}>

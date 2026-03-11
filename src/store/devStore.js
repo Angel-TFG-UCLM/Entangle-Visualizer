@@ -27,7 +27,7 @@ export const FEATURE_DEFINITIONS = {
     features: {
       heroKpis:           { label: 'Hero KPIs',            default: true },
       chartsSection:      { label: 'Gráficos Principales', default: true },
-      detailTables:       { label: 'Tablas de Detalle',    default: true },
+      detailTables:       { label: 'Tablas de Detalle',    default: false },
     },
   },
   colaboracion: {
@@ -47,6 +47,12 @@ export const FEATURE_DEFINITIONS = {
       universeView:       { label: 'Vista Universo',       default: true },
       favoritesPanel:     { label: 'Panel Favoritos',      default: true },
       offlineBanner:      { label: 'Banner Offline',       default: true },
+    },
+  },
+  envolvente: {
+    label: 'Envolvente Cuántico',
+    features: {
+      electronOrbits:     { label: 'Dyson Shell Cuántica', default: true },
     },
   },
 }
@@ -126,6 +132,14 @@ export const useDevStore = create(
       name: 'entangle-dev-features',
       version: 1,
       partialize: (state) => ({ features: state.features }),
+      merge: (persisted, current) => {
+        // Ensure new features from FEATURE_DEFINITIONS are always present
+        const merged = { ...current }
+        if (persisted && persisted.features) {
+          merged.features = { ...current.features, ...persisted.features }
+        }
+        return merged
+      },
       migrate: (persisted, version) => {
         // v0 → v1: Deshabilitar por defecto las 4 features avanzadas
         if (version === 0 || version === undefined) {

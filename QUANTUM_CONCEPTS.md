@@ -164,4 +164,60 @@ Todas las animaciones son CSS puro (compositor GPU), sin impactar el render loop
 
 ---
 
+## 17. Rayos cósmicos
+
+Los rayos cósmicos son partículas subatómicas de alta energía (protones, núcleos atómicos, electrones) que viajan por el espacio interestelar a velocidades cercanas a la de la luz. Su origen puede ser solar, galáctico (supernovas, púlsares) o extragaláctico (núcleos galácticos activos). Al interactuar con campos magnéticos o barreras materiales, producen cascadas de partículas secundarias (extensive air showers) y emisión de radiación Cherenkov.
+
+**En ENTANGLE →** Hasta 8 estrellas fugaces simultáneas surcan el universo 3D. El 55% son *rayos de escape* que nacen en el interior (R=100–500) y se dirigen hacia la Esfera de Dyson a 1000–1500 u/s, dejando estelas de cinta de 48 vértices con una paleta de 6 colores (cian, magenta, dorado, verde esmeralda, naranja plasma, violeta cuántico). Al alcanzar R ≥ 3500, impactan contra la esfera geodésica generando una onda de choque propagante y un flash en el epicentro que hereda el color del rayo. El 45% restante son *rayos normales* más lentos (200–480 u/s) que cruzan el interior del universo y se disipan sin impactar — representan la radiación cósmica de fondo que atraviesa el espacio sin interactuar con la barrera.
+
+---
+
+## 18. Esfera de Dyson
+
+Una esfera de Dyson es una megaestructura hipotética propuesta por Freeman Dyson (1960) que envolvería completamente una estrella para capturar toda su energía radiante. Es el nivel II en la escala de Kardashev de civilizaciones. En física cuántica, la frontera de un sistema cuántico confinado actúa como una barrera de potencial — una superficie donde las funciones de onda interactúan con las condiciones de contorno.
+
+**En ENTANGLE →** La esfera geodésica icosaédrica (icosaedro subdividido 4 veces, ~1280 triángulos) a radio 3500 envuelve todo el universo visible como la frontera del ecosistema cuántico. Sus aristas y nodos emiten un brillo tenue en azul profundo, con 12 pulsos de energía viajando continuamente por la malla. Cuando un rayo cósmico de escape impacta, se genera una onda de choque gaussiana (σ=400, velocidad=1500 u/s) que ilumina las aristas progresivamente durante 2.5 segundos, junto con un flash estático en el epicentro (σ=500). Los impactos heredan el color del rayo. Cuando el usuario selecciona una entidad o aplica un filtro, los impactos se atenúan un 85% para no distraer.
+
+---
+
+## 19. Ondas gravitacionales
+
+Las ondas gravitacionales son perturbaciones del espacio-tiempo predichas por la relatividad general de Einstein (1915) y detectadas experimentalmente por LIGO en septiembre de 2015 (Nobel de Física 2017). Se producen cuando masas enormes aceleran asimétricamente — fusiones de agujeros negros, colisiones de estrellas de neutrones, explosiones de supernovas.
+
+**En ENTANGLE →** Hasta 4 anillos concéntricos se propagan en el plano XZ desde las 8 organizaciones más grandes del ecosistema (los objetos más "masivos" del universo cuántico). Cada onda tiene un radio máximo de 90–150 unidades, velocidad de 28–43 u/s, grosor de 3.5–7 unidades y duración de 4–7 segundos, en azul profundo (`#4488ff`) con blending aditivo. Las ondas solo emanan de organizaciones cuya visibilidad supera 0.3, reforzando que solo los cuerpos más masivos generan perturbaciones gravitacionales detectables.
+
+---
+
+## 20. Espuma cuántica
+
+La espuma cuántica (quantum foam) es una hipótesis de John Wheeler (1955) que describe la estructura del espacio-tiempo a escala de Planck (~10⁻³⁵ m). A esas escalas, las fluctuaciones cuánticas del vacío son tan intensas que el espacio-tiempo pierde su suavidad y adquiere una topología "espumosa" donde la geometría fluctúa violentamente. Partículas virtuales aparecen y desaparecen continuamente por el principio de incertidumbre energía-tiempo (ΔE·Δt ≥ ℏ/2).
+
+**En ENTANGLE →** 200 partículas distribuidas esféricamente (R=30–1000, altura ±200) llenan el vacío entre entidades del grafo 3D. Cada partícula parpadea con ciclos de creación/aniquilación (rise → fall → flash) y un segundo armónico fuera de fase, simulando los pares partícula-antipartícula virtuales. Un jitter de Heisenberg (desplazamientos sinusoidales de ±2.5u con frecuencias únicas) refleja la incertidumbre posicional. Los colores van del blanco al cian eléctrico, evocando la energía del punto cero del vacío cuántico.
+
+---
+
+## 21. Interferencia cuántica
+
+La interferencia cuántica es el fenómeno donde múltiples funciones de onda se superponen, produciendo patrones de refuerzo constructivo (máximos de probabilidad) y destructivo (nodos). Fue demostrada por el experimento de la doble rendija de Young: incluso partículas individuales (fotones, electrones) producen patrones de interferencia al pasar por dos rendijas, evidenciando la dualidad onda-partícula. La distribución resultante: |ψ₁ + ψ₂|² = |ψ₁|² + |ψ₂|² + 2Re(ψ₁*ψ₂).
+
+**En ENTANGLE →** Una rejilla de 70×70 = 4900 puntos en el plano XZ (Y = −50) forma el "suelo" del universo 3D, extendiéndose de −2000 a +2000 en ambos ejes. 5 fuentes de onda (una central de alta frecuencia + 4 periféricas) se desplazan lentamente, generando un patrón de interferencia cambiante que nunca se repite. Los puntos oscilan verticalmente según la amplitud combinada y se colorean en tres tonos: verde (`#00ff88`) para máximos constructivos, violeta (`#aa44ff`) para destructivos, y cian (`#00ccff`) para nodos. El efecto visualiza cómo las contribuciones de diferentes organizaciones interfieren entre sí en el ecosistema.
+
+---
+
+## 22. Tour Cósmico (Tomografía cuántica)
+
+La tomografía cuántica es un protocolo experimental que reconstruye completamente el estado cuántico de un sistema mediante una secuencia planificada de mediciones en diferentes bases. A diferencia de una medición única (que colapsa el estado), la tomografía aplica múltiples operadores de medición para obtener información completa sobre las amplitudes y fases del estado.
+
+**En ENTANGLE →** El Tour Cósmico es un recorrido guiado automatizado que funciona como tomografía del universo 3D. La cámara visita secuencialmente distintas regiones (procesadores, qubits, partículas, conexiones, Dyson Shell) con interpolación suave y órbita cinemática, revelando un aspecto diferente del ecosistema en cada waypoint (cada "base de medición"). Puede iniciarse manualmente o como Auto-Tour (automáticamente ~8.8s después del Big Bang). Al completar todos los waypoints, la cámara entra en modo panorámico orbital (radio 620, altura 280). El usuario puede interrumpir el tour en cualquier momento interactuando con el canvas — equivalente a "colapsar" prematuramente la secuencia de mediciones.
+
+---
+
+## 23. Modo Simple (Temperatura cero)
+
+En física cuántica, al enfriar un sistema hasta el cero absoluto (0 K), las fluctuaciones térmicas desaparecen y solo persisten las fluctuaciones cuánticas del estado fundamental (energía de punto cero). Los procesadores cuánticos reales operan a temperaturas de ~15 mK (millikelvins) para suprimir el ruido térmico y mantener la coherencia de los qubits.
+
+**En ENTANGLE →** El Modo Simple (toggle en el panel de Ajustes) desactiva todos los efectos ambientales decorativos (CosmicRays, Dyson Shell, GravitationalWaves, QuantumFoam, InterferenceGrid, InterferenceField), manteniendo únicamente los componentes con datos reales (procesadores, qubits, partículas, conexiones, nubes de probabilidad). Equivale a "enfriar" el universo cuántico hasta que las fluctuaciones térmicas (efectos decorativos) se congelan, dejando solo los estados fundamentales (datos del ecosistema) visibles — como refrigerar un procesador cuántico a millikelvins para eliminar todo el ruido.
+
+---
+
 *Documento de referencia para la memoria del TFG — ENTANGLE*

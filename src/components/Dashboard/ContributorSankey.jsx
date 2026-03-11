@@ -38,6 +38,27 @@ const COLOR_PALETTE = [
   '#e76f51',   // Coral
 ]
 
+/**
+ * Detect sibling orgs (same parent entity, e.g. qiskit / qiskit-community).
+ */
+function _areSiblingOrgs(loginA, loginB) {
+  if (!loginA || !loginB) return false
+  const la = loginA.toLowerCase(), lb = loginB.toLowerCase()
+  if (la === lb) return true
+  // PRONG 1 — Token-based: first token match (≥4 chars), one must be single-token
+  const ta = la.split(/[-_.\s]+/).filter(Boolean)
+  const tb = lb.split(/[-_.\s]+/).filter(Boolean)
+  if (ta.length && tb.length && ta[0].length >= 4 && ta[0] === tb[0]) {
+    if (ta.length === 1 || tb.length === 1) return true
+  }
+  // PRONG 2 — Prefix-based: shorter normalised prefix of longer, ratio ≤ 3
+  const a = la.replace(/[-_\s.]+/g, ''), b = lb.replace(/[-_\s.]+/g, '')
+  if (!a || !b) return false
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a]
+  if (s.length >= 4 && l.startsWith(s) && l.length / s.length <= 3.0) return true
+  return false
+}
+
 export default function ContributorSankey() {
   const collaborationDiscovery = useDashboardStore(s => s.collaborationDiscovery)
   const isDiscovering = useDashboardStore(s => s.isDiscovering)
@@ -113,10 +134,11 @@ export default function ContributorSankey() {
       }
     })
 
-    // 3. Calcular flujos entre pares de orgs
+    // 3. Calcular flujos entre pares de orgs (excluyendo sibling orgs)
     const flowMap = {}
     for (let i = 0; i < orgLogins.length; i++) {
       for (let j = i + 1; j < orgLogins.length; j++) {
+        if (_areSiblingOrgs(orgLogins[i], orgLogins[j])) continue
         const [a, b] = [orgLogins[i], orgLogins[j]].sort()
         const key = `${a}-${b}`
         flowMap[key] = { source: a, target: b, users: [], totalContributions: 0 }

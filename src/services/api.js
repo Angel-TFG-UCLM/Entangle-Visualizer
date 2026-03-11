@@ -138,6 +138,7 @@ export async function getDashboardStats(forceRefresh = false, filters = {}) {
     if (filters.repo) params.repo = filters.repo;
     if (filters.collabType) params.collab_type = filters.collabType;
     if (filters.includeBots !== undefined) params.include_bots = filters.includeBots;
+    if (filters.discipline) params.discipline = filters.discipline;
     
     const response = await apiClient.get('/dashboard/stats', { params });
     
@@ -202,6 +203,23 @@ export async function getUsers(params = {}) {
     return response.data;
   } catch (error) {
     console.error('[getUsers] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener perfil completo de un usuario por login.
+ * Usado cuando el usuario no está en el top 10 del dashboard.
+ * Endpoint: GET /api/v1/users/profile/:login
+ * @param {string} login - Login del usuario
+ * @returns {Promise<Object>}
+ */
+export async function getUserProfile(login) {
+  try {
+    const response = await apiClient.get(`/users/profile/${encodeURIComponent(login)}`);
+    return response.data;
+  } catch (error) {
+    console.error('[getUserProfile] Error:', error);
     throw error;
   }
 }
@@ -283,16 +301,21 @@ export async function getUserCollaborationNetwork(userLogin) {
  * Busca bridge users, repos conectados, colaboración cross-org.
  * 
  * @param {boolean} forceRefresh - Si true, ignora caché y recalcula el grafo
- * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs }
+ * @param {Object} [temporalFilter] - Filtro temporal opcional
+ * @param {number} [temporalFilter.yearFrom] - Año inicio (incluido)
+ * @param {number} [temporalFilter.yearTo] - Año fin (incluido)
+ * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs, temporal_filter }
  */
-export async function discoverCollaboration(forceRefresh = false) {
+export async function discoverCollaboration(forceRefresh = false, temporalFilter = null) {
   try {
     const params = forceRefresh ? { force: true } : {};
+    if (temporalFilter?.yearFrom) params.year_from = temporalFilter.yearFrom;
+    if (temporalFilter?.yearTo) params.year_to = temporalFilter.yearTo;
     const response = await apiClient.get('/collaboration/discover', {
       params,
       timeout: 120000, // 2 min - la construcción del grafo completo puede tardar
     });
-    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}`);
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}, temporal=${temporalFilter ? `${temporalFilter.yearFrom || '∞'}–${temporalFilter.yearTo || '∞'}` : 'none'}`);
     return response.data;
   } catch (error) {
     console.error('[discoverCollaboration] Error:', error);
@@ -305,12 +328,18 @@ export async function discoverCollaboration(forceRefresh = false) {
  * Timeout extendido: la computación de grafos con ~30K nodos puede tardar ~90s.
  * 
  * @param {boolean} forceRefresh - Si forzar recálculo
+ * @param {Object} [temporalFilter] - Filtro temporal opcional
+ * @param {number} [temporalFilter.yearFrom] - Año inicio (incluido)
+ * @param {number} [temporalFilter.yearTo] - Año fin (incluido)
  * @returns {Promise<Object>} { node_metrics, communities, global_metrics }
  */
-export async function getNetworkMetrics(forceRefresh = false) {
+export async function getNetworkMetrics(forceRefresh = false, temporalFilter = null) {
   try {
+    const params = { force_refresh: forceRefresh };
+    if (temporalFilter?.yearFrom) params.year_from = temporalFilter.yearFrom;
+    if (temporalFilter?.yearTo) params.year_to = temporalFilter.yearTo;
     const response = await apiClient.get('/collaboration/network-metrics', {
-      params: { force_refresh: forceRefresh },
+      params,
       timeout: 180000, // 3 minutos - la computación de NetworkX es pesada
     });
     console.log(`📊 Network metrics: ${Object.keys(response.data.node_metrics || {}).length} nodes analyzed`);
@@ -552,5 +581,476 @@ export async function getFavoriteChildren(entityId) {
   }
 }
 
+// ============================================================================
+// PIPELINE & INGESTION MANAGEMENT
+// ============================================================================
+
+/**
+ * Ejecuta el pipeline completo (ingesta + enriquecimiento de repos, users, orgs).
+ * Endpoint: POST /pipeline/run-all
+ * 
+ * @param {'incremental'|'from_scratch'} mode - Modo de ejecución
+ *   - 'incremental': Solo datos nuevos/actualizados desde la última ingesta
+ *   - 'from_scratch': Limpia todas las colecciones y reingesta desde cero
+ * @param {number} [maxWorkers=4] - Workers paralelos para búsqueda segmentada (1-8)
+ * @returns {Promise<{task_id: string, status: string, mode: string, message: string}>}
+ */
+export async function runFullPipeline(mode = 'incremental', maxWorkers = 4) {
+  try {
+    const response = await apiClient.post('/pipeline/run-all', null, {
+      params: { mode, max_workers: maxWorkers },
+      timeout: 10000, // Solo espera al ACK, no al pipeline completo
+    });
+    console.log(`🚀 Pipeline iniciado (modo: ${mode}):`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runFullPipeline] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de repositorios individualmente.
+ * Endpoint: POST /ingestion/repositories
+ * 
+ * @param {Object} options - Opciones de ingesta
+ * @param {'incremental'|'from_scratch'|'full'} [options.mode='incremental'] - Modo de ingesta
+ * @param {number|null} [options.maxResults=null] - Límite de repos (null = todos)
+ * @param {number} [options.maxWorkers=4] - Workers paralelos (1-8)
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runRepositoryIngestion({ mode = 'incremental', maxResults = null, maxWorkers = 4 } = {}) {
+  try {
+    const params = {
+      incremental: mode === 'incremental',
+      from_scratch: mode === 'from_scratch',
+      max_workers: maxWorkers,
+    };
+    if (maxResults) params.max_results = maxResults;
+
+    const response = await apiClient.post('/ingestion/repositories', null, { params, timeout: 10000 });
+    console.log(`📥 Ingesta de repos iniciada (modo: ${mode}):`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runRepositoryIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta el enriquecimiento de repositorios individualmente.
+ * Endpoint: POST /enrichment/repositories
+ * 
+ * @param {Object} options - Opciones de enriquecimiento
+ * @param {boolean} [options.forceReenrich=false] - Re-enriquecer incluso repos completos
+ * @param {number|null} [options.maxRepos=null] - Límite de repos (null = todos)
+ * @param {number} [options.batchSize=10] - Tamaño de lote
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runRepositoryEnrichment({ forceReenrich = false, maxRepos = null, batchSize = 10 } = {}) {
+  try {
+    const params = { force_reenrich: forceReenrich, batch_size: batchSize };
+    if (maxRepos) params.max_repos = maxRepos;
+
+    const response = await apiClient.post('/enrichment/repositories', null, { params, timeout: 10000 });
+    console.log(`🔄 Enriquecimiento de repos iniciado:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runRepositoryEnrichment] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de usuarios.
+ * Endpoint: POST /ingestion/users
+ * 
+ * @param {Object} options - Opciones
+ * @param {boolean} [options.fromScratch=false] - Limpiar y reingestar
+ * @param {number} [options.batchSize=50] - Tamaño de lote
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runUserIngestion({ fromScratch = false, batchSize = 50 } = {}) {
+  try {
+    const params = { from_scratch: fromScratch, batch_size: batchSize };
+    const response = await apiClient.post('/ingestion/users', null, { params, timeout: 10000 });
+    console.log(`👤 Ingesta de usuarios iniciada:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runUserIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ejecuta la ingesta de organizaciones.
+ * Endpoint: POST /ingestion/organizations
+ * 
+ * @param {Object} options - Opciones
+ * @param {boolean} [options.fromScratch=false] - Limpiar y reingestar
+ * @returns {Promise<{task_id: string, status: string}>}
+ */
+export async function runOrganizationIngestion({ fromScratch = false } = {}) {
+  try {
+    const params = { from_scratch: fromScratch };
+    const response = await apiClient.post('/ingestion/organizations', null, { params, timeout: 10000 });
+    console.log(`🏢 Ingesta de orgs iniciada:`, response.data.task_id);
+    return response.data;
+  } catch (error) {
+    console.error('[runOrganizationIngestion] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Consulta el estado de una tarea en ejecución (ingesta, enriquecimiento o pipeline).
+ * Endpoint: GET /ingestion/status/{taskId}
+ * 
+ * @param {string} taskId - ID de la tarea obtenido al iniciar la operación
+ * @returns {Promise<{status: 'running'|'completed'|'completed_with_errors'|'failed', progress: string, ...}>}
+ */
+export async function getTaskStatus(taskId) {
+  try {
+    const response = await apiClient.get(`/ingestion/status/${encodeURIComponent(taskId)}`);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return { status: 'not_found', progress: 'Tarea no encontrada' };
+    }
+    console.error('[getTaskStatus] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Lista todas las tareas registradas en el backend.
+ * Endpoint: GET /tasks
+ * 
+ * @returns {Promise<{total_tasks: number, tasks: Array<{task_id, status, started_at, progress}>}>}
+ */
+export async function listTasks() {
+  try {
+    const response = await apiClient.get('/tasks');
+    return response.data;
+  } catch (error) {
+    console.error('[listTasks] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Polling helper: consulta el estado de una tarea cada `interval` ms hasta que termine.
+ * 
+ * @param {string} taskId - ID de la tarea
+ * @param {function} onUpdate - Callback llamado con cada actualización de estado
+ * @param {number} [interval=5000] - Intervalo de polling en ms
+ * @returns {Promise<object>} - Estado final de la tarea
+ */
+export async function pollTaskUntilDone(taskId, onUpdate = () => {}, interval = 5000) {
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        const status = await getTaskStatus(taskId);
+        onUpdate(status);
+
+        if (['completed', 'completed_with_errors', 'failed', 'not_found'].includes(status.status)) {
+          resolve(status);
+        } else {
+          setTimeout(poll, interval);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    poll();
+  });
+}
+
 // Exportar la instancia de axios por si se necesita usar directamente
 export default apiClient;
+
+
+// ============================================================================
+// CHAT API — Asistente IA del ecosistema cuántico
+// ============================================================================
+
+/**
+ * Envía un mensaje al agente de IA via streaming SSE.
+ * Permite recibir pasos de razonamiento en tiempo real y cancelar.
+ * 
+ * @param {string} message - Pregunta del usuario
+ * @param {Array|null} history - Historial de conversación previo
+ * @param {Object} callbacks - Callbacks para los distintos eventos
+ * @param {function} callbacks.onThinking - ({tool, description, round}) => void
+ * @param {function} callbacks.onToolResult - ({tool, summary}) => void
+ * @param {function} callbacks.onReply - ({content, history, tools_used}) => void
+ * @param {function} callbacks.onError - (errorMsg) => void
+ * @param {function} [callbacks.onAction] - ({action, data}) => void — acción del agente en el frontend
+ * @param {AbortSignal} [signal] - AbortController signal para cancelar
+ * @returns {Promise<void>}
+ */
+export async function sendChatMessageStream(message, history = null, callbacks = {}, signal = null) {
+  const url = `${BASE_URL}/chat/stream`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Error desconocido');
+    callbacks.onError?.(errText);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  // Tiempo mínimo (ms) que cada mensaje de estado permanece visible
+  // antes de que el siguiente lo sobreescriba.
+  const MIN_STATUS_MS = 400;
+  let lastStatusTs = 0;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    
+    // Parsear líneas SSE (formato: "data: {...}\n\n")
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop(); // último fragmento incompleto
+
+    for (const line of lines) {
+      const stripped = line.replace(/^data:\s*/, '').trim();
+      if (!stripped) continue;
+
+      try {
+        const event = JSON.parse(stripped);
+
+        // Para eventos intermedios (no reply/error), garantizar que el
+        // mensaje de estado anterior se haya mostrado al menos MIN_STATUS_MS
+        // antes de reemplazarlo. Esto evita que mensajes consecutivos que
+        // llegan en un mismo chunk se vean como un flash imperceptible.
+        const isIntermediate = event.type !== 'reply' && event.type !== 'error';
+        if (isIntermediate && lastStatusTs > 0) {
+          const gap = Date.now() - lastStatusTs;
+          if (gap < MIN_STATUS_MS) {
+            await new Promise(r => setTimeout(r, MIN_STATUS_MS - gap));
+          }
+        }
+
+        switch (event.type) {
+          case 'thinking':
+            callbacks.onThinking?.(event);
+            break;
+          case 'tool_result':
+            callbacks.onToolResult?.(event);
+            break;
+          case 'status':
+            callbacks.onStatus?.(event);
+            break;
+          case 'routing':
+            callbacks.onRouting?.(event);
+            break;
+          case 'action':
+            callbacks.onAction?.(event);
+            break;
+          case 'reply':
+            callbacks.onReply?.(event);
+            break;
+          case 'error':
+            callbacks.onError?.(event.content);
+            break;
+        }
+
+        if (isIntermediate) {
+          lastStatusTs = Date.now();
+        }
+
+        // Ceder control al navegador para que React renderice
+        await new Promise(r => setTimeout(r, 0));
+      } catch (e) {
+        console.warn('[SSE] Error parsing event:', stripped, e);
+      }
+    }
+  }
+}
+
+/**
+ * Envía un mensaje al agente de IA (versión no-streaming, fallback).
+ * @param {string} message - Pregunta del usuario
+ * @param {Array|null} history - Historial de conversación previo
+ * @returns {Promise<{reply: string, history: Array, tools_used: string[]}>}
+ */
+export async function sendChatMessage(message, history = null) {
+  const response = await apiClient.post('/chat', { message, history }, { timeout: 120000 });
+  return response.data;
+}
+
+
+// ============================================================================
+// ADMIN API — Panel de administración protegido
+// ============================================================================
+
+/**
+ * Comprueba si ya hay una contraseña de admin configurada.
+ * @returns {Promise<{has_password: boolean}>}
+ */
+export async function adminHasPassword() {
+  const response = await apiClient.get('/admin/has-password');
+  return response.data;
+}
+
+/**
+ * Configura la contraseña de admin (primera vez o cambio).
+ * @param {string} password - Nueva contraseña
+ * @param {string|null} currentPassword - Contraseña actual (requerida si ya existe una)
+ * @returns {Promise<{success: boolean, message: string, is_new: boolean}>}
+ */
+export async function adminSetupPassword(password, currentPassword = null) {
+  const payload = { password };
+  if (currentPassword) payload.current_password = currentPassword;
+  const response = await apiClient.post('/admin/setup-password', payload);
+  return response.data;
+}
+
+/**
+ * Autentica como admin con contraseña.
+ * @param {string} password
+ * @returns {Promise<{authenticated: boolean, token: string}>}
+ */
+export async function adminAuthenticate(password) {
+  const response = await apiClient.post('/admin/auth', { password });
+  return response.data;
+}
+
+/**
+ * Ejecuta una operación (ingesta, enriquecimiento o pipeline).
+ * @param {string} token - Token de sesión admin
+ * @param {Object} operation - Datos de la operación
+ * @returns {Promise<Object>} - Datos de la operación iniciada
+ */
+export async function adminRunOperation(token, operation) {
+  const response = await apiClient.post('/admin/operations/run', operation, {
+    params: { token },
+    timeout: 15000,
+  });
+  return response.data;
+}
+
+/**
+ * Obtiene las operaciones activas.
+ * @param {string} token
+ * @returns {Promise<{count: number, operations: Array}>}
+ */
+export async function adminGetActiveOperations(token) {
+  const response = await apiClient.get('/admin/operations/active', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Obtiene el estado de una operación específica.
+ * @param {string} token
+ * @param {string} operationId
+ * @returns {Promise<Object>}
+ */
+export async function adminGetOperationStatus(token, operationId) {
+  const response = await apiClient.get(`/admin/operations/${encodeURIComponent(operationId)}`, {
+    params: { token },
+  });
+  return response.data;
+}
+
+/**
+ * Cancela una operación en curso.
+ * @param {string} token
+ * @param {string} operationId
+ * @returns {Promise<Object>}
+ */
+export async function adminCancelOperation(token, operationId) {
+  const response = await apiClient.post(`/admin/operations/${encodeURIComponent(operationId)}/cancel`, null, {
+    params: { token },
+  });
+  return response.data;
+}
+
+/**
+ * Obtiene los logs en tiempo real de una operación.
+ * Usa `since` para polling incremental (solo logs nuevos).
+ * @param {string} token
+ * @param {string} operationId
+ * @param {number} since - Índice desde el que obtener logs
+ * @returns {Promise<{logs: Array, total: number, next_index: number}>}
+ */
+export async function adminGetOperationLogs(token, operationId, since = 0) {
+  const response = await apiClient.get(`/admin/operations/${encodeURIComponent(operationId)}/logs`, {
+    params: { token, since },
+  });
+  return response.data;
+}
+
+/**
+ * Obtiene el historial de operaciones.
+ * @param {string} token
+ * @param {number} limit
+ * @param {string|null} operationType
+ * @returns {Promise<{count: number, operations: Array}>}
+ */
+export async function adminGetHistory(token, limit = 50, operationType = null) {
+  const params = { token, limit };
+  if (operationType) params.operation_type = operationType;
+  const response = await apiClient.get('/admin/history', { params });
+  return response.data;
+}
+
+/**
+ * Limpia el historial de operaciones.
+ * @param {string} token
+ * @returns {Promise<{deleted: number}>}
+ */
+export async function adminClearHistory(token) {
+  const response = await apiClient.delete('/admin/history', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Obtiene estadísticas de la base de datos.
+ * @param {string} token
+ * @returns {Promise<Object>}
+ */
+export async function adminGetDbStats(token) {
+  const response = await apiClient.get('/admin/db-stats', { params: { token } });
+  return response.data;
+}
+
+/**
+ * Polling helper para operaciones admin: consulta estado cada `interval` ms.
+ * @param {string} token
+ * @param {string} operationId
+ * @param {function} onUpdate
+ * @param {number} interval
+ * @returns {Promise<Object>}
+ */
+export async function adminPollOperation(token, operationId, onUpdate = () => {}, interval = 2000) {
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        const status = await adminGetOperationStatus(token, operationId);
+        onUpdate(status);
+
+        if (['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(status.status)) {
+          resolve(status);
+        } else {
+          setTimeout(poll, interval);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    poll();
+  });
+}

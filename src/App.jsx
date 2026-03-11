@@ -31,6 +31,9 @@ import CollaborationBanner from './components/Dashboard/CollaborationBanner'
 import FavoritesPanel from './components/Dashboard/FavoritesPanel'
 import ViewBar from './components/Dashboard/ViewBar'
 import DevMenu from './components/Dashboard/DevMenu'
+import AdminPanel from './components/Dashboard/AdminPanel'
+import QuantumChat from './components/Dashboard/QuantumChat'
+import FloatingChat from './components/Dashboard/FloatingChat'
 import { useDevStore } from './store/devStore'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
@@ -70,6 +73,7 @@ function App() {
   const activeViewId = useFavoritesStore(s => s.activeViewId)
   const activeViewData = useFavoritesStore(s => s.activeViewData)
   const favoritesCount = useFavoritesStore(s => s.favorites.length)
+  const isLoadingViewData = useFavoritesStore(s => s.isLoadingViewData)
 
   // Dev features
   const devFeatures = useDevStore(s => s.features)
@@ -497,6 +501,11 @@ function App() {
             <div id="section-kpis" className={styles.heroKPIs}>
               <KPISection data={data} />
             </div>
+
+            {/* Asistente IA cuántico */}
+            <div className={styles.heroChat}>
+              <QuantumChat />
+            </div>
             
             <p className={styles.heroFooter}>
               <span className={styles.heroEquation}>iℏ ∂/∂t |ψ⟩ = Ĥ |ψ⟩</span>
@@ -561,8 +570,50 @@ function App() {
         </Suspense>
       )}
 
+      {/* BLOCK UI - Bloqueo durante cambio de vista */}
+      {isLoadingViewData && (
+        <div className={styles.blockUI}>
+          <div className={styles.blockUIContent}>
+            <svg
+              className={styles.blockUISpinner}
+              viewBox="0 0 120 120" width="60" height="60"
+            >
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 212, 228, 0.3)" strokeWidth="1.5" className={styles.atomOrbit1} />
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(157, 111, 219, 0.3)" strokeWidth="1.5" className={styles.atomOrbit2} />
+              <ellipse cx="60" cy="60" rx="50" ry="18" fill="none" stroke="rgba(0, 255, 159, 0.25)" strokeWidth="1.5" className={styles.atomOrbit3} />
+              <circle r="4" fill="#00D4E4" filter="url(#blockGlow)">
+                <animateMotion dur="2s" repeatCount="indefinite" path="M 110,60 A 50,18 0 1,1 10,60 A 50,18 0 1,1 110,60" />
+              </circle>
+              <circle r="3.5" fill="#9D6FDB" filter="url(#blockGlow)">
+                <animateMotion dur="2.6s" repeatCount="indefinite" path="M 95,82.7 A 50,18 60 1,1 25,37.3 A 50,18 60 1,1 95,82.7" />
+              </circle>
+              <circle r="3" fill="#00ff9f" filter="url(#blockGlow)">
+                <animateMotion dur="3.2s" repeatCount="indefinite" path="M 25,82.7 A 50,18 120 1,1 95,37.3 A 50,18 120 1,1 25,82.7" />
+              </circle>
+              <circle cx="60" cy="60" r="6" fill="rgba(0, 212, 228, 0.5)" className={styles.atomCore} />
+              <circle cx="60" cy="60" r="3" fill="rgba(255, 255, 255, 0.7)" />
+              <defs>
+                <filter id="blockGlow" x="-200%" y="-200%" width="500%" height="500%">
+                  <feGaussianBlur stdDeviation="4" result="g" />
+                  <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+            </svg>
+            <p className={styles.blockUIText}>
+              Cargando vista personalizada...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING CHAT — FAB fijo en esquina inferior derecha */}
+      <FloatingChat />
+
       {/* DEV MENU */}
       <DevMenu />
+
+      {/* ADMIN PANEL */}
+      <AdminPanel />
 
       {/* FOOTER CON CIRCUITO CUÁNTICO */}
       {devFeatures.footer !== false && <footer className={styles.footer}>
@@ -582,11 +633,11 @@ function App() {
             <svg viewBox="0 0 600 60" className={styles.circuitSvg} preserveAspectRatio="xMidYMid meet">
               <defs>
                 <linearGradient id="circuitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="rgba(0, 212, 228, 0)" />
-                  <stop offset="20%" stopColor="rgba(0, 212, 228, 0.4)" />
-                  <stop offset="50%" stopColor="rgba(157, 111, 219, 0.4)" />
-                  <stop offset="80%" stopColor="rgba(0, 212, 228, 0.4)" />
-                  <stop offset="100%" stopColor="rgba(0, 212, 228, 0)" />
+                  <stop offset="0%" stopColor="rgba(0, 212, 228, 0.05)" />
+                  <stop offset="15%" stopColor="rgba(0, 212, 228, 0.6)" />
+                  <stop offset="50%" stopColor="rgba(157, 111, 219, 0.6)" />
+                  <stop offset="85%" stopColor="rgba(0, 212, 228, 0.6)" />
+                  <stop offset="100%" stopColor="rgba(0, 212, 228, 0.05)" />
                 </linearGradient>
                 <filter id="glow">
                   <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
@@ -600,32 +651,32 @@ function App() {
               <line x1="50" y1="20" x2="550" y2="20" stroke="url(#circuitGrad)" strokeWidth="1.5" />
               <line x1="50" y1="40" x2="550" y2="40" stroke="url(#circuitGrad)" strokeWidth="1.5" />
               {/* Etiquetas de qubit */}
-              <text x="30" y="24" fill="rgba(0, 212, 228, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
-              <text x="30" y="44" fill="rgba(157, 111, 219, 0.5)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
+              <text x="30" y="24" fill="rgba(0, 212, 228, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
+              <text x="30" y="44" fill="rgba(157, 111, 219, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
               {/* Puerta Hadamard */}
-              <rect x="115" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" className={styles.gateH} />
-              <text x="125" y="24" fill="rgba(0, 212, 228, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
+              <rect x="115" y="10" width="20" height="20" rx="3" fill="rgba(0, 212, 228, 0.06)" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" className={styles.gateH} />
+              <text x="125" y="24" fill="rgba(0, 212, 228, 0.9)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
               {/* CNOT */}
-              <circle cx="200" cy="20" r="6" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" className={styles.gateCNOT} />
-              <line x1="200" y1="14" x2="200" y2="26" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
-              <line x1="194" y1="20" x2="206" y2="20" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
-              <line x1="200" y1="26" x2="200" y2="40" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1.5" strokeDasharray="3 2" />
-              <circle cx="200" cy="40" r="4" fill="rgba(157, 111, 219, 0.4)" className={styles.gateCNOT} />
+              <circle cx="200" cy="20" r="6" fill="none" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" className={styles.gateCNOT} />
+              <line x1="200" y1="14" x2="200" y2="26" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
+              <line x1="194" y1="20" x2="206" y2="20" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
+              <line x1="200" y1="26" x2="200" y2="40" stroke="rgba(157, 111, 219, 0.6)" strokeWidth="1.5" strokeDasharray="3 2" />
+              <circle cx="200" cy="40" r="4" fill="rgba(157, 111, 219, 0.6)" className={styles.gateCNOT} />
               {/* Puerta Z */}
-              <rect x="280" y="10" width="20" height="20" rx="3" fill="none" stroke="rgba(0, 255, 159, 0.4)" strokeWidth="1.5" className={styles.gateZ} />
-              <text x="290" y="24" fill="rgba(0, 255, 159, 0.6)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">Z</text>
+              <rect x="280" y="10" width="20" height="20" rx="3" fill="rgba(0, 255, 159, 0.06)" stroke="rgba(0, 255, 159, 0.6)" strokeWidth="1.5" className={styles.gateZ} />
+              <text x="290" y="24" fill="rgba(0, 255, 159, 0.8)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">Z</text>
               {/* Segundo Hadamard */}
-              <rect x="355" y="30" width="20" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" className={styles.gateH2} />
-              <text x="365" y="44" fill="rgba(157, 111, 219, 0.7)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
+              <rect x="355" y="30" width="20" height="20" rx="3" fill="rgba(157, 111, 219, 0.06)" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" className={styles.gateH2} />
+              <text x="365" y="44" fill="rgba(157, 111, 219, 0.9)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
               {/* Medición */}
-              <rect x="440" y="10" width="24" height="20" rx="3" fill="none" stroke="rgba(0, 212, 228, 0.4)" strokeWidth="1.5" className={styles.gateMeasure} />
-              <path d="M 446,26 Q 452,16 458,26" fill="none" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
-              <line x1="452" y1="20" x2="456" y2="14" stroke="rgba(0, 212, 228, 0.5)" strokeWidth="1.5" />
-              <rect x="440" y="30" width="24" height="20" rx="3" fill="none" stroke="rgba(157, 111, 219, 0.4)" strokeWidth="1.5" className={styles.gateMeasure} />
-              <path d="M 446,46 Q 452,36 458,46" fill="none" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" />
-              <line x1="452" y1="40" x2="456" y2="34" stroke="rgba(157, 111, 219, 0.5)" strokeWidth="1.5" />
+              <rect x="440" y="10" width="24" height="20" rx="3" fill="rgba(0, 212, 228, 0.06)" stroke="rgba(0, 212, 228, 0.6)" strokeWidth="1.5" className={styles.gateMeasure} />
+              <path d="M 446,26 Q 452,16 458,26" fill="none" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
+              <line x1="452" y1="20" x2="456" y2="14" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
+              <rect x="440" y="30" width="24" height="20" rx="3" fill="rgba(157, 111, 219, 0.06)" stroke="rgba(157, 111, 219, 0.6)" strokeWidth="1.5" className={styles.gateMeasure} />
+              <path d="M 446,46 Q 452,36 458,46" fill="none" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" />
+              <line x1="452" y1="40" x2="456" y2="34" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" />
               {/* Estado final Bell */}
-              <text x="570" y="32" fill="rgba(0, 212, 228, 0.4)" fontSize="9" fontFamily="var(--font-family-mono)" textAnchor="start">|Φ⁺⟩</text>
+              <text x="570" y="32" fill="rgba(0, 212, 228, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="start" filter="url(#glow)">|Φ⁺⟩</text>
             </svg>
             <p className={styles.circuitLabel}>Circuito de Par de Bell - Estado máximamente entrelazado</p>
           </div>

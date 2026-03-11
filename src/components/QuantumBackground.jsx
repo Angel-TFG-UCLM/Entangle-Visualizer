@@ -205,6 +205,7 @@ export default function QuantumBackground() {
   return (
     <canvas
       ref={canvasRef}
+      data-quantum-bg
       style={{
         position: 'fixed',
         top: 0,

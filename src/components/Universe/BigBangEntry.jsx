@@ -270,10 +270,11 @@ class SpacetimeRipple {
 // ══════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════
-export default function BigBangEntry({ active, wrapperRef }) {
+export default function BigBangEntry({ active, wrapperRef, replay = 0 }) {
   const canvasRef = useRef(null)
   const animRef = useRef(null)
   const hasRunRef = useRef(false)
+  const lastReplayRef = useRef(replay)
 
   const runAnimation = useCallback(() => {
     // Prevent double-run
@@ -544,9 +545,21 @@ export default function BigBangEntry({ active, wrapperRef }) {
   }, [wrapperRef])
 
   useEffect(() => {
+    // Detect replay trigger — reset hasRunRef to allow re-run
+    if (replay !== lastReplayRef.current) {
+      lastReplayRef.current = replay
+      hasRunRef.current = false
+      if (animRef.current) {
+        cancelAnimationFrame(animRef.current)
+        animRef.current = null
+      }
+      if (canvasRef.current) canvasRef.current.style.opacity = ''
+    }
+
     if (active && !hasRunRef.current) {
       runAnimation()
     }
+
     return () => {
       if (animRef.current) {
         cancelAnimationFrame(animRef.current)
@@ -558,9 +571,9 @@ export default function BigBangEntry({ active, wrapperRef }) {
         wrapperEl.style.willChange = ''
       }
       if (canvasRef.current) canvasRef.current.style.opacity = ''
-      hasRunRef.current = false
+      // hasRunRef NOT reset in cleanup — only replay counter resets it
     }
-  }, [active, runAnimation, wrapperRef])
+  }, [active, replay, runAnimation, wrapperRef])
 
   if (!active) return null
 
@@ -570,7 +583,7 @@ export default function BigBangEntry({ active, wrapperRef }) {
       style={{
         position: 'absolute',
         inset: 0,
-        zIndex: 200,
+        zIndex: 250,
         pointerEvents: 'none',
       }}
     />

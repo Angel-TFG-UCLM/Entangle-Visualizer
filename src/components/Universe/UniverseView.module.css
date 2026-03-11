@@ -31,6 +31,27 @@
      cada hijo interactivo activa pointer-events individualmente */
 }
 
+/* ── Tour: ocultar UI gradualmente (excepto timeline y overlay) ── */
+@keyframes tourUIFadeOut {
+  from { opacity: 1; filter: blur(0); }
+  to   { opacity: 0; filter: blur(4px); }
+}
+
+.tourHideElement {
+  animation: tourUIFadeOut 1.2s ease-out forwards;
+  pointer-events: none !important;
+}
+
+/* ── Tour: revelar UI gradualmente al salir del tour ── */
+@keyframes tourUIFadeIn {
+  from { opacity: 0; filter: blur(3px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+
+.tourRevealElement {
+  animation: tourUIFadeIn 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* Canvas wrapper */
 .canvasWrapper {
   position: absolute;
@@ -382,17 +403,7 @@
   justify-content: space-between;
   background: linear-gradient(180deg, rgba(5, 5, 16, 0.9) 0%, rgba(5, 5, 16, 0.4) 70%, transparent 100%);
   pointer-events: none;
-  z-index: 25;
-}
-.header::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 24px;
-  right: 24px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 247, 255, 0.15) 20%, rgba(189, 0, 255, 0.15) 80%, transparent);
-  opacity: 0.6;
+  z-index: 50;
 }
 
 .headerLeft {
@@ -554,7 +565,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
     0 0 1px rgba(255, 255, 255, 0.05) inset;
   padding: 6px 0;
-  z-index: 100;
+  z-index: 200;
   animation: settingsSlideIn 0.2s ease-out;
 }
 
@@ -566,6 +577,22 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.settingsDropdownClosing {
+  animation: settingsSlideOut 0.18s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes settingsSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
   }
 }
 
@@ -661,6 +688,148 @@
   border-radius: 50%;
   flex-shrink: 0;
   transition: all 0.25s ease;
+}
+
+/* ============================================================================
+   Temporal Filter (within settings dropdown)
+   ============================================================================ */
+
+.temporalFilterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 14px 2px;
+}
+
+.temporalInputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.temporalLabel {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.temporalInput {
+  width: 100%;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+  transition: border-color 0.2s ease;
+  -moz-appearance: textfield;
+}
+
+.temporalInput::-webkit-outer-spin-button,
+.temporalInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.temporalInput:focus {
+  border-color: rgba(255, 159, 67, 0.5);
+  box-shadow: 0 0 8px rgba(255, 159, 67, 0.15);
+}
+
+.temporalInput::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.temporalDash {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  padding-bottom: 4px;
+}
+
+.temporalActions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 14px 2px;
+}
+
+.temporalApplyBtn {
+  flex: 1;
+  padding: 5px 10px;
+  background: rgba(255, 159, 67, 0.15);
+  border: 1px solid rgba(255, 159, 67, 0.3);
+  border-radius: 6px;
+  color: #ff9f43;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.temporalApplyBtn:hover:not(:disabled) {
+  background: rgba(255, 159, 67, 0.25);
+  border-color: rgba(255, 159, 67, 0.5);
+}
+
+.temporalApplyBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.temporalClearBtn {
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.temporalClearBtn:hover:not(:disabled) {
+  background: rgba(255, 100, 100, 0.1);
+  border-color: rgba(255, 100, 100, 0.3);
+  color: #ff6b6b;
+}
+
+.temporalClearBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.temporalActiveTag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 14px 6px;
+  font-size: 9px;
+  color: #ff9f43;
+  letter-spacing: 0.5px;
+}
+
+.temporalBadge {
+  border-color: rgba(255, 159, 67, 0.25) !important;
+  background: rgba(255, 159, 67, 0.08) !important;
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================================================
@@ -797,15 +966,14 @@
   width: 310px;
   max-height: calc(100vh - 140px);
   overflow-y: auto;
-  background: rgba(10, 12, 30, 0.88);
+  background: rgba(10, 12, 30, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 16px;
   z-index: 20;
-  backdrop-filter: blur(24px);
   pointer-events: auto;
-  animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 0.3s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -820,10 +988,11 @@
   padding: 22px 28px;
   border-radius: 18px;
   border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(8, 10, 28, 0.95);
+  background: rgba(8, 10, 28, 0.97);
   box-shadow: 0 0 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
   animation: expandPanel 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
+  z-index: 30;
 }
 
 /* Overlay backdrop when expanded */
@@ -983,7 +1152,7 @@
 
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(30px) scale(0.97); }
-  to   { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* Closing animations */
@@ -1150,6 +1319,81 @@
   width: 100%;
   font-size: 10px;
   color: rgba(255, 189, 0, 0.5);
+}
+
+/* Discipline badge - prominent in sidebar */
+.detailDisciplineBadge {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--disc-color, #888) 20%, transparent);
+}
+
+.detailDisciplineDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--disc-color, #888) 40%, transparent);
+}
+
+.detailDisciplineInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.detailDisciplineLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--disc-color, #888);
+}
+
+.detailDisciplineConf {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Multidisciplinary breakdown rows */
+.detailMultiDiscBreakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detailMultiDiscRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detailMultiDiscDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.detailMultiDiscName {
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.6);
+  flex: 1;
+}
+
+.detailMultiDiscPct {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  min-width: 28px;
+  text-align: right;
 }
 
 .detailBody {
@@ -2266,11 +2510,41 @@
    Help Button + Panel ("¿Qué estoy viendo?")
    ============================================================================ */
 
-.helpBtn {
+.bottomActions {
   position: absolute;
   bottom: 54px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 15;
+  pointer-events: auto;
+}
+
+.tourBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: rgba(8, 10, 24, 0.7);
+  border: 1px solid rgba(189, 0, 255, 0.15);
+  border-radius: 20px;
+  color: rgba(189, 0, 255, 0.55);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s ease;
+}
+
+.tourBtn:hover {
+  background: rgba(189, 0, 255, 0.08);
+  color: rgba(189, 0, 255, 0.9);
+  border-color: rgba(189, 0, 255, 0.35);
+  box-shadow: 0 0 20px rgba(189, 0, 255, 0.12);
+}
+
+.helpBtn {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2280,10 +2554,8 @@
   border-radius: 20px;
   color: rgba(0, 247, 255, 0.5);
   font-size: 11px;
-  pointer-events: auto;
   letter-spacing: 0.5px;
   cursor: pointer;
-  z-index: 15;
   backdrop-filter: blur(16px);
   transition: all 0.3s ease;
 }
@@ -2318,6 +2590,16 @@
 @keyframes helpSlideUp {
   from { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.97); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.helpPanelClosing {
+  animation: helpSlideDown 0.25s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes helpSlideDown {
+  from { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.97); }
 }
 
 .helpHeader {
@@ -2638,9 +2920,17 @@
   }
 
   .helpBtn {
-    bottom: 44px;
     font-size: 10px;
     padding: 5px 10px;
+  }
+
+  .tourBtn {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+
+  .bottomActions {
+    bottom: 44px;
   }
 
   .helpPanel {
@@ -2741,6 +3031,153 @@
   to { transform: rotate(360deg); }
 }
 
+/* === Discipline lens hover filter popup === */
+
+.disciplineLensWrapper {
+  position: relative;
+}
+
+.disciplineFilterPopup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 190px;
+  background: rgba(8, 10, 20, 0.94);
+  border: 1px solid rgba(0, 255, 159, 0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  padding: 6px 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* Invisible bridge to keep hover alive across the 8px gap */
+.disciplineFilterPopup::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+.disciplineLensWrapper:hover .disciplineFilterPopup {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+
+
+.disciplineFilterTitle {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 4px 12px 6px;
+  font-weight: 600;
+}
+
+.disciplineFilterItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.disciplineFilterItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.disciplineFilterItemActive {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.disciplineFilterDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.disciplineFilterClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0 12px;
+  max-height: 0;
+  overflow: hidden;
+  background: none;
+  border: none;
+  border-top: 1px solid transparent;
+  margin-top: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              border-color 0.3s ease,
+              color 0.15s ease;
+}
+
+.disciplineFilterClearVisible {
+  max-height: 28px;
+  padding: 5px 12px;
+  margin-top: 2px;
+  border-top-color: rgba(255, 255, 255, 0.06);
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.disciplineFilterClear:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.disciplineFilterBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(0, 255, 159, 0.25);
+  color: #00ff9f;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 3px;
+  margin-left: 2px;
+}
+
+.lensBtnFiltered {
+  border-color: rgba(0, 255, 159, 0.3) !important;
+  box-shadow: 0 0 8px rgba(0, 255, 159, 0.15);
+}
+
 /* ============================================================================
    QUANTUM TUNNELING - Search & Path
    ============================================================================ */
@@ -2773,6 +3210,22 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.tunnelingPanelClosing {
+  animation: tunnelingPanelOut 0.22s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes tunnelingPanelOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
   }
 }
 
@@ -3440,6 +3893,12 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 247, 255, 0.06);
   max-height: 60vh;
   overflow-y: auto;
+  animation: searchDropIn 0.2s ease-out;
+}
+
+@keyframes searchDropIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .searchResultCount {
@@ -3579,7 +4038,8 @@
   backdrop-filter: blur(16px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   pointer-events: none;
-  animation: tooltipFadeIn 0.15s ease-out;
+  transition: opacity 0.12s ease-out;
+  will-change: opacity, left, top;
 }
 .floatingTooltip::after {
   content: '';
@@ -3625,3 +4085,568 @@
   100% { opacity: 0; filter: blur(6px); transform: scale(0.97); }
 }
 
+/* ============================================================================
+   TIMELINE SLIDER - Barra temporal inferior
+   ============================================================================ */
+
+.timelineSlider {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 20;
+  pointer-events: auto;
+  animation: timelineAppear 0.6s ease-out both;
+}
+
+@keyframes timelineAppear {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.timelineSliderTourMode {
+  pointer-events: none !important;
+  opacity: 0.55;
+  transition: opacity 0.5s ease;
+}
+
+.timelineTrack {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 8, 20, 0.75);
+  border: 1px solid rgba(0, 247, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 20px rgba(0, 247, 255, 0.06), inset 0 0 12px rgba(0, 0, 0, 0.4);
+}
+
+.timelineLabel {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(0, 247, 255, 0.5);
+  letter-spacing: 0.5px;
+  min-width: 32px;
+  text-align: center;
+  user-select: none;
+}
+
+.timelineInput {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 260px;
+  height: 4px;
+  background: linear-gradient(90deg,
+    rgba(0, 247, 255, 0.12) 0%,
+    rgba(0, 247, 255, 0.25) 50%,
+    rgba(189, 0, 255, 0.2) 100%
+  );
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.timelineInput:hover {
+  background: linear-gradient(90deg,
+    rgba(0, 247, 255, 0.2) 0%,
+    rgba(0, 247, 255, 0.4) 50%,
+    rgba(189, 0, 255, 0.35) 100%
+  );
+}
+
+/* Thumb — WebKit (Chrome, Safari, Edge) */
+.timelineInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #00f7ff, #0099aa);
+  border: 2px solid rgba(0, 247, 255, 0.6);
+  box-shadow: 0 0 10px rgba(0, 247, 255, 0.5), 0 0 25px rgba(0, 247, 255, 0.2);
+  cursor: grab;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.timelineInput::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 16px rgba(0, 247, 255, 0.7), 0 0 40px rgba(0, 247, 255, 0.3);
+  transform: scale(1.15);
+}
+
+.timelineInput::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  box-shadow: 0 0 20px rgba(0, 247, 255, 0.9), 0 0 50px rgba(0, 247, 255, 0.4);
+  transform: scale(1.25);
+}
+
+/* Thumb — Firefox */
+.timelineInput::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #00f7ff, #0099aa);
+  border: 2px solid rgba(0, 247, 255, 0.6);
+  box-shadow: 0 0 10px rgba(0, 247, 255, 0.5), 0 0 25px rgba(0, 247, 255, 0.2);
+  cursor: grab;
+}
+
+.timelineInput::-moz-range-track {
+  background: transparent;
+  border: none;
+  height: 4px;
+}
+
+.timelineYear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: rgba(0, 247, 255, 0.55);
+  user-select: none;
+}
+
+.timelineYearRange {
+  color: rgba(0, 247, 255, 0.8);
+  font-weight: 600;
+  text-shadow: 0 0 6px rgba(0, 247, 255, 0.3);
+}
+
+.timelineYearAll {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.timelineClear {
+  background: rgba(255, 80, 80, 0.15);
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  color: rgba(255, 120, 120, 0.8);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.timelineClear:hover {
+  background: rgba(255, 80, 80, 0.3);
+  border-color: rgba(255, 80, 80, 0.5);
+  color: #ff8888;
+  box-shadow: 0 0 8px rgba(255, 80, 80, 0.3);
+}
+
+/* ============================================================================
+   CINEMATIC TOUR - Guided Journey Overlay
+   ============================================================================ */
+
+/* ── Fade to black: transición de entrada al tour ────────────────────────── */
+.tourFadeToBlack {
+  position: absolute;
+  inset: 0;
+  z-index: 199;
+  pointer-events: none;
+  background-color: #000000;
+  animation: tourFadeIn 1.2s ease-in-out forwards;
+}
+
+@keyframes tourFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.tourOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background-color: transparent;
+  transition: background-color 2.5s ease-in-out;
+}
+
+.tourOverlayExiting {
+  animation: tourOverlayFadeOut 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes tourOverlayFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.tourLetterboxTop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  z-index: 201;
+  animation: letterboxIn 1s ease-out both;
+}
+
+.tourLetterboxBottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 360px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.65) 35%, rgba(0, 0, 0, 0.2) 70%, transparent 100%);
+  z-index: 201;
+  animation: letterboxIn 1s ease-out both;
+}
+
+@keyframes letterboxIn {
+  from { opacity: 0; transform: scaleY(0.4); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+.tourNarrative {
+  position: absolute;
+  bottom: 220px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 88%;
+  max-width: 680px;
+  text-align: center;
+  z-index: 202;
+  animation: narrativeAppear 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.35) 60%, transparent 100%);
+  padding: 32px 40px;
+  border-radius: 20px;
+}
+
+@keyframes narrativeAppear {
+  from { opacity: 0; transform: translateX(-50%) translateY(24px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); filter: blur(0); }
+}
+
+.tourTitle {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 26px;
+  font-weight: 300;
+  color: #00f7ff;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin: 0 0 14px 0;
+  text-shadow:
+    0 0 30px rgba(0, 247, 255, 0.4),
+    0 0 60px rgba(0, 247, 255, 0.12),
+    0 2px 20px rgba(0, 0, 0, 0.8);
+}
+
+.tourText {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0;
+  font-weight: 300;
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+
+.tourProgress {
+  position: absolute;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 202;
+}
+
+.tourDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(0, 247, 255, 0.15);
+  transition: all 0.5s ease;
+}
+
+.tourDotActive {
+  background: rgba(0, 247, 255, 0.35);
+  border-color: rgba(0, 247, 255, 0.5);
+  box-shadow: 0 0 8px rgba(0, 247, 255, 0.25);
+}
+
+.tourDotCurrent {
+  background: rgba(0, 247, 255, 0.8);
+  border-color: #00f7ff;
+  box-shadow: 0 0 14px rgba(0, 247, 255, 0.5), 0 0 30px rgba(0, 247, 255, 0.15);
+  transform: scale(1.3);
+}
+
+/* ── Tour Manual Controls ──────────────────────────────────── */
+.tourControls {
+  position: absolute;
+  bottom: 156px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 203;
+  pointer-events: auto;
+}
+
+.tourControlBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+}
+
+.tourControlBtn:hover {
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 247, 255, 0.45);
+  background: rgba(0, 247, 255, 0.08);
+  box-shadow: 0 0 16px rgba(0, 247, 255, 0.12);
+  transform: scale(1.08);
+}
+
+.tourSkip {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 203;
+  backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+}
+
+.tourSkip:hover {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 247, 255, 0.4);
+  background: rgba(0, 247, 255, 0.06);
+  box-shadow: 0 0 16px rgba(0, 247, 255, 0.08);
+}
+
+/* ── Tour End Actions ─────────────────────────────────────── */
+.tourEndActions {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  z-index: 203;
+  pointer-events: auto;
+  animation: tourEndBtnAppear 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes tourEndBtnAppear {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); filter: blur(0); }
+}
+
+.tourEndBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: rgba(0, 247, 255, 0.08);
+  border: 1px solid rgba(0, 247, 255, 0.3);
+  border-radius: 24px;
+  color: rgba(0, 247, 255, 0.9);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+}
+
+.tourEndBtn:hover {
+  background: rgba(0, 247, 255, 0.15);
+  border-color: rgba(0, 247, 255, 0.6);
+  color: #fff;
+  box-shadow: 0 0 24px rgba(0, 247, 255, 0.15), 0 0 60px rgba(0, 247, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.tourEndBtnExit {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tourEndBtnExit:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.06);
+}
+
+
+/* ============================================================================
+   CINEMATIC TOUR — VOID / PRELUDIO / GENESIS PHASES
+   ============================================================================ */
+
+/* ── Void: total blackness background ───────────────────────────────────── */
+.tourOverlayVoid {
+  background-color: #000000;
+  transition: background-color 0s; /* negro instantáneo al entrar en void */
+}
+
+/* ── Génesis: desvelado rápido para que el Big Bang 3D sea visible ──────── */
+.tourOverlayGenesis {
+  background-color: transparent;
+  transition: background-color 0.5s ease-out; /* rápido: muestra el genesis flash 3D */
+}
+
+/* ── Void Narrative: centered poetic lines, staggered fade-in ──────────── */
+.tourVoidNarrative {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  z-index: 202;
+}
+
+.tourVoidLine {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 20px;
+  font-weight: 300;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 1.5px;
+  line-height: 2.2;
+  margin: 0;
+  text-align: center;
+  max-width: 720px;
+  opacity: 0;
+  animation: voidLineFade 2.5s ease-out forwards;
+  text-shadow:
+    0 0 40px rgba(100, 160, 255, 0.15),
+    0 0 80px rgba(100, 160, 255, 0.05);
+}
+
+@keyframes voidLineFade {
+  0%   { opacity: 0; filter: blur(3px); }
+  100% { opacity: 0.9; filter: blur(0); }
+}
+
+/* ── Preludio: dramatic centered revelation ────────────────────────────── */
+.tourPreludioNarrative {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 202;
+}
+
+.tourPreludioText {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 34px;
+  font-weight: 300;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 6px;
+  text-align: center;
+  margin: 0;
+  opacity: 0;
+  animation: preludioReveal 3s ease-out forwards;
+  text-shadow:
+    0 0 60px rgba(0, 247, 255, 0.25),
+    0 0 120px rgba(157, 111, 219, 0.12),
+    0 2px 30px rgba(0, 0, 0, 0.95);
+}
+
+@keyframes preludioReveal {
+  0%   { opacity: 0; letter-spacing: 20px; transform: scale(0.92); filter: blur(8px); }
+  40%  { opacity: 0.8; letter-spacing: 8px; filter: blur(1px); }
+  100% { opacity: 1; letter-spacing: 5px; transform: scale(1.02);
+         text-shadow: 0 0 60px rgba(255, 255, 255, 0.3), 0 0 120px rgba(0, 247, 255, 0.2); }
+}
+
+/* ── Génesis: post-BigBang narrative with radiant glow ─────────────────── */
+.tourGenesisNarrative {
+  position: absolute;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 88%;
+  max-width: 720px;
+  text-align: center;
+  z-index: 202;
+  animation: genesisNarrativeAppear 2.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 3s;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.35) 60%, transparent 100%);
+  padding: 32px 40px;
+  border-radius: 20px;
+}
+
+@keyframes genesisNarrativeAppear {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(40px); filter: blur(12px); }
+  40%  { filter: blur(0); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); filter: blur(0); }
+}
+
+.tourGenesisTitle {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 30px;
+  font-weight: 300;
+  color: #00f7ff;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin: 0 0 18px 0;
+  text-shadow:
+    0 0 40px rgba(0, 247, 255, 0.5),
+    0 0 80px rgba(0, 247, 255, 0.2),
+    0 0 160px rgba(0, 247, 255, 0.08),
+    0 2px 24px rgba(0, 0, 0, 0.9);
+  animation: genesisTitlePulse 4s ease-in-out infinite;
+  animation-delay: 3s;
+}
+
+@keyframes genesisTitlePulse {
+  0%, 100% { text-shadow: 0 0 40px rgba(0, 247, 255, 0.5), 0 0 80px rgba(0, 247, 255, 0.2), 0 0 160px rgba(0, 247, 255, 0.08), 0 2px 24px rgba(0, 0, 0, 0.9); }
+  50%      { text-shadow: 0 0 60px rgba(0, 247, 255, 0.7), 0 0 120px rgba(0, 247, 255, 0.3), 0 0 200px rgba(0, 247, 255, 0.12), 0 2px 24px rgba(0, 0, 0, 0.9); }
+}
+
+.tourGenesisText {
+  font-size: 15px;
+  line-height: 1.85;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  font-weight: 300;
+  letter-spacing: 0.4px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.95);
+}

@@ -12,6 +12,10 @@
   margin-bottom: var(--spacing-2xl);
 }
 
+.chartCardWide {
+  grid-column: 1 / -1;
+}
+
 /* === CHART CARD === */
 .chartCard {
   background: var(--color-card);
@@ -194,18 +198,16 @@
   padding: 0.3rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1);
   z-index: 50;
-  animation: dropdownFadeIn 0.15s ease-out;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
 }
 
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.metricDropdownMenuHidden {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .metricDropdownItem {
@@ -739,10 +741,439 @@
   box-shadow: 0 4px 12px rgba(0, 212, 228, 0.2);
 }
 
+/* === SINGLE DISCIPLINE SPOTLIGHT (cuando solo hay 1 disciplina) === */
+.singleDisciplineDisplay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+  animation: disciplineFadeIn 0.6s ease-out;
+}
+
+@keyframes disciplineFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.singleDisciplineGlow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -55%);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.12;
+  filter: blur(80px);
+  animation: disciplineGlowPulse 6s ease-in-out infinite;
+}
+
+@keyframes disciplineGlowPulse {
+  0%, 100% { opacity: 0.08; }
+  50% { opacity: 0.18; }
+}
+
+.singleDisciplineIconWrap {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  margin-bottom: 1rem;
+  position: relative;
+  animation: disciplineIconFloat 3s ease-in-out infinite;
+}
+
+@keyframes disciplineIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.singleDisciplineEmoji {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.singleDisciplineName {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem;
+}
+
+.singleDisciplineStats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.singleDisciplineCount {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.singleDisciplineCountLabel {
+  font-size: 0.95rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.singleDisciplineDesc {
+  color: #9ca3af;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  max-width: 420px;
+  margin: 0 0 1.25rem;
+}
+
+.singleDisciplineBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.singleDisciplineButton {
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.singleDisciplineButton:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* === DISCIPLINE CHART: pie + bridge side-by-side === */
+.disciplineLayout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.disciplineLayout > .chartContainer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bridgePanel {
+  flex: 0 0 400px;
+  padding: 0;
+  background: rgba(15, 18, 30, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 14px;
+  border: 1px solid rgba(232, 121, 249, 0.12);
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(232, 121, 249, 0.06) inset;
+}
+
+.bridgePanelHeader {
+  padding: 16px 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(232, 121, 249, 0.08);
+  background: linear-gradient(135deg, rgba(232, 121, 249, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
+  flex-shrink: 0;
+}
+
+.bridgePanelHeaderIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(232, 121, 249, 0.12);
+  border: 1px solid rgba(232, 121, 249, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e879f9;
+  flex-shrink: 0;
+}
+
+.bridgePanelTitle {
+  font-size: 13px;
+  color: #e2e8f0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.bridgePanelCount {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.bridgePanelBody {
+  padding: 8px 10px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 121, 249, 0.18) transparent;
+}
+
+.bridgePanelBody::-webkit-scrollbar {
+  width: 5px;
+}
+
+.bridgePanelBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bridgePanelBody::-webkit-scrollbar-thumb {
+  background: rgba(232, 121, 249, 0.2);
+  border-radius: 3px;
+}
+
+.bridgePanelBody::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 121, 249, 0.35);
+}
+
+.bridgeProfileRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.bridgeProfileRow:hover {
+  background: rgba(232, 121, 249, 0.07) !important;
+  box-shadow: 0 0 0 1px rgba(232, 121, 249, 0.1) inset;
+}
+
+.bridgeProfileRow:active {
+  transform: scale(0.995);
+}
+
+.bridgeRank {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.bridgeRankTop {
+  background: linear-gradient(135deg, rgba(232, 121, 249, 0.25), rgba(139, 92, 246, 0.2));
+  color: #e879f9;
+  border: 1px solid rgba(232, 121, 249, 0.3);
+  box-shadow: 0 0 8px rgba(232, 121, 249, 0.15);
+}
+
+.bridgeRankNormal {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+.bridgeAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 2px solid rgba(232, 121, 249, 0.15);
+  background: rgba(232, 121, 249, 0.08);
+  transition: border-color 0.2s ease;
+}
+
+.bridgeProfileRow:hover .bridgeAvatar {
+  border-color: rgba(232, 121, 249, 0.35);
+}
+
+.bridgeAvatarFallback {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(232, 121, 249, 0.08);
+  border: 2px solid rgba(232, 121, 249, 0.15);
+  color: #c084fc;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bridgeProfileInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bridgeProfileMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bridgeProfileLogin {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.bridgeProfileRow:hover .bridgeProfileLogin {
+  color: #c084fc;
+}
+
+.bridgeProfileStats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.bridgeProfileRepoCount {
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.12);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.bridgeDisciplineTags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.bridgeDisciplineTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  transition: filter 0.15s ease;
+}
+
+.bridgeProfileRow:hover .bridgeDisciplineTag {
+  filter: brightness(1.15);
+}
+
+.bridgeDisciplineTagDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bridgeDisciplineTagCount {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.bridgeEmptyState {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .disciplineLayout {
+    flex-direction: column;
+  }
+  .bridgePanel {
+    flex: none;
+    width: 100%;
+    max-height: 280px;
+  }
+}
+
+/* Active filter badge (shown in title row) */
+.activeFilterBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 121, 249, 0.3);
+  background: rgba(232, 121, 249, 0.1);
+  color: #e879f9;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.activeFilterBadge:hover {
+  background: rgba(232, 121, 249, 0.2);
+  border-color: rgba(232, 121, 249, 0.5);
+}
+
 /* === CHART CONTAINER CON OVERLAY === */
 .chartContainer {
   position: relative;
-  min-height: 350px;
+  min-height: 300px;
 }
 
 /* Overlay de carga para gráficos */

@@ -42,7 +42,13 @@ export function useEnrichedData() {
 
     // === ENRIQUECER USUARIOS ===
     const chartsUserMap = new Map()
-    ;(charts.users || []).forEach(u => {
+    const rawChartUsers = charts.users
+    const chartUsersArr = Array.isArray(rawChartUsers)
+      ? rawChartUsers
+      : Array.isArray(rawChartUsers?.byContributions)
+        ? rawChartUsers.byContributions
+        : []
+    ;(chartUsersArr).forEach(u => {
       if (u.login) chartsUserMap.set(u.login, u)
     })
 

@@ -183,15 +183,25 @@ function computeLayout(graph, nodeMetrics) {
   }
 
   if (!useBackendMetrics) {
+    // Fallback local: calcular score de colaboración con penalización cuántica
+    // para que orgs quantum-focused (Qiskit, quantumlib, etc.) dominen el centro
+    // y mega-orgs no cuánticas (Microsoft, Google) queden en periferia.
     orgNodes.forEach(org => {
       const neighbors = orgNeighbors[org.id]
-      if (!neighbors || neighbors.size === 0) {
-        orgScore[org.id] = 0
-      } else {
-        let total = 0
-        neighbors.forEach(count => { total += count })
-        orgScore[org.id] = total
+      let rawCollab = 0
+      if (neighbors && neighbors.size > 0) {
+        neighbors.forEach(count => { rawCollab += count })
       }
+      // Quantum relevance weighting (mirrors backend logic)
+      const qfs = org.quantum_focus_score ?? 0
+      const isQ = org.is_quantum_focused ?? false
+      let quantumFactor
+      if (isQ) {
+        quantumFactor = 1.0 + (qfs / 100)  // [1.0 .. 2.0]
+      } else {
+        quantumFactor = Math.max(0.05, qfs / 200)  // [0.05 .. 0.5]
+      }
+      orgScore[org.id] = Math.round(rawCollab * quantumFactor)
     })
   }
 

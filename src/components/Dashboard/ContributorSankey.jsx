@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDashboardStore } from '../../store/dashboardStore'
 import styles from './ContributorSankey.module.css'
 
@@ -60,6 +61,7 @@ function _areSiblingOrgs(loginA, loginB) {
 }
 
 export default function ContributorSankey() {
+  const { t } = useTranslation()
   const collaborationDiscovery = useDashboardStore(s => s.collaborationDiscovery)
   const isDiscovering = useDashboardStore(s => s.isDiscovering)
   const dataSource = useDashboardStore(s => s.dataSource)
@@ -202,11 +204,11 @@ export default function ContributorSankey() {
     return (
       <div className={`${styles.container} ${styles.visible}`}>
         <div className={styles.header}>
-          <h3 className={styles.title}>Flujo de Contribuidores</h3>
+          <h3 className={styles.title}>{t('sankey.title')}</h3>
         </div>
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>⟳</div>
-          <p className={styles.emptyText}>Analizando patrones de colaboración…</p>
+          <p className={styles.emptyText}>{t('sankey.loading')}</p>
         </div>
       </div>
     )
@@ -319,15 +321,15 @@ export default function ContributorSankey() {
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>Flujo de Contribuidores</h3>
+          <h3 className={styles.title}>{t('sankey.title')}</h3>
           <span className={styles.badge}>
-            {uniqueBridgeLogins.size} {uniqueBridgeLogins.size === 1 ? 'usuario puente cross-org' : 'usuarios puente cross-org'}
+            {t('sankey.badge', { count: uniqueBridgeLogins.size })}
           </span>
         </div>
         <p className={styles.subtitle}>
-          Usuarios que contribuyen a repos de múltiples organizaciones
+          {t('sankey.subtitle')}
           {discoverMetrics.total_bridge_users_found > 0 && (
-            <> — {discoverMetrics.total_bridge_users_found} bridge users detectados de {discoverMetrics.total_users_mapped?.toLocaleString()} contribuidores</>
+            <> — {discoverMetrics.total_bridge_users_found} {t('sankey.detail')} {discoverMetrics.total_users_mapped?.toLocaleString()} {t('sankey.contributors')}</>
           )}
         </p>
       </div>
@@ -336,12 +338,11 @@ export default function ContributorSankey() {
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>⟷</div>
           <p className={styles.emptyText}>
-            No se detectaron usuarios cross-org entre las organizaciones cargadas.
+            {t('sankey.empty')}
           </p>
           {discoverMetrics.total_bridge_users_found > 0 && (
             <p className={styles.emptyDetail}>
-              Se encontraron {discoverMetrics.total_bridge_users_found} bridge users entre repos,
-              pero ninguno contribuye a repos de organizaciones distintas.
+              {t('sankey.emptyDetail', { count: discoverMetrics.total_bridge_users_found })}
             </p>
           )}
         </div>
@@ -483,7 +484,7 @@ export default function ContributorSankey() {
                 </span>
               </div>
               <div className={styles.tooltipMeta}>
-                {tooltip.flow.users.length} usuarios compartidos
+                {tooltip.flow.users.length} {t('sankey.sharedUsers')}
               </div>
               <div className={styles.tooltipUsers}>
                 {tooltip.flow.users.slice(0, 10).map(u => (
@@ -520,7 +521,7 @@ export default function ContributorSankey() {
                   <span className={styles.legendDot} style={{ background: orgColorMap[flow.target]?.color }} />
                 </div>
                 <span className={styles.legendText}>
-                  {flow.users.length} {flow.users.length === 1 ? 'usuario' : 'usuarios'}
+                  {flow.users.length} {flow.users.length === 1 ? t('sankey.user') : t('sankey.users')}
                 </span>
               </div>
             ))}

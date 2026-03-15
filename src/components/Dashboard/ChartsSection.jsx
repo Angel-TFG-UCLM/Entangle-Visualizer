@@ -34,6 +34,7 @@ import {
 } from 'recharts'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import { useTranslation } from 'react-i18next'
 import styles from './ChartsSection.module.css'
 
 // Paleta de colores del diseño Entangle
@@ -115,6 +116,7 @@ function useScrollAnimation(threshold = 0.3) {
  * Maneja su propio ciclo de vida para permitir animaciones de salida
  */
 function FilterBadge({ value, onClear, label }) {
+  const { t } = useTranslation()
   const [state, setState] = useState('hidden') // 'hidden' | 'entering' | 'visible' | 'exiting' | 'changing'
   const [displayValue, setDisplayValue] = useState(value)
   const prevValueRef = useRef(null)
@@ -198,7 +200,7 @@ function FilterBadge({ value, onClear, label }) {
       <button 
         className={styles.clearButton}
         onClick={onClear}
-        title="Quitar filtro"
+        title={t('charts.removeFilter')}
       >
         ✕
       </button>
@@ -210,6 +212,7 @@ function FilterBadge({ value, onClear, label }) {
  * Componente principal de gráficos
  */
 export default function ChartsSection({ data }) {
+  const { t } = useTranslation()
   const { 
     selectedOrg, 
     selectedLanguage, 
@@ -582,11 +585,11 @@ export default function ChartsSection({ data }) {
   // Usa datos pre-calculados si están disponibles
   // Métricas disponibles para organizaciones
   const orgMetricLabels = {
-    quantum_focus_score: 'Quantum Focus',
-    repositories: 'Repos Quantum',
-    stars: 'Estrellas',
-    total_unique_contributors: 'Contribuidores',
-    shared_users_count: 'Colaborativos',
+    quantum_focus_score: t('charts.metricQuantumFocus'),
+    repositories: t('charts.metricReposQuantum'),
+    stars: t('charts.metricStars'),
+    total_unique_contributors: t('charts.metricContributors'),
+    shared_users_count: t('charts.metricCollaborative'),
   }
 
   const orgData = useMemo(() => {
@@ -691,14 +694,12 @@ export default function ChartsSection({ data }) {
 
   // GRÁFICO 2: Top Repos (por métrica seleccionada)
   const repoMetricLabels = {
-    stargazer_count: 'Estrellas',
+    stargazer_count: t('charts.metricStars'),
     fork_count: 'Forks',
-    collaborators_count: 'Contribuidores',
-    shared_collaborators_count: 'Colaborativos',
+    collaborators_count: t('charts.metricContributors'),
+    shared_collaborators_count: t('charts.metricCollaborative'),
   }
   const repoData = useMemo(() => {
-    const metricLabels = repoMetricLabels
-    
     // Mapeo de métrica a clave del backend
     const metricToKey = {
       stargazer_count: 'byStars',
@@ -736,7 +737,6 @@ export default function ChartsSection({ data }) {
         fork_count: (repo.fork_count ?? 0) || 0,
         collaborators_count: (repo.collaborators_count ?? 0) || 0,
         shared_collaborators_count: (repo.shared_collaborators_count ?? 0) || 0,
-        [metricLabels[repoMetric]]: (repo[repoMetric] ?? 0) || 0,
         url: repo.url || null,
         homepage_url: repo.homepage_url || null,
         repository_topics: repo.repository_topics || [],
@@ -759,14 +759,14 @@ export default function ChartsSection({ data }) {
         default_branch: repo.default_branch_ref_name || 'main',
         isSelected: selectedRepo === repo.full_name,
       }))
-      .sort((a, b) => b[metricLabels[repoMetric]] - a[metricLabels[repoMetric]])
+      .sort((a, b) => (b[repoMetric] || 0) - (a[repoMetric] || 0))
       .slice(0, 10)
   }, [charts?.repositories, chartRepos, repoMetric, selectedRepo])
 
   // GRÁFICO 3: Top Usuarios por score de colaboración o por multi-repo
   const userMetricLabels = {
-    score: 'Colaboración',
-    repos: 'Multi-repo',
+    score: t('charts.collaboration'),
+    repos: t('charts.multiRepo'),
   }
 
   // Mapa login → discipline info (desde node_metrics) — debe ir ANTES de userData
@@ -948,12 +948,12 @@ export default function ChartsSection({ data }) {
     multidisciplinary: '#e879f9',
   }
   const DISCIPLINE_LABELS = {
-    quantum_software: 'Software Cuántico',
-    quantum_physics: 'Física Cuántica',
-    quantum_hardware: 'Hardware Cuántico',
-    classical_tooling: 'Tooling Clásico',
-    education_research: 'Educación/Investigación',
-    multidisciplinary: 'Multidisciplinar',
+    quantum_software: t('charts.disciplines.quantumSoftware'),
+    quantum_physics: t('charts.disciplines.quantumPhysics'),
+    quantum_hardware: t('charts.disciplines.quantumHardware'),
+    classical_tooling: 'Development Tooling',
+    education_research: t('charts.disciplines.education'),
+    multidisciplinary: t('charts.disciplines.multidisciplinary'),
   }
   const DISCIPLINE_ICONS = {
     quantum_software: Code,
@@ -964,12 +964,12 @@ export default function ChartsSection({ data }) {
     multidisciplinary: Network,
   }
   const DISCIPLINE_DESCRIPTIONS = {
-    quantum_software: 'Desarrolladores enfocados en frameworks, compiladores, lenguajes y SDKs para computación cuántica. Construyen las herramientas que permiten programar ordenadores cuánticos.',
-    quantum_physics: 'Investigadores y físicos que trabajan en simulaciones cuánticas, algoritmos variacional y modelado de sistemas cuánticos a nivel fundamental.',
-    quantum_hardware: 'Ingenieros especializados en el diseño de qubits, control de pulsos, corrección de errores y la capa física de los procesadores cuánticos.',
-    classical_tooling: 'Desarrolladores de infraestructura clásica de soporte: CI/CD, testing, documentación, visualización y herramientas DevOps para proyectos cuánticos.',
-    education_research: 'Creadores de contenido educativo, tutoriales, notebooks y materiales académicos que democratizan el acceso a la computación cuántica.',
-    multidisciplinary: 'Perfiles versátiles que contribuyen en múltiples áreas, conectando disciplinas y creando puentes entre comunidades técnicas.',
+    quantum_software: t('charts.disciplineDesc.quantumSoftware'),
+    quantum_physics: t('charts.disciplineDesc.quantumPhysics'),
+    quantum_hardware: t('charts.disciplineDesc.quantumHardware'),
+    classical_tooling: t('charts.disciplineDesc.classicalTooling'),
+    education_research: t('charts.disciplineDesc.education'),
+    multidisciplinary: t('charts.disciplineDesc.multidisciplinary'),
   }
   const DISCIPLINE_EMOJIS = {
     quantum_software: '💻',
@@ -1321,14 +1321,14 @@ export default function ChartsSection({ data }) {
             </p>
           )}
           <div className={styles.tooltipStats}>
-            <p><span style={{color: '#FF3CAC'}}>Quantum Focus:</span> <strong>{(data.quantum_focus_score || 0).toLocaleString()}%</strong></p>
-            <p><span style={{color: '#00D4E4'}}>Repositorios:</span> <strong>{data.repositories.toLocaleString()}</strong></p>
-            <p><span style={{color: '#F59E0B'}}>Estrellas:</span> <strong>{data.stars.toLocaleString()}</strong></p>
+            <p><span style={{color: '#FF3CAC'}}>{t('charts.quantumFocus')}:</span> <strong>{(data.quantum_focus_score || 0).toLocaleString()}%</strong></p>
+            <p><span style={{color: '#00D4E4'}}>{t('charts.repositories')}:</span> <strong>{data.repositories.toLocaleString()}</strong></p>
+            <p><span style={{color: '#F59E0B'}}>{t('charts.metricStars')}:</span> <strong>{data.stars.toLocaleString()}</strong></p>
             {data.total_unique_contributors > 0 && (
-              <p><span style={{color: '#9D6FDB'}}>Contributors:</span> <strong>{data.total_unique_contributors.toLocaleString()}</strong></p>
+              <p><span style={{color: '#9D6FDB'}}>{t('charts.metricContributors')}:</span> <strong>{data.total_unique_contributors.toLocaleString()}</strong></p>
             )}
           </div>
-          <span className={styles.tooltipFooter}>click para filtrar · ctrl+click para comparar</span>
+          <span className={styles.tooltipFooter}>{t('charts.clickToFilter')}</span>
         </div>
       )
     }
@@ -1351,16 +1351,16 @@ export default function ChartsSection({ data }) {
             <span className={styles.tooltipLangBadge}>{data.language}</span>
           )}
           <div className={styles.tooltipStats}>
-            <p><span style={{color: '#F59E0B'}}>Estrellas:</span> <strong>{data.stargazer_count.toLocaleString()}</strong></p>
-            <p><span style={{color: '#9D6FDB'}}>Forks:</span> <strong>{data.fork_count.toLocaleString()}</strong></p>
-            <p><span style={{color: '#00D4E4'}}>Contribuidores:</span> <strong>{data.collaborators_count.toLocaleString()}</strong></p>
+            <p><span style={{color: '#F59E0B'}}>{t('charts.metricStars')}:</span> <strong>{data.stargazer_count.toLocaleString()}</strong></p>
+            <p><span style={{color: '#9D6FDB'}}>{t('charts.forks')}:</span> <strong>{data.fork_count.toLocaleString()}</strong></p>
+            <p><span style={{color: '#00D4E4'}}>{t('charts.metricContributors')}:</span> <strong>{data.collaborators_count.toLocaleString()}</strong></p>
           </div>
           {data.owner && (
             <p className={styles.tooltipOwner}>
-              <span style={{color: '#6b7280'}}>Org:</span> {data.owner}
+              <span style={{color: '#6b7280'}}>{t('charts.orgLabel')}</span> {data.owner}
             </p>
           )}
-          <span className={styles.tooltipFooter}>click para filtrar · ctrl+click para comparar</span>
+          <span className={styles.tooltipFooter}>{t('charts.clickToFilter')}</span>
         </div>
       )
     }
@@ -1390,29 +1390,29 @@ export default function ChartsSection({ data }) {
             </div>
           </div>
           <div className={styles.tooltipStats}>
-            <p><span style={{color: '#00D4E4'}}>Score:</span> <strong>{data.score.toLocaleString()}</strong></p>
-            <p><span style={{color: '#9D6FDB'}}>Contribuciones:</span> <strong>{data.contributions.toLocaleString()}</strong></p>
-            <p><span style={{color: '#F97316'}}>Repos:</span> <strong>{data.repos}</strong></p>
+            <p><span style={{color: '#00D4E4'}}>{t('charts.scoreLabel')}</span> <strong>{data.score.toLocaleString()}</strong></p>
+            <p><span style={{color: '#9D6FDB'}}>{t('charts.contributions')}:</span> <strong>{data.contributions.toLocaleString()}</strong></p>
+            <p><span style={{color: '#F97316'}}>{t('charts.reposShort')}:</span> <strong>{data.repos}</strong></p>
           </div>
           {(data.commits > 0 || data.prs > 0 || data.reviews > 0) && (
             <div className={styles.tooltipBreakdown}>
               {data.commits > 0 && <span className={styles.tooltipBreakdownItem}>
-                <span style={{color: '#22C55E'}}>Commits</span> {data.commits.toLocaleString()}
+                <span style={{color: '#22C55E'}}>{t('charts.commits')}</span> {data.commits.toLocaleString()}
               </span>}
               {data.prs > 0 && <span className={styles.tooltipBreakdownItem}>
-                <span style={{color: '#3B82F6'}}>PRs</span> {data.prs.toLocaleString()}
+                <span style={{color: '#3B82F6'}}>{t('charts.prs')}</span> {data.prs.toLocaleString()}
               </span>}
               {data.reviews > 0 && <span className={styles.tooltipBreakdownItem}>
-                <span style={{color: '#F59E0B'}}>Reviews</span> {data.reviews.toLocaleString()}
+                <span style={{color: '#F59E0B'}}>{t('charts.reviews')}</span> {data.reviews.toLocaleString()}
               </span>}
               {data.issues > 0 && <span className={styles.tooltipBreakdownItem}>
-                <span style={{color: '#EF4444'}}>Issues</span> {data.issues.toLocaleString()}
+                <span style={{color: '#EF4444'}}>{t('charts.issues')}</span> {data.issues.toLocaleString()}
               </span>}
             </div>
           )}
           {orgsList.length > 0 && (
             <div className={styles.tooltipOrgsList}>
-              <span className={styles.tooltipOrgsLabel}>Organizaciones:</span>
+              <span className={styles.tooltipOrgsLabel}>{t('charts.organizations')}:</span>
               <div className={styles.tooltipOrgsChips}>
                 {orgsList.slice(0, 4).map((o, i) => (
                   <span key={i} className={styles.tooltipOrgChip}>{o}</span>
@@ -1424,7 +1424,7 @@ export default function ChartsSection({ data }) {
             </div>
           )}
           <span className={styles.tooltipFooter}>
-            click para detalles · ctrl+click para red de colaboración
+            {t('charts.hintClickDetails')}
           </span>
         </div>
       )
@@ -1448,12 +1448,12 @@ export default function ChartsSection({ data }) {
             </div>
           </div>
           <div className={styles.tooltipStats}>
-            <p><span style={{ color: d.fill }}>Usuarios:</span> <strong>{d.value.toLocaleString()}</strong></p>
-            <p><span style={{ color: '#9ca3af' }}>Porcentaje:</span> <strong>{d.pct.toFixed(1)}%</strong></p>
+            <p><span style={{ color: d.fill }}>{t('charts.users')}:</span> <strong>{d.value.toLocaleString()}</strong></p>
+            <p><span style={{ color: '#9ca3af' }}>{t('charts.percentage')}:</span> <strong>{d.pct.toFixed(1)}%</strong></p>
           </div>
           {isOtros && d._otherItems?.length > 0 && (
             <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <p style={{ fontSize: 10, color: '#9ca3af', margin: '0 0 4px' }}>Incluye:</p>
+              <p style={{ fontSize: 10, color: '#9ca3af', margin: '0 0 4px' }}>{t('charts.includes')}:</p>
               {d._otherItems.map((item, i) => (
                 <p key={i} style={{ fontSize: 11, margin: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.fill, flexShrink: 0 }} />
@@ -1466,8 +1466,8 @@ export default function ChartsSection({ data }) {
           )}
           <span className={styles.tooltipFooter}>
             {isOtros
-              ? 'click para ver disciplinas'
-              : selectedDiscipline === d.key ? 'click para quitar filtro' : 'click para filtrar contribuidores'}
+              ? t('charts.clickToViewDisciplines')
+              : selectedDiscipline === d.key ? t('charts.clickToRemoveFilter') : t('charts.clickToFilterContributors')}
           </span>
         </div>
       )
@@ -1512,7 +1512,7 @@ export default function ChartsSection({ data }) {
           </p>
           {isOtros && othersLanguages.length > 0 && (
             <div className={styles.tooltipOthers}>
-              <p className={styles.tooltipOthersTitle}>Incluye:</p>
+              <p className={styles.tooltipOthersTitle}>{t('charts.includes')}:</p>
               <div className={styles.tooltipOthersList}>
                 {othersLanguages.slice(0, 10).map((lang, i) => (
                   <span key={i} className={styles.tooltipOthersItem}>
@@ -1521,14 +1521,14 @@ export default function ChartsSection({ data }) {
                 ))}
                 {othersLanguages.length > 10 && (
                   <span className={styles.tooltipOthersMore}>
-                    +{othersLanguages.length - 10} más...
+                    +{othersLanguages.length - 10} {t('charts.more')}...
                   </span>
                 )}
               </div>
             </div>
           )}
           <span className={styles.tooltipFooter}>
-            {isOtros ? `${othersLanguages.length} lenguajes agrupados` : 'click para filtrar'}
+            {isOtros ? t('charts.languagesGrouped', { count: othersLanguages.length }) : t('charts.clickFilter')}
           </span>
         </div>
       )
@@ -1656,14 +1656,14 @@ export default function ChartsSection({ data }) {
           </div>
           {(selectedOrgs.length < 2 && selectedRepos.length < 2) ? (
             <span className={styles.comparisonFloatingHint}>
-              Ctrl+Click en {selectedOrgs.length > 0 ? 'otra org' : 'otro repo'}
+              {selectedOrgs.length > 0 ? t('charts.comparisonHintOrg') : t('charts.comparisonHintRepo')}
             </span>
           ) : (
             <button
               className={styles.comparisonFloatingAnalyzeBtn}
               onClick={analyzeCollaboration}
             >
-              <Users size={13} /> Analizar
+              <Users size={13} /> {t('charts.analyze')}
             </button>
           )}
           <button className={styles.comparisonFloatingClose} onClick={dismissFloating}>
@@ -1682,7 +1682,7 @@ export default function ChartsSection({ data }) {
             {isAnalyzing ? (
               <div className={styles.comparisonLoading}>
                 <div className={styles.chartLoadingSpinner}></div>
-                <span>Analizando colaboración...</span>
+                <span>{t('charts.analyzing')}</span>
               </div>
             ) : collaborationData ? (
               <>
@@ -1696,10 +1696,10 @@ export default function ChartsSection({ data }) {
                     <div>
                       <h3 className={styles.comparisonTitle}>
                         {collaborationData.mode === 'user_focus'
-                          ? `Red de colaboración`
+                          ? t('charts.collabNetwork')
                           : collaborationData.mode === 'repos_comparison' 
-                            ? 'Usuarios compartidos entre repositorios' 
-                            : 'Usuarios compartidos entre organizaciones'}
+                            ? t('charts.sharedUsersBetweenRepos') 
+                            : t('charts.sharedUsersBetweenOrgs')}
                       </h3>
                       <p className={styles.comparisonSubtitle}>
                         {collaborationData.mode === 'user_focus'
@@ -1740,11 +1740,11 @@ export default function ChartsSection({ data }) {
                   </div>
                   <label className={`${styles.comparisonBotToggle} ${!excludeBotsComparison ? styles.comparisonBotToggleActive : ''}`}>
                     <Bot size={13} className={styles.comparisonBotIcon} />
-                    <span className={styles.comparisonBotLabel}>{excludeBotsComparison ? 'Sin bots' : 'Con bots'}</span>
+                    <span className={styles.comparisonBotLabel}>{excludeBotsComparison ? t('charts.withoutBots') : t('charts.withBots')}</span>
                     <button
                       className={`${styles.comparisonBotSwitch} ${!excludeBotsComparison ? styles.comparisonBotSwitchOn : ''}`}
                       onClick={() => setExcludeBotsComparison(v => !v)}
-                      aria-label={excludeBotsComparison ? 'Incluir bots' : 'Excluir bots'}
+                      aria-label={excludeBotsComparison ? t('charts.includeBots') : t('charts.excludeBots')}
                     >
                       <span className={styles.comparisonBotSwitchThumb} />
                     </button>
@@ -1759,19 +1759,19 @@ export default function ChartsSection({ data }) {
                         <span className={styles.comparisonMetricValue} style={{ color: '#9D6FDB' }}>
                           {filteredMetrics.total_repos ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Repositorios</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compRepos')}</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue} style={{ color: '#00D4E4' }}>
                           {filteredMetrics.total_co_collaborators ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Co-colaboradores</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compCoCollaborators')}</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue} style={{ color: '#F97316' }}>
                           {filteredMetrics.total_organizations ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Organizaciones</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compOrganizations')}</span>
                       </div>
                     </>
                   ) : (
@@ -1780,19 +1780,19 @@ export default function ChartsSection({ data }) {
                         <span className={styles.comparisonMetricValue}>
                           {filteredMetrics.total_unique_users ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Usuarios únicos</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compUniqueUsers')}</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue} style={{ color: '#9D6FDB' }}>
                           {filteredMetrics.shared_users_count ?? 0}
                         </span>
-                        <span className={styles.comparisonMetricLabel}>En común (≥2)</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compInCommon')}</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue} style={{ color: '#00D4E4' }}>
                           {filteredMetrics.collaboration_density ?? 0}%
                         </span>
-                        <span className={styles.comparisonMetricLabel}>Densidad</span>
+                        <span className={styles.comparisonMetricLabel}>{t('charts.compDensity')}</span>
                       </div>
                       <div className={styles.comparisonMetric}>
                         <span className={styles.comparisonMetricValue}>
@@ -1813,17 +1813,17 @@ export default function ChartsSection({ data }) {
                   <div className={styles.comparisonUsers}>
                     <h4 className={styles.comparisonUsersTitle}>
                       {collaborationData.mode === 'user_focus' ? (
-                        <><Network size={14} /> Top co-colaboradores ({filteredSharedUsers.length}{(filteredMetrics.total_co_collaborators ?? 0) > filteredSharedUsers.length ? ` de ${filteredMetrics.total_co_collaborators}` : ''})</>
+                        <><Network size={14} /> {t('charts.topCoCollaborators')} ({filteredSharedUsers.length}{(filteredMetrics.total_co_collaborators ?? 0) > filteredSharedUsers.length ? ` ${t('charts.of')} ${filteredMetrics.total_co_collaborators}` : ''})</>
                       ) : (
-                        <><FiUsers size={14} /> Usuarios en común ({filteredSharedUsers.length})
+                        <><FiUsers size={14} /> {t('charts.usersInCommon')} ({filteredSharedUsers.length})
                           <span className={styles.comparisonSharedHint}>
-                            contribuyen a ≥2 {collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs'} seleccionadas
+                            {t('charts.contributeToN', { n: 2, type: collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs' })}
                           </span>
                         </>
                       )}
                       {excludeBotsComparison && collaborationData.shared_users?.length !== filteredSharedUsers.length && (
                         <span className={styles.comparisonBotFilteredHint}>
-                          ({collaborationData.shared_users.length - filteredSharedUsers.length} bots ocultos)
+                          ({collaborationData.shared_users.length - filteredSharedUsers.length} {t('charts.botsHidden')})
                         </span>
                       )}
                     </h4>
@@ -1834,7 +1834,7 @@ export default function ChartsSection({ data }) {
                           className={`${styles.comparisonUserCard} ${collaborationData.mode === 'user_focus' ? styles.comparisonUserCardFocus : ''}`}
                           style={{ animationDelay: `${i * 40}ms` }}
                           onClick={() => { closeComparison(); setTimeout(() => selectUserForAnalysis(user.login), 280) }}
-                          title={`Ver red de colaboración de ${user.login}`}
+                          title={t('charts.viewCollabNetwork', { user: user.login })}
                         >
                           {user.avatar_url ? (
                             <img src={user.avatar_url} alt="" className={styles.comparisonUserAvatar} />
@@ -1865,9 +1865,9 @@ export default function ChartsSection({ data }) {
                               </>
                             ) : (
                               <span className={styles.comparisonUserShared}>
-                                en {user.shared_count} de {collaborationData.mode === 'repos_comparison'
+                                {t('charts.inNofTotal', { count: user.shared_count, total: collaborationData.mode === 'repos_comparison'
                                   ? (filteredMetrics.total_repos_analyzed ?? '?')
-                                  : (filteredMetrics.total_orgs_analyzed ?? '?')} {collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs'}
+                                  : (filteredMetrics.total_orgs_analyzed ?? '?'), type: collaborationData.mode === 'repos_comparison' ? 'repos' : 'orgs' })}
                               </span>
                             )}
                             {user.quantum_expertise_score > 0 && (
@@ -1899,8 +1899,8 @@ export default function ChartsSection({ data }) {
                   <div className={styles.comparisonEmpty}>
                     <FiUsers size={32} />
                     <p>{collaborationData.mode === 'user_focus'
-                      ? 'No se encontraron co-colaboradores para este usuario'
-                      : 'No se encontraron usuarios compartidos entre las selecciones'}
+                      ? t('charts.noCoCollaborators')
+                      : t('charts.noSharedUsers')}
                     </p>
                   </div>
                 )}
@@ -1916,15 +1916,15 @@ export default function ChartsSection({ data }) {
         className={`${styles.chartCard} ${styles.scrollReveal} ${orgChartVisible ? styles.scrollRevealed : ''}`}
       >
         <div className={styles.titleRow}>
-          <h3 className={styles.chartTitle}>📊 Top Organizaciones</h3>
+          <h3 className={styles.chartTitle}>📊 {t('charts.chart1')}</h3>
           <FilterBadge 
             value={selectedOrg}
-            label="Filtrando"
+            label={t('charts.filtering')}
             onClear={() => setFilter('org', selectedOrg)}
           />
         </div>
         <div className={styles.subtitleRow}>
-          <p className={styles.chartSubtitleInline}>Ordenadas por</p>
+          <p className={styles.chartSubtitleInline}>{t('charts.sortedBy')}</p>
           <div className={styles.metricDropdown} ref={orgMetricDropdownRef}>
             <button
               className={styles.metricDropdownTrigger}
@@ -1947,11 +1947,11 @@ export default function ChartsSection({ data }) {
             </button>
               <div className={`${styles.metricDropdownMenu} ${!isOrgMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
-                  { value: 'quantum_focus_score', label: 'Quantum Focus', Icon: FiTarget },
-                  { value: 'repositories', label: 'Repos Quantum', Icon: FiPackage },
-                  { value: 'stars', label: 'Estrellas', Icon: FiStar },
-                  { value: 'total_unique_contributors', label: 'Contribuidores', Icon: FiUsers },
-                  { value: 'shared_users_count', label: 'Colaborativos', Icon: Network },
+                  { value: 'quantum_focus_score', label: t('charts.metricQuantumFocus'), Icon: FiTarget },
+                  { value: 'repositories', label: t('charts.metricReposQuantum'), Icon: FiPackage },
+                  { value: 'stars', label: t('charts.metricStars'), Icon: FiStar },
+                  { value: 'total_unique_contributors', label: t('charts.metricContributors'), Icon: FiUsers },
+                  { value: 'shared_users_count', label: t('charts.metricCollaborative'), Icon: Network },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -1974,7 +1974,7 @@ export default function ChartsSection({ data }) {
           {isFiltering && (
             <div className={styles.chartLoadingOverlay}>
               <div className={styles.chartLoadingSpinner}></div>
-              <span>Actualizando...</span>
+              <span>{t('charts.updating')}</span>
             </div>
           )}
           {orgChartVisible ? (
@@ -2019,11 +2019,11 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            <span><span className={styles.kbdKey}>Click</span> filtrar</span>
+            <span><span className={styles.kbdKey}>Click</span> {t('charts.hintFilter')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> detalles</span>
+            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> {t('charts.hintDetails')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> comparar</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> {t('charts.hintCompare')}</span>
           </p>
         </div>
       </div>
@@ -2034,15 +2034,15 @@ export default function ChartsSection({ data }) {
         className={`${styles.chartCard} ${styles.scrollReveal} ${repoChartVisible ? styles.scrollRevealed : ''}`}
       >
         <div className={styles.titleRow}>
-          <h3 className={styles.chartTitle}>⭐ Top Repositorios</h3>
+          <h3 className={styles.chartTitle}>⭐ {t('charts.chart2')}</h3>
           <FilterBadge 
             value={selectedRepo}
-            label="Repositorio"
+            label={t('charts.repository')}
             onClear={() => setFilter('repo', selectedRepo)}
           />
         </div>
         <div className={styles.subtitleRow}>
-          <p className={styles.chartSubtitleInline}>Filtrado por</p>
+          <p className={styles.chartSubtitleInline}>{t('charts.filteredBy')}</p>
           <div className={styles.metricDropdown} ref={metricDropdownRef}>
             <button
               className={styles.metricDropdownTrigger}
@@ -2064,10 +2064,10 @@ export default function ChartsSection({ data }) {
             </button>
               <div className={`${styles.metricDropdownMenu} ${!isMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
-                  { value: 'stargazer_count', label: 'Estrellas', Icon: FiStar },
+                  { value: 'stargazer_count', label: t('charts.metricStars'), Icon: FiStar },
                   { value: 'fork_count', label: 'Forks', Icon: FiGitBranch },
-                  { value: 'collaborators_count', label: 'Contribuidores', Icon: FiUserCheck },
-                  { value: 'shared_collaborators_count', label: 'Colaborativos', Icon: Network },
+                  { value: 'collaborators_count', label: t('charts.metricContributors'), Icon: FiUserCheck },
+                  { value: 'shared_collaborators_count', label: t('charts.metricCollaborative'), Icon: Network },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -2090,7 +2090,7 @@ export default function ChartsSection({ data }) {
           {isFiltering && (
             <div className={styles.chartLoadingOverlay}>
               <div className={styles.chartLoadingSpinner}></div>
-              <span>Actualizando...</span>
+              <span>{t('charts.updating')}</span>
             </div>
           )}
           {repoChartVisible ? (
@@ -2102,7 +2102,7 @@ export default function ChartsSection({ data }) {
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <Tooltip content={<RepoTooltip />} cursor={false} />
                 <Bar 
-                  dataKey={repoMetricLabels[repoMetric]}
+                  dataKey={repoMetric}
                   fill="#9D6FDB"
                   onClick={(data, index, event) => handleRepoClick(repoData[index], event)}
                   cursor="pointer"
@@ -2130,11 +2130,11 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            <span><span className={styles.kbdKey}>Click</span> filtrar</span>
+            <span><span className={styles.kbdKey}>Click</span> {t('charts.hintFilter')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> detalles</span>
+            <span><span className={styles.kbdKey}>Shift</span>+<span className={styles.kbdKey}>Click</span> {t('charts.hintDetails')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> comparar</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> {t('charts.hintCompare')}</span>
           </p>
         </div>
       </div>
@@ -2146,13 +2146,13 @@ export default function ChartsSection({ data }) {
       >
         <div className={styles.titleRow}>
           <h3 className={styles.chartTitle}>
-            <FiUsers className={styles.chartTitleIcon} /> Top Contribuidores
+            <FiUsers className={styles.chartTitleIcon} /> {t('charts.chart3')}
           </h3>
         </div>
         
         {/* Selector de métrica de ordenación + tipo de colaborador */}
         <div className={styles.subtitleRow}>
-          <p className={styles.chartSubtitleInline}>Ordenados por</p>
+          <p className={styles.chartSubtitleInline}>{t('charts.sortedBy')}</p>
           <div className={styles.metricDropdown} ref={userMetricDropdownRef}>
             <button
               className={styles.metricDropdownTrigger}
@@ -2172,8 +2172,8 @@ export default function ChartsSection({ data }) {
             </button>
               <div className={`${styles.metricDropdownMenu} ${!isUserMetricDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
-                  { value: 'score', label: 'Colaboración', Icon: Zap },
-                  { value: 'repos', label: 'Multi-repo', Icon: Network },
+                  { value: 'score', label: t('charts.collaboration'), Icon: Zap },
+                  { value: 'repos', label: t('charts.multiRepo'), Icon: Network },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -2192,7 +2192,7 @@ export default function ChartsSection({ data }) {
               </div>
           </div>
           <span style={{ margin: '0 4px', color: 'rgba(156,163,175,0.5)' }}>·</span>
-          <p className={styles.chartSubtitleInline}>Mostrar</p>
+          <p className={styles.chartSubtitleInline}>{t('charts.show')}</p>
           <div className={styles.metricDropdown} ref={collabDropdownRef}>
             <button
               className={styles.metricDropdownTrigger}
@@ -2209,17 +2209,17 @@ export default function ChartsSection({ data }) {
                 {collabType === 'reviewers' && <FiEye size={14} />}
               </span>
               <span>
-                {collabType === 'all' && 'Todos'}
-                {collabType === 'contributors' && 'Con commits'}
-                {collabType === 'reviewers' && 'Reviewers'}
+                {collabType === 'all' && t('charts.collabAll')}
+                {collabType === 'contributors' && t('charts.withCommits')}
+                {collabType === 'reviewers' && t('charts.collabReviewers')}
               </span>
               <ChevronDown size={14} className={`${styles.metricDropdownChevron} ${isCollabDropdownOpen ? styles.chevronOpen : ''}`} />
             </button>
               <div className={`${styles.metricDropdownMenu} ${!isCollabDropdownOpen ? styles.metricDropdownMenuHidden : ''}`}>
                 {[
-                  { value: 'all', label: 'Todos', Icon: FiUsers, desc: 'Contributors + Reviewers' },
-                  { value: 'contributors', label: 'Con commits', Icon: FiCode, desc: 'Han contribuido código' },
-                  { value: 'reviewers', label: 'Reviewers', Icon: FiEye, desc: 'Solo revisan/triage' },
+                  { value: 'all', label: t('charts.collabAll'), Icon: FiUsers, desc: t('charts.collabAllDesc') },
+                  { value: 'contributors', label: t('charts.withCommits'), Icon: FiCode, desc: t('charts.haveContributed') },
+                  { value: 'reviewers', label: t('charts.collabReviewers'), Icon: FiEye, desc: t('charts.collabReviewersDesc') },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -2240,13 +2240,13 @@ export default function ChartsSection({ data }) {
           </div>
           
           {/* Toggle para incluir bots */}
-          <label className={`${styles.comparisonBotToggle} ${includeBots ? styles.comparisonBotToggleActive : ''}`} title="Incluir cuentas de bots como dependabot, github-actions, etc.">
+          <label className={`${styles.comparisonBotToggle} ${includeBots ? styles.comparisonBotToggleActive : ''}`} title={t('charts.botToggleHint')}>
             <Bot size={13} className={styles.comparisonBotIcon} />
-            <span className={styles.comparisonBotLabel}>{includeBots ? 'Con bots' : 'Sin bots'}</span>
+            <span className={styles.comparisonBotLabel}>{includeBots ? t('charts.withBots') : t('charts.withoutBots')}</span>
             <button
               className={`${styles.comparisonBotSwitch} ${includeBots ? styles.comparisonBotSwitchOn : ''}`}
               onClick={(e) => { e.preventDefault(); setIncludeBots(v => !v) }}
-              aria-label={includeBots ? 'Excluir bots' : 'Incluir bots'}
+              aria-label={includeBots ? t('charts.excludeBots') : t('charts.includeBots')}
             >
               <span className={styles.comparisonBotSwitchThumb} />
             </button>
@@ -2258,7 +2258,7 @@ export default function ChartsSection({ data }) {
           {(isUpdatingUsers || isFiltering) && (
             <div className={styles.chartLoadingOverlay}>
               <div className={styles.chartLoadingSpinner}></div>
-              <span>Actualizando...</span>
+              <span>{t('charts.updating')}</span>
             </div>
           )}
           
@@ -2272,7 +2272,7 @@ export default function ChartsSection({ data }) {
                 <Bar 
                   dataKey="score" 
                   radius={[4, 4, 0, 0]} 
-                  name={userMetric === 'repos' ? 'Repos' : 'Score Colaboración'}
+                  name={userMetric === 'repos' ? 'Repos' : `Score ${t('charts.collaboration')}`}
                   isAnimationActive={true} 
                   animationBegin={0} 
                   animationDuration={600} 
@@ -2297,9 +2297,9 @@ export default function ChartsSection({ data }) {
           
           {/* Hint de interacciones */}
           <p className={styles.chartHint}>
-            <span><span className={styles.kbdKey}>Click</span> detalles</span>
+            <span><span className={styles.kbdKey}>Click</span> {t('charts.hintDetails')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> red de colaboración</span>
+            <span><span className={styles.kbdKey}>Ctrl</span>+<span className={styles.kbdKey}>Click</span> {t('charts.hintCollabNetwork')}</span>
           </p>
         </div>
       </div>
@@ -2310,10 +2310,10 @@ export default function ChartsSection({ data }) {
         className={`${styles.chartCard} ${styles.scrollReveal} ${pieChartVisible ? styles.scrollRevealed : ''}`}
       >
         <div className={styles.titleRow}>
-          <h3 className={styles.chartTitle}>🔬 Distribución de Lenguajes</h3>
+          <h3 className={styles.chartTitle}>🔬 {t('charts.chart4')}</h3>
           <FilterBadge 
             value={selectedLanguage}
-            label="Filtrando"
+            label={t('charts.filtering')}
             onClear={() => setFilter('language', selectedLanguage)}
           />
         </div>
@@ -2325,29 +2325,29 @@ export default function ChartsSection({ data }) {
               <FiPackage size={48} />
             </div>
             <p className={styles.repoLanguageText}>
-              <strong>{selectedRepoInfo?.name}</strong> utiliza
+              <strong>{selectedRepoInfo?.name}</strong> {t('charts.uses')}
             </p>
             <div className={styles.repoLanguageBadge}>
               {selectedRepoInfo?.language}
             </div>
             <p className={styles.repoLanguageHint}>
-              Para ver la distribución completa de lenguajes, elimina el filtro de repositorio
+              {t('charts.removeRepoFilterHint')}
             </p>
             <button 
               className={styles.repoLanguageButton}
               onClick={() => setFilter('repo', selectedRepo)}
             >
-              Quitar filtro de repo
+              {t('charts.removeRepoFilter')}
             </button>
           </div>
         ) : (
           <>
-            <p className={styles.chartSubtitle}>Haz click en un segmento para filtrar</p>
+            <p className={styles.chartSubtitle}>{t('charts.clickSegmentToFilter')}</p>
             <div className={styles.chartContainer}>
               {isFiltering && (
                 <div className={styles.chartLoadingOverlay}>
                   <div className={styles.chartLoadingSpinner}></div>
-                  <span>Actualizando...</span>
+                  <span>{t('charts.updating')}</span>
                 </div>
               )}
               {pieChartVisible ? (
@@ -2406,7 +2406,7 @@ export default function ChartsSection({ data }) {
         </div>
               ) : (
                 <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+                  <span style={{ color: '#6b7280' }}>{t('charts.loadingChart')}</span>
                 </div>
               )}
             </div>
@@ -2415,16 +2415,16 @@ export default function ChartsSection({ data }) {
         {showOthersPanel && othersLanguages.length > 0 && (
           <div className={styles.othersPanel}>
             <div className={styles.othersPanelHeader}>
-              <h4 className={styles.othersPanelTitle}>🔬 Otros Lenguajes ({othersLanguages.length})</h4>
+              <h4 className={styles.othersPanelTitle}>🔬 {t('charts.otherLanguages')} ({othersLanguages.length})</h4>
               <button 
                 className={styles.othersPanelClose}
                 onClick={() => setShowOthersPanel(false)}
-                aria-label="Cerrar panel"
+                aria-label={t('common.close')}
               >
                 ✕
               </button>
             </div>
-            <p className={styles.othersPanelSubtitle}>Click en un lenguaje para filtrar</p>
+            <p className={styles.othersPanelSubtitle}>{t('charts.clickLanguageToFilter')}</p>
             <div className={styles.othersPanelGrid}>
               {othersLanguages.map((lang, index) => (
                 <button
@@ -2450,12 +2450,12 @@ export default function ChartsSection({ data }) {
           className={`${styles.chartCard} ${styles.chartCardWide} ${styles.scrollReveal} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
         >
           <div className={styles.titleRow}>
-            <h3 className={styles.chartTitle}>Comunidades Interdisciplinares</h3>
+            <h3 className={styles.chartTitle}>{t('charts.chart5')}</h3>
             {selectedDiscipline && (
               <button
                 className={styles.activeFilterBadge}
                 onClick={() => setFilter('discipline', selectedDiscipline)}
-                title="Quitar filtro de disciplina"
+                title={t('charts.removeDisciplineFilter')}
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: DISCIPLINE_COLORS[selectedDiscipline] || '#888', display: 'inline-block' }} />
                 {DISCIPLINE_LABELS[selectedDiscipline] || selectedDiscipline}
@@ -2464,10 +2464,10 @@ export default function ChartsSection({ data }) {
             )}
           </div>
           <p className={styles.chartSubtitle}>
-            Clasificación automática de usuarios por área de expertise
+            {t('charts.disciplineAutoClassification')}
             {disciplineAnalysis?.cross_discipline_index != null && (
               <span style={{ marginLeft: 8, color: '#00ff9f', fontWeight: 600 }}>
-                — Índice cross-disciplina: {disciplineAnalysis.cross_discipline_index.toFixed(1)}%
+                — {t('charts.crossDisciplineIndex')}: {disciplineAnalysis.cross_discipline_index.toFixed(1)}%
               </span>
             )}
           </p>
@@ -2476,7 +2476,7 @@ export default function ChartsSection({ data }) {
               {isFiltering && (
                 <div className={styles.chartLoadingOverlay}>
                   <div className={styles.chartLoadingSpinner}></div>
-                  <span>Actualizando...</span>
+                  <span>{t('charts.updating')}</span>
                 </div>
               )}
               {/* Caso especial: una sola disciplina → display tipo spotlight */}
@@ -2493,14 +2493,14 @@ export default function ChartsSection({ data }) {
                     <h4 className={styles.singleDisciplineName} style={{ color: sole.fill }}>{sole.name}</h4>
                     <div className={styles.singleDisciplineStats}>
                       <span className={styles.singleDisciplineCount} style={{ color: sole.fill }}>{sole.value.toLocaleString()}</span>
-                      <span className={styles.singleDisciplineCountLabel}>colaboradores</span>
+                      <span className={styles.singleDisciplineCountLabel}>{t('charts.collaborators')}</span>
                     </div>
                     <p className={styles.singleDisciplineDesc}>
-                      {DISCIPLINE_DESCRIPTIONS[sole.key] || 'Disciplina especializada dentro del ecosistema cuántico.'}
+                      {DISCIPLINE_DESCRIPTIONS[sole.key] || t('charts.disciplineDefault')}
                     </p>
                     <div className={styles.singleDisciplineBadge} style={{ borderColor: `${sole.fill}44`, background: `${sole.fill}12` }}>
                       <span style={{ color: sole.fill, fontWeight: 600 }}>100%</span>
-                      <span style={{ color: '#9ca3af' }}>de los contribuidores en esta categoría</span>
+                      <span style={{ color: '#9ca3af' }}>{t('charts.contributorsInCategory')}</span>
                     </div>
                     {selectedDiscipline === sole.key ? (
                       <button
@@ -2508,7 +2508,7 @@ export default function ChartsSection({ data }) {
                         style={{ borderColor: `${sole.fill}55`, color: sole.fill }}
                         onClick={() => setFilter('discipline', sole.key)}
                       >
-                        Quitar filtro de disciplina
+                        {t('charts.removeDisciplineFilter')}
                       </button>
                     ) : (
                       <button
@@ -2516,7 +2516,7 @@ export default function ChartsSection({ data }) {
                         style={{ borderColor: `${sole.fill}55`, color: sole.fill }}
                         onClick={() => setFilter('discipline', sole.key)}
                       >
-                        Filtrar por {sole.name}
+                        {t('charts.filterBy', { name: sole.name })}
                       </button>
                     )}
                   </div>
@@ -2603,7 +2603,7 @@ export default function ChartsSection({ data }) {
                     onMouseDown={(e) => e.stopPropagation()}
                   >
                     <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Filtrar por disciplina
+                      {t('charts.filterByDiscipline')}
                     </p>
                     {otrosPopover.items.map((item, i) => (
                       <div
@@ -2628,7 +2628,7 @@ export default function ChartsSection({ data }) {
                 </div>
               ) : (
                 <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#6b7280' }}>Cargando gráfico...</span>
+                  <span style={{ color: '#6b7280' }}>{t('charts.loadingChart')}</span>
                 </div>
               )}
               </>
@@ -2643,9 +2643,9 @@ export default function ChartsSection({ data }) {
                     <Network size={16} />
                   </div>
                   <div>
-                    <div className={styles.bridgePanelTitle}>Puentes Interdisciplinares</div>
+                    <div className={styles.bridgePanelTitle}>{t('charts.interdisciplinaryBridges')}</div>
                     <div className={styles.bridgePanelCount}>
-                      {disciplineAnalysis.bridge_profiles.length} usuario{disciplineAnalysis.bridge_profiles.length !== 1 ? 's' : ''} multidisciplinar{disciplineAnalysis.bridge_profiles.length !== 1 ? 'es' : ''}
+                      {t('charts.multidisciplinaryUsers', { count: disciplineAnalysis.bridge_profiles.length })}
                     </div>
                   </div>
                 </div>
@@ -2734,9 +2734,9 @@ export default function ChartsSection({ data }) {
           </div>
 
           <p className={styles.chartHint}>
-            <span><span className={styles.kbdKey}>Click</span> en sector para filtrar contribuidores</span>
+            <span><span className={styles.kbdKey}>Click</span> {t('charts.hintClickSector')}</span>
             <span>·</span>
-            <span><span className={styles.kbdKey}>Click</span> en puente para ver detalles</span>
+            <span><span className={styles.kbdKey}>Click</span> {t('charts.hintClickBridge')}</span>
           </p>
         </div>
       )}
@@ -2749,19 +2749,19 @@ export default function ChartsSection({ data }) {
 
         const typeConfig = {
           org: { 
-            label: 'Organización', 
+            label: t('charts.entityOrg'), 
             color: '#00D4E4', 
             Icon: Building2,
             github: `https://github.com/${data.name}` 
           },
           repo: { 
-            label: 'Repositorio', 
+            label: t('charts.entityRepo'), 
             color: '#9D6FDB', 
             Icon: GitFork,
             github: `https://github.com/${data.fullName}` 
           },
           user: { 
-            label: 'Contribuidor', 
+            label: t('charts.entityContributor'), 
             color: '#00ff9f', 
             Icon: User,
             github: `https://github.com/${data.login}` 
@@ -2805,7 +2805,7 @@ export default function ChartsSection({ data }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.entityDetailGithubLink}
-                    title="Ver en GitHub"
+                    title={t('charts.viewOnGitHub')}
                   >
                     <ExternalLink size={16} />
                   </a>
@@ -2828,11 +2828,11 @@ export default function ChartsSection({ data }) {
               {/* Badges row */}
               {(() => {
                 const badges = []
-                if (type === 'org' && data.is_verified) badges.push({ icon: Shield, label: 'Verificada', color: '#22C55E' })
+                if (type === 'org' && data.is_verified) badges.push({ icon: Shield, label: t('charts.badgeVerified'), color: '#22C55E' })
                 if (type === 'org' && data.is_quantum_focused) badges.push({ icon: Zap, label: 'Quantum Focus', color: '#F59E0B' })
                 if (type === 'repo' && data.is_fork) badges.push({ icon: GitFork, label: 'Fork', color: '#9D6FDB' })
-                if (type === 'repo' && data.is_archived) badges.push({ icon: Archive, label: 'Archivado', color: '#EF4444' })
-                if (type === 'user' && data.is_hireable) badges.push({ icon: Briefcase, label: 'Disponible', color: '#22C55E' })
+                if (type === 'repo' && data.is_archived) badges.push({ icon: Archive, label: t('charts.badgeArchived'), color: '#EF4444' })
+                if (type === 'user' && data.is_hireable) badges.push({ icon: Briefcase, label: t('charts.badgeHireable'), color: '#22C55E' })
                 if (type === 'user' && data.quantum_expertise_score > 0) badges.push({ icon: Cpu, label: `QE ${data.quantum_expertise_score.toFixed(1)}`, color: '#00D4E4' })
                 if (badges.length === 0) return null
                 return (
@@ -2852,25 +2852,25 @@ export default function ChartsSection({ data }) {
                   <>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.repositories || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Repos Quantum</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.metricReposQuantum')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.stars || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Estrellas</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.metricStars')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.total_unique_contributors || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Contributors</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.metricContributors')}</span>
                     </div>
                     {data.shared_users_count > 0 ? (
                       <div className={styles.entityDetailStat}>
                         <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.shared_users_count || 0).toLocaleString()}</span>
-                        <span className={styles.entityDetailStatLabel}>Cross-org</span>
+                        <span className={styles.entityDetailStatLabel}>{t('charts.crossOrg')}</span>
                       </div>
                     ) : (
                       <div className={styles.entityDetailStat}>
                         <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.total_repositories_count || 0).toLocaleString()}</span>
-                        <span className={styles.entityDetailStatLabel}>Repos Totales</span>
+                        <span className={styles.entityDetailStatLabel}>{t('charts.totalRepos')}</span>
                       </div>
                     )}
                   </>
@@ -2879,25 +2879,25 @@ export default function ChartsSection({ data }) {
                   <>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.stargazer_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Estrellas</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.metricStars')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.fork_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Forks</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.forks')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.collaborators_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Contribuidores</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.metricContributors')}</span>
                     </div>
                     {data.shared_collaborators_count > 0 ? (
                       <div className={styles.entityDetailStat}>
                         <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.shared_collaborators_count || 0).toLocaleString()}</span>
-                        <span className={styles.entityDetailStatLabel}>Cross-repo</span>
+                        <span className={styles.entityDetailStatLabel}>{t('charts.crossRepo')}</span>
                       </div>
                     ) : (
                       <div className={styles.entityDetailStat}>
                         <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.watchers_count || 0).toLocaleString()}</span>
-                        <span className={styles.entityDetailStatLabel}>Watchers</span>
+                        <span className={styles.entityDetailStatLabel}>{t('charts.watchers')}</span>
                       </div>
                     )}
                   </>
@@ -2906,19 +2906,19 @@ export default function ChartsSection({ data }) {
                   <>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#00D4E4' }}>{(data.score || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Collab Score</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.collabScore')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#9D6FDB' }}>{(data.contributions || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Contrib.</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.contrib')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#F59E0B' }}>{(data.followers_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Followers</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.followers')}</span>
                     </div>
                     <div className={styles.entityDetailStat}>
                       <span className={styles.entityDetailStatValue} style={{ color: '#00ff9f' }}>{(data.repos_count || data.public_repos_count || data.repos || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailStatLabel}>Repos</span>
+                      <span className={styles.entityDetailStatLabel}>{t('charts.reposShort')}</span>
                     </div>
                   </>
                 )}
@@ -2928,7 +2928,7 @@ export default function ChartsSection({ data }) {
               {/* Org: Repos overview - always show when we have total_repositories_count */}
               {type === 'org' && data.total_repositories_count > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Repositorios</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.repositories')}</h4>
                   <div className={styles.entityDetailProgressRow}>
                     <div className={styles.entityDetailProgressBar}>
                       <div className={styles.entityDetailProgressFill} style={{ width: `${Math.min(100, ((data.repositories || 0) / data.total_repositories_count) * 100)}%` }} />
@@ -2938,8 +2938,8 @@ export default function ChartsSection({ data }) {
                     </span>
                   </div>
                   <span className={styles.entityDetailProgressHint}>
-                    {data.repositories || 0} repos quantum de {data.total_repositories_count} totales
-                    {data.quantum_focus_score > 0 && ` · ${data.quantum_focus_score.toFixed(1)}% enfoque quantum`}
+                    {data.repositories || 0} {t('charts.quantumReposOf')} {data.total_repositories_count} {t('charts.total')}
+                    {data.quantum_focus_score > 0 && ` · ${data.quantum_focus_score.toFixed(1)}% ${t('charts.quantumFocus')}`}
                   </span>
                 </div>
               )}
@@ -2947,29 +2947,29 @@ export default function ChartsSection({ data }) {
               {/* Org: Info section - ALWAYS show, combine all org metadata */}
               {type === 'org' && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Información</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.information')}</h4>
                   {data.created_at && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> Creada</span>
+                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> {t('charts.created')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{formatDetailDate(data.created_at)}{timeAgo(data.created_at) && <small> ({timeAgo(data.created_at)})</small>}</span>
                     </div>
                   )}
                   {data.location && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> Ubicación</span>
+                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> {t('charts.locationLabel')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.location}</span>
                     </div>
                   )}
                   {data.email && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Mail size={12} /> Email</span>
+                      <span className={styles.entityDetailMetaLabel}><Mail size={12} /> {t('charts.emailLabel')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.email}</span>
                     </div>
                   )}
                   {data.total_unique_contributors > 0 && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Contributors</span>
-                      <span className={styles.entityDetailMetaValuePlain}>{data.total_unique_contributors.toLocaleString()} contribuidores únicos en sus repos</span>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> {t('charts.metricContributors')}</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.total_unique_contributors.toLocaleString()} {t('charts.uniqueContributors')}</span>
                     </div>
                   )}
                 </div>
@@ -2977,7 +2977,7 @@ export default function ChartsSection({ data }) {
 
               {type === 'org' && Array.isArray(data.top_languages) && data.top_languages.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes principales</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.mainLanguages')}</h4>
                   {/* Language bar visualization */}
                   <div className={styles.entityDetailLangBarWrap}>
                     <div className={styles.entityDetailLangBar}>
@@ -3010,7 +3010,7 @@ export default function ChartsSection({ data }) {
 
               {type === 'org' && Array.isArray(data.top_quantum_contributors) && data.top_quantum_contributors.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Top contribuidores quantum ({data.top_quantum_contributors.length})</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.topQuantumContributors')} ({data.top_quantum_contributors.length})</h4>
                   <div className={styles.entityDetailContribList}>
                     {data.top_quantum_contributors.map((c, i) => {
                       const login = typeof c === 'string' ? c : c?.login
@@ -3032,7 +3032,7 @@ export default function ChartsSection({ data }) {
                   <div className={styles.entityDetailLinks}>
                     {data.website_url && (
                       <a href={data.website_url.startsWith('http') ? data.website_url : `https://${data.website_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
-                        <Globe size={13} /> Sitio web
+                        <Globe size={13} /> {t('charts.website')}
                       </a>
                     )}
                     {data.twitter_username && (
@@ -3047,39 +3047,39 @@ export default function ChartsSection({ data }) {
               {/* === REPO SPECIFIC SECTIONS === */}
               {type === 'repo' && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Actividad del repositorio</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.repoActivity')}</h4>
                   <div className={styles.entityDetailActivityGrid}>
                     <div className={styles.entityDetailActivityItem}>
                       <GitCommit size={13} style={{ color: '#22C55E' }} />
                       <span className={styles.entityDetailActivityValue}>{(data.commits_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailActivityLabel}>Commits</span>
+                      <span className={styles.entityDetailActivityLabel}>{t('charts.commits')}</span>
                     </div>
                     <div className={styles.entityDetailActivityItem}>
                       <GitPullRequest size={13} style={{ color: '#3B82F6' }} />
                       <span className={styles.entityDetailActivityValue}>{(data.pull_requests_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailActivityLabel}>PRs</span>
+                      <span className={styles.entityDetailActivityLabel}>{t('charts.prs')}</span>
                     </div>
                     <div className={styles.entityDetailActivityItem}>
                       <AlertCircle size={13} style={{ color: '#EF4444' }} />
                       <span className={styles.entityDetailActivityValue}>{(data.issues_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailActivityLabel}>Issues</span>
+                      <span className={styles.entityDetailActivityLabel}>{t('charts.issues')}</span>
                     </div>
                     <div className={styles.entityDetailActivityItem}>
                       <Tag size={13} style={{ color: '#F59E0B' }} />
                       <span className={styles.entityDetailActivityValue}>{(data.releases_count || 0).toLocaleString()}</span>
-                      <span className={styles.entityDetailActivityLabel}>Releases</span>
+                      <span className={styles.entityDetailActivityLabel}>{t('charts.releases')}</span>
                     </div>
                   </div>
                   {(data.merged_pull_requests_count > 0 || data.open_pull_requests_count > 0 || data.open_issues_count > 0) && (
                     <div className={styles.entityDetailSubStats}>
                       {data.merged_pull_requests_count > 0 && (
-                        <span className={styles.entityDetailSubStat}><span style={{ color: '#9D6FDB' }}>{data.merged_pull_requests_count}</span> merged</span>
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#9D6FDB' }}>{data.merged_pull_requests_count}</span> {t('charts.merged')}</span>
                       )}
                       {data.open_pull_requests_count > 0 && (
-                        <span className={styles.entityDetailSubStat}><span style={{ color: '#22C55E' }}>{data.open_pull_requests_count}</span> PRs abiertos</span>
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#22C55E' }}>{data.open_pull_requests_count}</span> {t('charts.openPRs')}</span>
                       )}
                       {data.open_issues_count > 0 && (
-                        <span className={styles.entityDetailSubStat}><span style={{ color: '#F59E0B' }}>{data.open_issues_count}</span> issues abiertas</span>
+                        <span className={styles.entityDetailSubStat}><span style={{ color: '#F59E0B' }}>{data.open_issues_count}</span> {t('charts.openIssues')}</span>
                       )}
                     </div>
                   )}
@@ -3088,7 +3088,7 @@ export default function ChartsSection({ data }) {
 
               {type === 'repo' && Array.isArray(data.repository_topics) && data.repository_topics.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Topics ({data.repository_topics.length})</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.topics')} ({data.repository_topics.length})</h4>
                   <div className={styles.entityDetailTopics}>
                     {data.repository_topics.slice(0, 12).map((topic, i) => (
                       <span key={i} className={styles.entityDetailTopic}>{topic}</span>
@@ -3099,7 +3099,7 @@ export default function ChartsSection({ data }) {
 
               {type === 'repo' && Array.isArray(data.languages) && data.languages.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes ({data.languages.length})</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.languages')} ({data.languages.length})</h4>
                   <div className={styles.entityDetailLangBarWrap}>
                     {(() => {
                       const totalSize = data.languages.reduce((sum, l) => sum + (l.size || 0), 0)
@@ -3134,7 +3134,7 @@ export default function ChartsSection({ data }) {
                 <div className={styles.entityDetailSection}>
                   {data.language && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Code size={12} /> Lenguaje principal</span>
+                      <span className={styles.entityDetailMetaLabel}><Code size={12} /> {t('charts.mainLanguage')}</span>
                       <button className={styles.entityDetailMetaValue} onClick={() => { setFilter('language', data.language); closeEntityDetail() }}>
                         {data.language}
                       </button>
@@ -3142,7 +3142,7 @@ export default function ChartsSection({ data }) {
                   )}
                   {data.owner && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Building2 size={12} /> Organización</span>
+                      <span className={styles.entityDetailMetaLabel}><Building2 size={12} /> {t('charts.entityOrg')}</span>
                       <button className={styles.entityDetailMetaValue} onClick={() => { setFilter('org', data.owner); closeEntityDetail() }}>
                         {data.owner}
                       </button>
@@ -3150,7 +3150,7 @@ export default function ChartsSection({ data }) {
                   )}
                   {data.license_info?.name && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Scale size={12} /> Licencia</span>
+                      <span className={styles.entityDetailMetaLabel}><Scale size={12} /> {t('charts.license')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.license_info.spdx_id || data.license_info.name}</span>
                     </div>
                   )}
@@ -3162,7 +3162,7 @@ export default function ChartsSection({ data }) {
                   )}
                   {data.latest_release?.tag_name && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Tag size={12} /> Última release</span>
+                      <span className={styles.entityDetailMetaLabel}><Tag size={12} /> {t('charts.latestRelease')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>
                         {data.latest_release.tag_name}
                         {data.latest_release.published_at && timeAgo(data.latest_release.published_at) && <small> ({timeAgo(data.latest_release.published_at)})</small>}
@@ -3175,26 +3175,26 @@ export default function ChartsSection({ data }) {
               {/* Repo timeline */}
               {type === 'repo' && (data.created_at || data.pushed_at) && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Cronología</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.timeline')}</h4>
                   <div className={styles.entityDetailTimeline}>
                     {data.created_at && (
                       <div className={styles.entityDetailTimelineItem}>
                         <Calendar size={11} />
-                        <span className={styles.entityDetailTimelineLabel}>Creado</span>
+                        <span className={styles.entityDetailTimelineLabel}>{t('charts.created')}</span>
                         <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.created_at)}</span>
                       </div>
                     )}
                     {data.pushed_at && (
                       <div className={styles.entityDetailTimelineItem}>
                         <Clock size={11} />
-                        <span className={styles.entityDetailTimelineLabel}>Último push</span>
+                        <span className={styles.entityDetailTimelineLabel}>{t('charts.lastPush')}</span>
                         <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.pushed_at)}{timeAgo(data.pushed_at) && <small> ({timeAgo(data.pushed_at)})</small>}</span>
                       </div>
                     )}
                     {data.updated_at && (
                       <div className={styles.entityDetailTimelineItem}>
                         <Clock size={11} />
-                        <span className={styles.entityDetailTimelineLabel}>Actualizado</span>
+                        <span className={styles.entityDetailTimelineLabel}>{t('charts.updated')}</span>
                         <span className={styles.entityDetailTimelineValue}>{formatDetailDate(data.updated_at)}</span>
                       </div>
                     )}
@@ -3218,7 +3218,7 @@ export default function ChartsSection({ data }) {
 
                 return (
                   <div className={styles.entityDetailSection}>
-                    <h4 className={styles.entityDetailSectionTitle}>Disciplina</h4>
+                    <h4 className={styles.entityDetailSectionTitle}>{t('charts.discipline')}</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: bridgeData ? 8 : 0 }}>
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -3233,7 +3233,7 @@ export default function ChartsSection({ data }) {
                       </span>
                       {discInfo.discipline_confidence > 0 && (
                         <span style={{ fontSize: 11, color: '#6b7280' }}>
-                          {(discInfo.discipline_confidence * 100).toFixed(0)}% confianza
+                          {(discInfo.discipline_confidence * 100).toFixed(0)}% {t('charts.confidence')}
                         </span>
                       )}
                     </div>
@@ -3275,7 +3275,7 @@ export default function ChartsSection({ data }) {
               {/* User contribution breakdown */}
               {type === 'user' && (data.contributions > 0 || data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Desglose de contribuciones</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.contributionBreakdown')}</h4>
                   {(data.commits > 0 || data.prs > 0 || data.reviews > 0 || data.issues > 0) ? (
                     <div className={styles.entityDetailBreakdown}>
                       {[
@@ -3298,10 +3298,10 @@ export default function ChartsSection({ data }) {
                   ) : (
                     <div style={{ fontSize: 13, color: '#9ca3af', padding: '4px 0' }}>
                       {data.contributions_to_quantum_repos > 0 ? (
-                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> contribuciones a repos quantum<br/>
-                        <small style={{ color: '#6b7280' }}>Desglose no disponible (sin actividad en el último año en GitHub)</small></>
+                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> {t('charts.quantumContributions')}<br/>
+                        <small style={{ color: '#6b7280' }}>{t('charts.breakdownNotAvailable')}</small></>
                       ) : (
-                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> contribuciones al repositorio</>
+                        <>Total: <strong style={{ color: '#00D4E4' }}>{(data.contributions || 0).toLocaleString()}</strong> {t('charts.repoContributions')}</>
                       )}
                     </div>
                   )}
@@ -3311,46 +3311,46 @@ export default function ChartsSection({ data }) {
               {/* User profile info */}
               {type === 'user' && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Perfil</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.profile')}</h4>
                   {data.company && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Briefcase size={12} /> Empresa</span>
+                      <span className={styles.entityDetailMetaLabel}><Briefcase size={12} /> {t('charts.company')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.company}</span>
                     </div>
                   )}
                   {data.location && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> Ubicación</span>
+                      <span className={styles.entityDetailMetaLabel}><MapPin size={12} /> {t('charts.locationLabel')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.location}</span>
                     </div>
                   )}
                   {data.created_at && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> Miembro desde</span>
+                      <span className={styles.entityDetailMetaLabel}><Calendar size={12} /> {t('charts.memberSince')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{formatDetailDate(data.created_at)}</span>
                     </div>
                   )}
                   {data.followers_count > 0 && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Followers</span>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> {t('charts.followersLabel')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.followers_count.toLocaleString()}</span>
                     </div>
                   )}
                   {data.following_count > 0 && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> Following</span>
+                      <span className={styles.entityDetailMetaLabel}><Users size={12} /> {t('charts.followingLabel')}</span>
                       <span className={styles.entityDetailMetaValuePlain}>{data.following_count.toLocaleString()}</span>
                     </div>
                   )}
                   {data.has_commits != null && (
                     <div className={styles.entityDetailMetaRow}>
-                      <span className={styles.entityDetailMetaLabel}><GitCommit size={12} /> Rol</span>
-                      <span className={styles.entityDetailMetaValuePlain}>{data.has_commits ? 'Contributor (commits)' : data.is_mentionable ? 'Reviewer / Triage' : 'Miembro'}</span>
+                      <span className={styles.entityDetailMetaLabel}><GitCommit size={12} /> {t('charts.roleLabel')}</span>
+                      <span className={styles.entityDetailMetaValuePlain}>{data.has_commits ? t('charts.roleContributor') : data.is_mentionable ? t('charts.roleReviewer') : t('charts.roleMember')}</span>
                     </div>
                   )}
                   {!data.company && !data.location && !data.created_at && data.followers_count === 0 && data.following_count === 0 && (
                     <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic', padding: '4px 0' }}>
-                      Perfil no enriquecido — solo datos de colaboración disponibles
+                      {t('charts.profileNotEnriched')}
                     </div>
                   )}
                 </div>
@@ -3359,7 +3359,7 @@ export default function ChartsSection({ data }) {
               {/* User top languages */}
               {type === 'user' && Array.isArray(data.top_languages) && data.top_languages.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Lenguajes principales</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.mainLanguages')}</h4>
                   <div className={styles.entityDetailLangList}>
                     {data.top_languages.slice(0, 6).map((lang, i) => {
                       const langName = typeof lang === 'string' ? lang : lang?.name
@@ -3377,13 +3377,13 @@ export default function ChartsSection({ data }) {
               {/* User organizations */}
               {type === 'user' && Array.isArray(data.organizations) && data.organizations.length > 0 && (
                 <div className={styles.entityDetailSection}>
-                  <h4 className={styles.entityDetailSectionTitle}>Organizaciones ({data.organizations.length})</h4>
+                  <h4 className={styles.entityDetailSectionTitle}>{t('charts.organizations')} ({data.organizations.length})</h4>
                   <div className={styles.entityDetailOrgChips}>
                     {data.organizations.map((org, i) => {
                       const orgLogin = typeof org === 'string' ? org : org?.login
                       if (!orgLogin) return null
                       return (
-                        <button key={i} className={styles.entityDetailOrgChip} onClick={() => { setFilter('org', orgLogin); closeEntityDetail() }} title={`Filtrar por ${orgLogin}`}>
+                        <button key={i} className={styles.entityDetailOrgChip} onClick={() => { setFilter('org', orgLogin); closeEntityDetail() }} title={t('charts.filterByOrg', { name: orgLogin })}>
                           {orgLogin}
                         </button>
                       )
@@ -3398,7 +3398,7 @@ export default function ChartsSection({ data }) {
                   <div className={styles.entityDetailLinks}>
                     {data.website_url && (
                       <a href={data.website_url.startsWith('http') ? data.website_url : `https://${data.website_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailLink}>
-                        <Globe size={13} /> Sitio web
+                        <Globe size={13} /> {t('charts.website')}
                       </a>
                     )}
                     {data.twitter_username && (
@@ -3417,7 +3417,7 @@ export default function ChartsSection({ data }) {
                     className={styles.entityDetailActionBtn}
                     onClick={() => { setFilter('org', data.name); closeEntityDetail() }}
                   >
-                    <Building2 size={14} /> Filtrar por esta organización
+                    <Building2 size={14} /> {t('charts.filterByThisOrg')}
                   </button>
                 )}
                 {type === 'repo' && (
@@ -3426,11 +3426,11 @@ export default function ChartsSection({ data }) {
                       className={styles.entityDetailActionBtn}
                       onClick={() => { setFilter('repo', data.fullName); closeEntityDetail() }}
                     >
-                      <BookOpen size={14} /> Filtrar por este repositorio
+                      <BookOpen size={14} /> {t('charts.filterByRepo')}
                     </button>
                     {data.homepage_url && (
                       <a href={data.homepage_url.startsWith('http') ? data.homepage_url : `https://${data.homepage_url}`} target="_blank" rel="noopener noreferrer" className={styles.entityDetailActionBtnSecondary}>
-                        <Globe size={14} /> Sitio web
+                        <Globe size={14} /> {t('charts.website')}
                       </a>
                     )}
                   </div>
@@ -3440,7 +3440,7 @@ export default function ChartsSection({ data }) {
                     className={styles.entityDetailActionBtn}
                     onClick={() => { selectUserForAnalysis(data.login); closeEntityDetail() }}
                   >
-                    <Users size={14} /> Ver red de colaboración
+                    <Users size={14} /> {t('charts.viewCollabNetworkShort')}
                   </button>
                 )}
               </div>

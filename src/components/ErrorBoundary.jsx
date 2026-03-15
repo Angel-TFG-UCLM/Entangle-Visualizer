@@ -7,6 +7,7 @@
  */
 
 import React from 'react'
+import i18n from '../i18n'
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -53,14 +54,14 @@ class ErrorBoundary extends React.Component {
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
             <h1 style={{ color: '#ff4757', marginBottom: '1rem' }}>
-              ⚠️ Error de Aplicación
+              {i18n.t('error.title')}
             </h1>
             <p style={{ marginBottom: '1rem', opacity: 0.9 }}>
-              La aplicación ha encontrado un error inesperado.
+              {i18n.t('error.message')}
             </p>
             <details style={{ marginTop: '1rem' }}>
               <summary style={{ cursor: 'pointer', marginBottom: '0.5rem' }}>
-                Ver detalles del error
+                {i18n.t('error.details')}
               </summary>
               <pre style={{
                 background: 'rgba(0, 0, 0, 0.3)',
@@ -90,7 +91,7 @@ class ErrorBoundary extends React.Component {
                 fontWeight: '500'
               }}
             >
-              Recargar Aplicación
+              {i18n.t('error.reload')}
             </button>
           </div>
         </div>

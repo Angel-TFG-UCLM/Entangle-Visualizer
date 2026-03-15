@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useEnrichedData } from '../../hooks/useEnrichedData'
 import styles from './TechStackMap.module.css'
 
@@ -49,6 +50,7 @@ const LANG_COLORS = {
 }
 
 export default function TechStackMap() {
+  const { t } = useTranslation()
   const enriched = useEnrichedData()
   const containerRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
@@ -169,11 +171,11 @@ export default function TechStackMap() {
     <div ref={containerRef} className={`${styles.container} ${isVisible ? styles.visible : ''}`}>
       <div className={styles.header}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>Tech Stack Map</h3>
-          <span className={styles.badge}>{convergence.total} lenguajes</span>
+          <h3 className={styles.title}>{t('techStack.title')}</h3>
+          <span className={styles.badge}>{t('techStack.badge', { count: convergence.total })}</span>
         </div>
         <p className={styles.subtitle}>
-          Distribución de lenguajes de programación por organización
+          {t('techStack.subtitle')}
         </p>
       </div>
 
@@ -181,17 +183,17 @@ export default function TechStackMap() {
       <div className={styles.convergenceRow}>
         <div className={styles.convergenceItem}>
           <span className={styles.convergenceIcon}>🌐</span>
-          <span className={styles.convergenceLabel}>Universales</span>
+          <span className={styles.convergenceLabel}>{t('techStack.universal')}</span>
           <span className={styles.convergenceValue}>{convergence.universal}</span>
         </div>
         <div className={styles.convergenceItem}>
           <span className={styles.convergenceIcon}>🔒</span>
-          <span className={styles.convergenceLabel}>Exclusivos</span>
+          <span className={styles.convergenceLabel}>{t('techStack.exclusive')}</span>
           <span className={styles.convergenceValue}>{convergence.exclusive}</span>
         </div>
         <div className={styles.convergenceItem}>
           <span className={styles.convergenceIcon}>📊</span>
-          <span className={styles.convergenceLabel}>Media langs/org</span>
+          <span className={styles.convergenceLabel}>{t('techStack.avgLangs')}</span>
           <span className={styles.convergenceValue}>{convergence.avgLangs}</span>
         </div>
       </div>
@@ -216,8 +218,8 @@ export default function TechStackMap() {
                 style={{ background: LANG_COLORS[card.language] || '#888' }}
               />
               <span className={styles.langName}>{card.language}</span>
-              {card.isUniversal && <span className={styles.universalTag}>Universal</span>}
-              {card.isExclusive && <span className={styles.exclusiveTag}>Exclusivo</span>}
+              {card.isUniversal && <span className={styles.universalTag}>{t('techStack.tagUniversal')}</span>}
+              {card.isExclusive && <span className={styles.exclusiveTag}>{t('techStack.tagExclusive')}</span>}
             </div>
 
             <div className={styles.orgBars}>
@@ -251,7 +253,7 @@ export default function TechStackMap() {
             </div>
 
             <div className={styles.langFooter}>
-              <span className={styles.footerLabel}>Total</span>
+              <span className={styles.footerLabel}>{t('techStack.total')}</span>
               <span className={styles.footerStat}>{card.totalRepos} repos · {card.orgCount} orgs</span>
             </div>
           </div>

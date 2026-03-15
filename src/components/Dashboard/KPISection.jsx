@@ -23,6 +23,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { Users, Database, Building2 } from 'lucide-react'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import { useTranslation } from 'react-i18next'
 import WavefunctionCollapse from '../WavefunctionCollapse'
 import BlochSphere from '../BlochSphere'
 import styles from '../../App.module.css'
@@ -229,6 +230,7 @@ export default function KPISection({ data }) {
 
   // Hover state para wavefunction collapse
   const [hoveredCard, setHoveredCard] = useState(null)
+  const { t } = useTranslation()
 
   return (
     <section className={styles.statsGrid}>
@@ -244,7 +246,7 @@ export default function KPISection({ data }) {
         </div>
         {hasFilters && (
           <div className={styles.statBadge}>
-            <span className={styles.badgeText}>|FILTERED⟩</span>
+            <span className={styles.badgeText}>{t('kpi.filtered')}</span>
           </div>
         )}
         <div className={styles.statHeader}>
@@ -254,7 +256,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalRepos} visible={reposVisible} />
           </h3>
-          <p className={styles.statLabel}>Repositorios</p>
+          <p className={styles.statLabel}>{t('kpi.repositories')}</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'repos'} width={90} height={24} />
       </article>
@@ -272,7 +274,7 @@ export default function KPISection({ data }) {
         </div>
         {hasFilters && (
           <div className={styles.statBadge}>
-            <span className={styles.badgeText}>|FILTERED⟩</span>
+            <span className={styles.badgeText}>{t('kpi.filtered')}</span>
           </div>
         )}
         <div className={styles.statHeader}>
@@ -282,7 +284,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalUsers} visible={usersVisible} />
           </h3>
-          <p className={styles.statLabel}>Colaboradores</p>
+          <p className={styles.statLabel}>{t('kpi.collaborators')}</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'users'} width={90} height={24} />
       </article>
@@ -300,7 +302,7 @@ export default function KPISection({ data }) {
         </div>
         {hasFilters && (
           <div className={styles.statBadge}>
-            <span className={styles.badgeText}>|FILTERED⟩</span>
+            <span className={styles.badgeText}>{t('kpi.filtered')}</span>
           </div>
         )}
         <div className={styles.statHeader}>
@@ -310,7 +312,7 @@ export default function KPISection({ data }) {
           <h3 className={styles.statValue}>
             <AnimatedNumber value={stats.totalOrgs} visible={orgsVisible} />
           </h3>
-          <p className={styles.statLabel}>Organizaciones</p>
+          <p className={styles.statLabel}>{t('kpi.organizations')}</p>
         </div>
         <WavefunctionCollapse collapsed={hoveredCard === 'orgs'} width={90} height={24} />
       </article>

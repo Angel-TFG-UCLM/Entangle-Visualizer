@@ -216,12 +216,191 @@ function computePopulationStats(entityType, universeData, networkMetrics, idx) {
   return {}
 }
 
+// ============================================================================
+// WORKER I18N — diccionario inline (el worker no tiene acceso a React/i18next)
+// ============================================================================
+const WORKER_I18N = {
+  es: {
+    'health.diversity': 'Diversidad',
+    'health.diversity.tip': 'Polinización cruzada - percentil {0} entre todas las organizaciones. Mayor diversidad = ecosistema más rico.',
+    'health.resilience': 'Resiliencia',
+    'health.resilience.tip': 'Bus factor promedio - percentil {0}. Más alto = menor riesgo de perder mantenedores clave.',
+    'health.bridge': 'Red Bridge',
+    'health.bridge.tip': 'Proporción de usuarios puente - percentil {0}. Más bridges = mejor integración en la red.',
+    'health.tech': 'Tech Stack',
+    'health.tech.tip': 'Variedad de lenguajes - percentil {0}. Mayor diversidad tecnológica = equipo más versátil.',
+    'health.distribution': 'Distribución',
+    'health.distribution.tip': 'Uniformidad de contribuidores - percentil {0}. Más uniforme = menos repos abandonados.',
+    'radar.org.centrality': 'Centralidad',
+    'radar.org.centrality.tip': 'Percentil {0} - contributors compartidos con otras orgs (puentes inter-org)',
+    'radar.org.connectivity': 'Conectividad',
+    'radar.org.connectivity.tip': 'Percentil {0} - nº de organizaciones vecinas con las que comparte contributors',
+    'radar.org.diversity': 'Diversidad',
+    'radar.org.diversity.tip': 'Percentil {0} - polinización cruzada relativa a todas las orgs',
+    'radar.org.bridge': 'Puente',
+    'radar.org.bridge.tip': 'Percentil {0} - proporción de bridge users vs. población',
+    'radar.org.influence': 'Influencia',
+    'radar.org.influence.tip': 'Percentil {0} - impacto (contributors × repos) relativo',
+    'radar.repo.centrality': 'Centralidad',
+    'radar.repo.centrality.tip': 'Percentil {0} - diversidad de orgs representadas entre sus contributors',
+    'radar.repo.connectivity': 'Conectividad',
+    'radar.repo.connectivity.tip': 'Percentil {0} - nº de contributors directos',
+    'radar.repo.diversity': 'Diversidad',
+    'radar.repo.diversity.tip': 'Percentil {0} - organizaciones distintas que contribuyen',
+    'radar.repo.bridge': 'Puente',
+    'radar.repo.bridge.tip': 'Percentil {0} - ratio de bridge users vs. población',
+    'radar.repo.reach': 'Alcance',
+    'radar.repo.reach.tip': 'Percentil {0} - contribuidores únicos relativo',
+    'radar.user.centrality': 'Centralidad',
+    'radar.user.centrality.tip': 'Percentil {0} - nº de orgs distintas a las que contribuye (alcance inter-org)',
+    'radar.user.connectivity': 'Conectividad',
+    'radar.user.connectivity.tip': 'Percentil {0} - nº de repos a los que contribuye',
+    'radar.user.orgspan': 'Org Span',
+    'radar.user.orgspan.tip': 'Percentil {0} - organizaciones en las que participa vs. población',
+    'radar.user.collab': 'Colaboración',
+    'radar.user.collab.tip': 'Percentil {0} - exposición colaborativa (repos compartidos)',
+    'radar.user.versatility': 'Versatilidad',
+    'radar.user.versatility.tip': 'Percentil {0} - diversidad de lenguajes vs. población',
+    'zone.core': 'Zona Core',
+    'zone.core.desc': 'Radio {0} - Núcleo de alta colaboración',
+    'zone.mid': 'Zona Intermedia',
+    'zone.mid.desc': 'Radio {0} - Actividad moderada',
+    'zone.peripheral': 'Zona Periférica',
+    'zone.peripheral.desc': 'Radio {0} - Órbita exterior',
+    'role.hub': 'Hub Central',
+    'role.hub.desc': 'Máxima centralidad y conectividad - núcleo de la red',
+    'role.hub_minor': 'Hub Colaborativo',
+    'role.hub_minor.desc': 'Alta centralidad con conectividad significativa',
+    'role.bridge': 'Puente Estratégico',
+    'role.bridge.desc': 'Alta centralidad con conexiones selectivas - une clusters',
+    'role.connector': 'Conector Denso',
+    'role.connector.desc': 'Red densa de colaboración - muchas conexiones activas',
+    'role.active': 'Nodo Activo',
+    'role.active.desc': 'Participación equilibrada en la red de colaboración',
+    'role.focused': 'Nodo Focalizado',
+    'role.focused.desc': 'Centralidad notable con conexiones concentradas',
+    'role.social': 'Conector Social',
+    'role.social.desc': 'Muchas conexiones pero centralidad baja - red local amplia',
+    'role.emerging': 'Nodo Emergente',
+    'role.emerging.desc': 'Actividad incipiente con conectividad creciente',
+    'role.nascent': 'Nodo Incipiente',
+    'role.nascent.desc': 'Primeras interacciones en la red de colaboración',
+    'role.isolated': 'Nodo Aislado',
+    'role.isolated.desc': 'Sin actividad colaborativa medible',
+    'analysis.entity': 'entidad',
+    'analysis.org.template': '{0} es un {1} con {2} contributors en {3} repos. {4}{5}',
+    'analysis.org.crossHigh': 'Alta cross-pollination ({0}%, p{1}): sus contributors participan activamente en otras organizaciones.',
+    'analysis.org.crossMid': 'Cross-pollination moderada ({0}%, p{1}): cierto intercambio de talento con el ecosistema.',
+    'analysis.org.crossLow': 'Baja cross-pollination ({0}%, p{1}): ecosistema relativamente cerrado.',
+    'analysis.org.bridge': ' {0} bridge users conectan con {1} org{2} externas.',
+    'analysis.repo.template': '{0}: {1} contributors. {2}{3}',
+    'analysis.repo.hubHigh': 'Hub de colaboración inter-org (p{0}) con contributors de {1} organizaciones.',
+    'analysis.repo.hubMid': 'Diversidad moderada (p{0}): contributors de {1} organizaciones.',
+    'analysis.repo.hubLow': 'Diversidad baja (p{0}): actividad concentrada.',
+    'analysis.repo.bridge': ' {0} bridge users ({1}%) amplifican su alcance.',
+    'analysis.user.template': '{0} contribuye a {1} repos. {2}{3}',
+    'analysis.user.spanMulti': 'Activo en {0} organizaciones, alcanzando {1} co-contributors.',
+    'analysis.user.spanSingle': 'Concentrado en {0} organización con {1} co-contributors.',
+    'analysis.user.bridge': ' Partícula entrelazada: funciona como puente entre organizaciones.',
+  },
+  en: {
+    'health.diversity': 'Diversity',
+    'health.diversity.tip': 'Cross-pollination - percentile {0} across all organizations. Greater diversity = richer ecosystem.',
+    'health.resilience': 'Resilience',
+    'health.resilience.tip': 'Average bus factor - percentile {0}. Higher = lower risk of losing key maintainers.',
+    'health.bridge': 'Bridge Network',
+    'health.bridge.tip': 'Bridge user ratio - percentile {0}. More bridges = better network integration.',
+    'health.tech': 'Tech Stack',
+    'health.tech.tip': 'Language variety - percentile {0}. Greater tech diversity = more versatile team.',
+    'health.distribution': 'Distribution',
+    'health.distribution.tip': 'Contributor uniformity - percentile {0}. More uniform = fewer abandoned repos.',
+    'radar.org.centrality': 'Centrality',
+    'radar.org.centrality.tip': 'Percentile {0} - contributors shared with other orgs (inter-org bridges)',
+    'radar.org.connectivity': 'Connectivity',
+    'radar.org.connectivity.tip': 'Percentile {0} - number of neighbor organizations sharing contributors',
+    'radar.org.diversity': 'Diversity',
+    'radar.org.diversity.tip': 'Percentile {0} - cross-pollination relative to all orgs',
+    'radar.org.bridge': 'Bridge',
+    'radar.org.bridge.tip': 'Percentile {0} - bridge user ratio vs. population',
+    'radar.org.influence': 'Influence',
+    'radar.org.influence.tip': 'Percentile {0} - relative impact (contributors × repos)',
+    'radar.repo.centrality': 'Centrality',
+    'radar.repo.centrality.tip': 'Percentile {0} - diversity of orgs represented among contributors',
+    'radar.repo.connectivity': 'Connectivity',
+    'radar.repo.connectivity.tip': 'Percentile {0} - number of direct contributors',
+    'radar.repo.diversity': 'Diversity',
+    'radar.repo.diversity.tip': 'Percentile {0} - distinct contributing organizations',
+    'radar.repo.bridge': 'Bridge',
+    'radar.repo.bridge.tip': 'Percentile {0} - bridge user ratio vs. population',
+    'radar.repo.reach': 'Reach',
+    'radar.repo.reach.tip': 'Percentile {0} - relative unique contributors',
+    'radar.user.centrality': 'Centrality',
+    'radar.user.centrality.tip': 'Percentile {0} - number of distinct orgs contributed to (inter-org reach)',
+    'radar.user.connectivity': 'Connectivity',
+    'radar.user.connectivity.tip': 'Percentile {0} - number of repos contributed to',
+    'radar.user.orgspan': 'Org Span',
+    'radar.user.orgspan.tip': 'Percentile {0} - organizations participated in vs. population',
+    'radar.user.collab': 'Collaboration',
+    'radar.user.collab.tip': 'Percentile {0} - collaborative exposure (shared repos)',
+    'radar.user.versatility': 'Versatility',
+    'radar.user.versatility.tip': 'Percentile {0} - language diversity vs. population',
+    'zone.core': 'Core Zone',
+    'zone.core.desc': 'Radius {0} - High collaboration core',
+    'zone.mid': 'Mid Zone',
+    'zone.mid.desc': 'Radius {0} - Moderate activity',
+    'zone.peripheral': 'Peripheral Zone',
+    'zone.peripheral.desc': 'Radius {0} - Outer orbit',
+    'role.hub': 'Central Hub',
+    'role.hub.desc': 'Maximum centrality and connectivity - network core',
+    'role.hub_minor': 'Collaborative Hub',
+    'role.hub_minor.desc': 'High centrality with significant connectivity',
+    'role.bridge': 'Strategic Bridge',
+    'role.bridge.desc': 'High centrality with selective connections - bridges clusters',
+    'role.connector': 'Dense Connector',
+    'role.connector.desc': 'Dense collaboration network - many active connections',
+    'role.active': 'Active Node',
+    'role.active.desc': 'Balanced participation in collaboration network',
+    'role.focused': 'Focused Node',
+    'role.focused.desc': 'Notable centrality with concentrated connections',
+    'role.social': 'Social Connector',
+    'role.social.desc': 'Many connections but low centrality - broad local network',
+    'role.emerging': 'Emerging Node',
+    'role.emerging.desc': 'Incipient activity with growing connectivity',
+    'role.nascent': 'Nascent Node',
+    'role.nascent.desc': 'First interactions in collaboration network',
+    'role.isolated': 'Isolated Node',
+    'role.isolated.desc': 'No measurable collaborative activity',
+    'analysis.entity': 'entity',
+    'analysis.org.template': '{0} is a {1} with {2} contributors in {3} repos. {4}{5}',
+    'analysis.org.crossHigh': 'High cross-pollination ({0}%, p{1}): contributors actively participate in other organizations.',
+    'analysis.org.crossMid': 'Moderate cross-pollination ({0}%, p{1}): some talent exchange with the ecosystem.',
+    'analysis.org.crossLow': 'Low cross-pollination ({0}%, p{1}): relatively closed ecosystem.',
+    'analysis.org.bridge': ' {0} bridge users connect with {1} external org{2}.',
+    'analysis.repo.template': '{0}: {1} contributors. {2}{3}',
+    'analysis.repo.hubHigh': 'Inter-org collaboration hub (p{0}) with contributors from {1} organizations.',
+    'analysis.repo.hubMid': 'Moderate diversity (p{0}): contributors from {1} organizations.',
+    'analysis.repo.hubLow': 'Low diversity (p{0}): concentrated activity.',
+    'analysis.repo.bridge': ' {0} bridge users ({1}%) amplify its reach.',
+    'analysis.user.template': '{0} contributes to {1} repos. {2}{3}',
+    'analysis.user.spanMulti': 'Active in {0} organizations, reaching {1} co-contributors.',
+    'analysis.user.spanSingle': 'Focused on {0} organization with {1} co-contributors.',
+    'analysis.user.bridge': ' Entangled particle: acts as a bridge between organizations.',
+  },
+}
+
+/** Worker translation helper with {0},{1}... interpolation */
+function wt(key, lang, ...args) {
+  const str = WORKER_I18N[lang]?.[key] ?? WORKER_I18N['es']?.[key] ?? key
+  return args.length ? String(str).replace(/\{(\d+)\}/g, (_, i) => args[i] ?? '') : str
+}
+
 self.onmessage = function (e) {
-  const { selectedEntity, universeData, networkMetrics, requestId } = e.data
+  const { selectedEntity, universeData, networkMetrics, requestId, lang } = e.data
+  const _lang = lang || 'es'
   if (!selectedEntity) { self.postMessage({ phase: 1, data: null, requestId }); return }
 
   // Phase 1 - core data + DNA (fast, <50ms)
-  const core = computeCoreData(selectedEntity, universeData, networkMetrics)
+  const core = computeCoreData(selectedEntity, universeData, networkMetrics, _lang)
   self.postMessage({ phase: 1, data: core, requestId })
 
   // Phase 2 - impact simulations + collab matrix (medium)
@@ -270,7 +449,7 @@ function buildIndices(universeData) {
   return { repoToOrg, userToRepos, repoUserIdSets, repoNodeMap, orgNodeMap }
 }
 
-function computeCoreData(selectedEntity, universeData, networkMetrics) {
+function computeCoreData(selectedEntity, universeData, networkMetrics, lang) {
   if (!selectedEntity) return null
   const entityColor = selectedEntity.type === 'org' ? '#00f7ff' : selectedEntity.type === 'repo' ? '#bd00ff' : '#00ff9f'
   const nm = networkMetrics?.node_metrics?.[selectedEntity.id]
@@ -440,11 +619,11 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
         : 1
       const resilienceScore = percentileRank(pop.busFacts, avgBF) * 100
       healthBreakdown = [
-        { label: 'Diversidad', value: Math.round(diversityScore), color: '#00ff9f', tip: `Polinización cruzada - percentil ${Math.round(diversityScore)} entre todas las organizaciones. Mayor diversidad = ecosistema más rico.` },
-        { label: 'Resiliencia', value: Math.round(resilienceScore), color: '#ff6b6b', tip: `Bus factor promedio - percentil ${Math.round(resilienceScore)}. Más alto = menor riesgo de perder mantenedores clave.` },
-        { label: 'Red Bridge', value: Math.round(bridgeNetworkScore), color: '#ffbd00', tip: `Proporción de usuarios puente - percentil ${Math.round(bridgeNetworkScore)}. Más bridges = mejor integración en la red.` },
-        { label: 'Tech Stack', value: Math.round(langVarietyScore), color: '#bd00ff', tip: `Variedad de lenguajes - percentil ${Math.round(langVarietyScore)}. Mayor diversidad tecnológica = equipo más versátil.` },
-        { label: 'Distribución', value: Math.round(spreadScore), color: '#00b4d8', tip: `Uniformidad de contribuidores - percentil ${Math.round(spreadScore)}. Más uniforme = menos repos abandonados.` },
+        { label: wt('health.diversity', lang), value: Math.round(diversityScore), color: '#00ff9f', tip: wt('health.diversity.tip', lang, Math.round(diversityScore)) },
+        { label: wt('health.resilience', lang), value: Math.round(resilienceScore), color: '#ff6b6b', tip: wt('health.resilience.tip', lang, Math.round(resilienceScore)) },
+        { label: wt('health.bridge', lang), value: Math.round(bridgeNetworkScore), color: '#ffbd00', tip: wt('health.bridge.tip', lang, Math.round(bridgeNetworkScore)) },
+        { label: wt('health.tech', lang), value: Math.round(langVarietyScore), color: '#bd00ff', tip: wt('health.tech.tip', lang, Math.round(langVarietyScore)) },
+        { label: wt('health.distribution', lang), value: Math.round(spreadScore), color: '#00b4d8', tip: wt('health.distribution.tip', lang, Math.round(spreadScore)) },
       ]
       // Media aritmética de percentiles (todas las dimensiones contribuyen por igual)
       healthScore = Math.round((diversityScore + resilienceScore + bridgeNetworkScore + langVarietyScore + spreadScore) / 5)
@@ -549,22 +728,22 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     const bpPctl = percentileRank(pop.bridgePcts || [], Number(orgBridgePct))
     const infPctl = percentileRank(pop.influences || [], orgTotalUsers * orgReposList.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - contributors compartidos con otras orgs (puentes inter-org)` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de organizaciones vecinas con las que comparte contributors` },
-      { label: 'Diversidad', value: cpPctl, tip: `Percentil ${Math.round(cpPctl * 100)} - polinización cruzada relativa a todas las orgs` },
-      { label: 'Puente', value: bpPctl, tip: `Percentil ${Math.round(bpPctl * 100)} - proporción de bridge users vs. población` },
-      { label: 'Influencia', value: infPctl, tip: `Percentil ${Math.round(infPctl * 100)} - impacto (contributors × repos) relativo` },
+      { label: wt('radar.org.centrality', lang), value: centrality / 100, tip: wt('radar.org.centrality.tip', lang, Math.round(centrality)) },
+      { label: wt('radar.org.connectivity', lang), value: connectivity / 100, tip: wt('radar.org.connectivity.tip', lang, Math.round(connectivity)) },
+      { label: wt('radar.org.diversity', lang), value: cpPctl, tip: wt('radar.org.diversity.tip', lang, Math.round(cpPctl * 100)) },
+      { label: wt('radar.org.bridge', lang), value: bpPctl, tip: wt('radar.org.bridge.tip', lang, Math.round(bpPctl * 100)) },
+      { label: wt('radar.org.influence', lang), value: infPctl, tip: wt('radar.org.influence.tip', lang, Math.round(infPctl * 100)) },
     )
   } else if (selectedEntity.type === 'repo') {
     const divPctl = percentileRank(pop.orgDiversities || [], repoOrgDiversity.length)
     const brPctl = percentileRank(pop.bridgeRatios || [], repoUsers.length > 0 ? repoBridgeUsers.length / repoUsers.length : 0)
     const alcPctl = percentileRank(pop.userCounts || [], repoUsers.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - diversidad de orgs representadas entre sus contributors` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de contributors directos` },
-      { label: 'Diversidad', value: divPctl, tip: `Percentil ${Math.round(divPctl * 100)} - organizaciones distintas que contribuyen` },
-      { label: 'Puente', value: brPctl, tip: `Percentil ${Math.round(brPctl * 100)} - ratio de bridge users vs. población` },
-      { label: 'Alcance', value: alcPctl, tip: `Percentil ${Math.round(alcPctl * 100)} - contribuidores únicos relativo` },
+      { label: wt('radar.repo.centrality', lang), value: centrality / 100, tip: wt('radar.repo.centrality.tip', lang, Math.round(centrality)) },
+      { label: wt('radar.repo.connectivity', lang), value: connectivity / 100, tip: wt('radar.repo.connectivity.tip', lang, Math.round(connectivity)) },
+      { label: wt('radar.repo.diversity', lang), value: divPctl, tip: wt('radar.repo.diversity.tip', lang, Math.round(divPctl * 100)) },
+      { label: wt('radar.repo.bridge', lang), value: brPctl, tip: wt('radar.repo.bridge.tip', lang, Math.round(brPctl * 100)) },
+      { label: wt('radar.repo.reach', lang), value: alcPctl, tip: wt('radar.repo.reach.tip', lang, Math.round(alcPctl * 100)) },
     )
   } else {
     // Para co-contributors, usar collaboration exposure como proxy eficiente
@@ -577,11 +756,11 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     const cePctl = percentileRank(pop.collabExposures || [], userCollabExposure)
     const vlPctl = percentileRank(pop.langCounts || [], userLangs.length)
     radarAxes.push(
-      { label: 'Centralidad', value: centrality / 100, tip: `Percentil ${Math.round(centrality)} - nº de orgs distintas a las que contribuye (alcance inter-org)` },
-      { label: 'Conectividad', value: connectivity / 100, tip: `Percentil ${Math.round(connectivity)} - nº de repos a los que contribuye` },
-      { label: 'Org Span', value: osPctl, tip: `Percentil ${Math.round(osPctl * 100)} - organizaciones en las que participa vs. población` },
-      { label: 'Colaboración', value: cePctl, tip: `Percentil ${Math.round(cePctl * 100)} - exposición colaborativa (repos compartidos)` },
-      { label: 'Versatilidad', value: vlPctl, tip: `Percentil ${Math.round(vlPctl * 100)} - diversidad de lenguajes vs. población` },
+      { label: wt('radar.user.centrality', lang), value: centrality / 100, tip: wt('radar.user.centrality.tip', lang, Math.round(centrality)) },
+      { label: wt('radar.user.connectivity', lang), value: connectivity / 100, tip: wt('radar.user.connectivity.tip', lang, Math.round(connectivity)) },
+      { label: wt('radar.user.orgspan', lang), value: osPctl, tip: wt('radar.user.orgspan.tip', lang, Math.round(osPctl * 100)) },
+      { label: wt('radar.user.collab', lang), value: cePctl, tip: wt('radar.user.collab.tip', lang, Math.round(cePctl * 100)) },
+      { label: wt('radar.user.versatility', lang), value: vlPctl, tip: wt('radar.user.versatility.tip', lang, Math.round(vlPctl * 100)) },
     )
   }
 
@@ -592,11 +771,11 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
   if (pos && zm) {
     const dist = Math.sqrt((pos.x || 0) ** 2 + (pos.y || 0) ** 2 + (pos.z || 0) ** 2)
     if (dist <= zm.coreRadius) {
-      zoneInfo = { key: 'core', label: 'Zona Core', icon: '⬡', color: '#00ff9f', desc: `Radio ${Math.round(dist)} - Núcleo de alta colaboración` }
+      zoneInfo = { key: 'core', label: wt('zone.core', lang), icon: '⬡', color: '#00ff9f', desc: wt('zone.core.desc', lang, Math.round(dist)) }
     } else if (dist <= zm.peripheryMin) {
-      zoneInfo = { key: 'mid', label: 'Zona Intermedia', icon: '⬢', color: '#4488ff', desc: `Radio ${Math.round(dist)} - Actividad moderada` }
+      zoneInfo = { key: 'mid', label: wt('zone.mid', lang), icon: '⬢', color: '#4488ff', desc: wt('zone.mid.desc', lang, Math.round(dist)) }
     } else {
-      zoneInfo = { key: 'isolated', label: 'Zona Periférica', icon: '◯', color: '#aa44ff', desc: `Radio ${Math.round(dist)} - Órbita exterior` }
+      zoneInfo = { key: 'isolated', label: wt('zone.peripheral', lang), icon: '◯', color: '#aa44ff', desc: wt('zone.peripheral.desc', lang, Math.round(dist)) }
     }
   }
 
@@ -655,16 +834,16 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
     // Matriz de roles: (centClass × connClass) → rol
     // Los nombres son creativos pero las FRONTERAS son 100% data-driven.
     const ROLE_MATRIX = {
-      'high_high': { key: 'hub',      label: 'Hub Central',        icon: '⊛', color: '#ffd166', desc: 'Máxima centralidad y conectividad - núcleo de la red' },
-      'high_mid':  { key: 'hub_minor', label: 'Hub Colaborativo',   icon: '⊛', color: '#ffd166', desc: 'Alta centralidad con conectividad significativa' },
-      'high_low':  { key: 'bridge',   label: 'Puente Estratégico',  icon: '⚡', color: '#ff6b6b', desc: 'Alta centralidad con conexiones selectivas - une clusters' },
-      'mid_high':  { key: 'connector', label: 'Conector Denso',     icon: '◉', color: '#00b4d8', desc: 'Red densa de colaboración - muchas conexiones activas' },
-      'mid_mid':   { key: 'active',   label: 'Nodo Activo',         icon: '◈', color: '#06d6a0', desc: 'Participación equilibrada en la red de colaboración' },
-      'mid_low':   { key: 'focused',  label: 'Nodo Focalizado',     icon: '◈', color: '#06d6a0', desc: 'Centralidad notable con conexiones concentradas' },
-      'low_high':  { key: 'social',   label: 'Conector Social',     icon: '◉', color: '#00b4d8', desc: 'Muchas conexiones pero centralidad baja - red local amplia' },
-      'low_mid':   { key: 'emerging', label: 'Nodo Emergente',      icon: '◇', color: '#a29bfe', desc: 'Actividad incipiente con conectividad creciente' },
-      'low_low':   { key: 'nascent',  label: 'Nodo Incipiente',     icon: '◇', color: '#a29bfe', desc: 'Primeras interacciones en la red de colaboración' },
-      'none_none': { key: 'isolated', label: 'Nodo Aislado',        icon: '○', color: '#666',    desc: 'Sin actividad colaborativa medible' },
+      'high_high': { key: 'hub',      label: wt('role.hub', lang),       icon: '⊛', color: '#ffd166', desc: wt('role.hub.desc', lang) },
+      'high_mid':  { key: 'hub_minor', label: wt('role.hub_minor', lang), icon: '⊛', color: '#ffd166', desc: wt('role.hub_minor.desc', lang) },
+      'high_low':  { key: 'bridge',   label: wt('role.bridge', lang),     icon: '⚡', color: '#ff6b6b', desc: wt('role.bridge.desc', lang) },
+      'mid_high':  { key: 'connector', label: wt('role.connector', lang), icon: '◉', color: '#00b4d8', desc: wt('role.connector.desc', lang) },
+      'mid_mid':   { key: 'active',   label: wt('role.active', lang),     icon: '◈', color: '#06d6a0', desc: wt('role.active.desc', lang) },
+      'mid_low':   { key: 'focused',  label: wt('role.focused', lang),    icon: '◈', color: '#06d6a0', desc: wt('role.focused.desc', lang) },
+      'low_high':  { key: 'social',   label: wt('role.social', lang),     icon: '◉', color: '#00b4d8', desc: wt('role.social.desc', lang) },
+      'low_mid':   { key: 'emerging', label: wt('role.emerging', lang),   icon: '◇', color: '#a29bfe', desc: wt('role.emerging.desc', lang) },
+      'low_low':   { key: 'nascent',  label: wt('role.nascent', lang),    icon: '◇', color: '#a29bfe', desc: wt('role.nascent.desc', lang) },
+      'none_none': { key: 'isolated', label: wt('role.isolated', lang),   icon: '○', color: '#666',    desc: wt('role.isolated.desc', lang) },
     }
 
     const roleKey = `${centClass}_${connClass}`
@@ -678,26 +857,24 @@ function computeCoreData(selectedEntity, universeData, networkMetrics) {
   let analysisText = ''
   const name = selectedEntity.name || selectedEntity.login || selectedEntity.full_name?.split('/')[1] || selectedEntity.id
   if (selectedEntity.type === 'org') {
-    const roleLabel = networkRole?.label || 'entidad'
-    // Cross-pollination clasificada por percentil en la población
+    const roleLabel = networkRole?.label || wt('analysis.entity', lang)
     const cpPctl = percentileRank(pop.crossPollinations || [], Number(orgCrossPollination))
     const crossNote = cpPctl >= 0.75
-      ? `Alta cross-pollination (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): sus contributors participan activamente en otras organizaciones.`
+      ? wt('analysis.org.crossHigh', lang, orgCrossPollination, Math.round(cpPctl * 100))
       : cpPctl >= 0.25
-      ? `Cross-pollination moderada (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): cierto intercambio de talento con el ecosistema.`
-      : `Baja cross-pollination (${orgCrossPollination}%, p${Math.round(cpPctl * 100)}): ecosistema relativamente cerrado.`
-    const bridgeNote = orgBridgeCount > 0 ? ` ${orgBridgeCount} bridge users conectan con ${orgEntangledOrgs.length} org${orgEntangledOrgs.length !== 1 ? 's' : ''} externas.` : ''
-    analysisText = `${name} es un ${roleLabel} con ${orgTotalUsers} contributors en ${orgReposList.length} repos. ${crossNote}${bridgeNote}`
+      ? wt('analysis.org.crossMid', lang, orgCrossPollination, Math.round(cpPctl * 100))
+      : wt('analysis.org.crossLow', lang, orgCrossPollination, Math.round(cpPctl * 100))
+    const bridgeNote = orgBridgeCount > 0 ? wt('analysis.org.bridge', lang, orgBridgeCount, orgEntangledOrgs.length, orgEntangledOrgs.length !== 1 ? 's' : '') : ''
+    analysisText = wt('analysis.org.template', lang, name, roleLabel, orgTotalUsers, orgReposList.length, crossNote, bridgeNote)
   } else if (selectedEntity.type === 'repo') {
-    // Hub score clasificado por percentil en la población de repos
     const hubPctl = percentileRank(pop.orgDiversities || [], repoHubScore)
-    const hubNote = hubPctl >= 0.75 ? `Hub de colaboración inter-org (p${Math.round(hubPctl * 100)}) con contributors de ${repoHubScore} organizaciones.` : hubPctl >= 0.25 ? `Diversidad moderada (p${Math.round(hubPctl * 100)}): contributors de ${repoHubScore} organizaciones.` : `Diversidad baja (p${Math.round(hubPctl * 100)}): actividad concentrada.`
-    const bridgeNote = repoBridgeUsers.length > 0 ? ` ${repoBridgeUsers.length} bridge users (${repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}%) amplifican su alcance.` : ''
-    analysisText = `${name}: ${repoUsers.length} contributors. ${hubNote}${bridgeNote}`
+    const hubNote = hubPctl >= 0.75 ? wt('analysis.repo.hubHigh', lang, Math.round(hubPctl * 100), repoHubScore) : hubPctl >= 0.25 ? wt('analysis.repo.hubMid', lang, Math.round(hubPctl * 100), repoHubScore) : wt('analysis.repo.hubLow', lang, Math.round(hubPctl * 100))
+    const bridgeNote = repoBridgeUsers.length > 0 ? wt('analysis.repo.bridge', lang, repoBridgeUsers.length, repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0) : ''
+    analysisText = wt('analysis.repo.template', lang, name, repoUsers.length, hubNote, bridgeNote)
   } else if (selectedEntity.type === 'user') {
-    const spanNote = userOrgs.length > 1 ? `Activo en ${userOrgs.length} organizaciones, alcanzando ${userCoContributors.length} co-contributors.` : `Concentrado en ${userOrgs.length} organización con ${userCoContributors.length} co-contributors.`
-    const bridgeNote = selectedEntity.isBridge ? ' Partícula entrelazada: funciona como puente entre organizaciones.' : ''
-    analysisText = `${name} contribuye a ${userRepos.length} repos. ${spanNote}${bridgeNote}`
+    const spanNote = userOrgs.length > 1 ? wt('analysis.user.spanMulti', lang, userOrgs.length, userCoContributors.length) : wt('analysis.user.spanSingle', lang, userOrgs.length, userCoContributors.length)
+    const bridgeNote = selectedEntity.isBridge ? wt('analysis.user.bridge', lang) : ''
+    analysisText = wt('analysis.user.template', lang, name, userRepos.length, spanNote, bridgeNote)
   }
 
   // ─── COLLABORATION DNA: huella visual generativa (instantáneo, depende solo de radar) ───

@@ -1,0 +1,41 @@
+.selector {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 2px;
+  backdrop-filter: blur(8px);
+}
+
+.option {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: var(--font-family-mono, monospace);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.25s ease;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.option:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.active {
+  background: rgba(0, 212, 228, 0.12);
+  color: rgba(0, 212, 228, 0.9);
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.15);
+}
+
+.active:hover {
+  background: rgba(0, 212, 228, 0.18);
+  color: rgba(0, 212, 228, 1);
+}

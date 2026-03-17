@@ -227,9 +227,9 @@ export default function FloatingChat() {
 
   /* ─── Send ─── */
   const send = useCallback(async (text) => {
-    const t = (text ?? '').trim()
-    if (!t || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: t }])
+    const msg = (text ?? '').trim()
+    if (!msg || loading) return
+    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
     setLoading(true)
     setThinkingSteps([])
@@ -247,7 +247,7 @@ export default function FloatingChat() {
     abortRef.current = controller
 
     try {
-      await sendChatMessageStream(t, history, {
+      await sendChatMessageStream(msg, history, {
         onStatus: (event) => { if (event.message) setStatusMsg(event.message) },
         onRouting: (event) => {
           const intent = event.intent || null

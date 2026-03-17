@@ -928,11 +928,11 @@ export default function ChartsSection({ data }) {
     return {
       languageData: [
         ...topLanguages,
-        { name: 'Otros', value: othersValue }
+        { name: t('charts.others'), value: othersValue, _isOthers: true }
       ],
       othersLanguages: others // Guardamos para mostrar en tooltip
     }
-  }, [charts?.languageDistribution, repositories])
+  }, [charts?.languageDistribution, repositories, t])
 
   // Colores para PieChart: 6 colores principales + gris para "Otros"
   const PIE_COLORS = ['#00D4E4', '#9D6FDB', '#F97316', '#3B82F6', '#EC4899', '#00ff9f', '#6B7280']
@@ -951,7 +951,7 @@ export default function ChartsSection({ data }) {
     quantum_software: t('charts.disciplines.quantumSoftware'),
     quantum_physics: t('charts.disciplines.quantumPhysics'),
     quantum_hardware: t('charts.disciplines.quantumHardware'),
-    classical_tooling: 'Development Tooling',
+    classical_tooling: t('charts.disciplines.classicalTooling'),
     education_research: t('charts.disciplines.education'),
     multidisciplinary: t('charts.disciplines.multidisciplinary'),
   }
@@ -1041,7 +1041,7 @@ export default function ChartsSection({ data }) {
       const othersValue = others.reduce((s, d) => s + d.value, 0)
       const othersPct = others.reduce((s, d) => s + d.pct, 0)
       main.push({
-        name: 'Otros',
+        name: t('charts.others'),
         value: othersValue,
         key: '_others',
         fill: '#6B7280',
@@ -1050,7 +1050,7 @@ export default function ChartsSection({ data }) {
       })
     }
     return main
-  }, [disciplineAnalysis])
+  }, [disciplineAnalysis, t])
 
   // Verificar si hay algún sector/barra seleccionado
   const hasSelectedLanguage = selectedLanguage !== null
@@ -1285,7 +1285,7 @@ export default function ChartsSection({ data }) {
 
   const handleLanguageClick = (entry, index) => {
     if (entry && entry.name) {
-      if (entry.name === 'Otros') {
+      if (entry._isOthers) {
         setShowOthersPanel(true) // Abrir panel de lenguajes agrupados
       } else {
         setFilter('language', entry.name)
@@ -1500,7 +1500,7 @@ export default function ChartsSection({ data }) {
   const PieTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const entry = payload[0]
-      const isOtros = entry.name === 'Otros'
+      const isOtros = entry.payload?._isOthers === true
       
       return (
         <div className={styles.customTooltip}>
@@ -1508,7 +1508,7 @@ export default function ChartsSection({ data }) {
             <span className={styles.tooltipMeasure}>⊕</span> {entry.name}
           </p>
           <p style={{ color: entry.payload.fill }}>
-            ⟨repos| = <strong>{entry.value.toLocaleString()}</strong>
+            ⟨{t('charts.reposShort')}| = <strong>{entry.value.toLocaleString()}</strong>
           </p>
           {isOtros && othersLanguages.length > 0 && (
             <div className={styles.tooltipOthers}>
@@ -1801,7 +1801,7 @@ export default function ChartsSection({ data }) {
                             : filteredMetrics.total_orgs_analyzed ?? 0}
                         </span>
                         <span className={styles.comparisonMetricLabel}>
-                          {collaborationData.mode === 'repos_comparison' ? 'Repos' : 'Orgs'}
+                          {collaborationData.mode === 'repos_comparison' ? t('charts.compRepos') : t('charts.compOrganizations')}
                         </span>
                       </div>
                     </>
@@ -1855,7 +1855,7 @@ export default function ChartsSection({ data }) {
                             {collaborationData.mode === 'user_focus' ? (
                               <>
                                 <span className={styles.comparisonUserShared}>
-                                  {user.shared_repos?.length ?? user.shared_count ?? 0} repos
+                                  {user.shared_repos?.length ?? user.shared_count ?? 0} {t('charts.reposShort')}
                                 </span>
                                 {user.total_shared_contributions > 0 && (
                                   <span className={styles.comparisonUserContribs}>
@@ -2272,7 +2272,7 @@ export default function ChartsSection({ data }) {
                 <Bar 
                   dataKey="score" 
                   radius={[4, 4, 0, 0]} 
-                  name={userMetric === 'repos' ? 'Repos' : `Score ${t('charts.collaboration')}`}
+                  name={userMetric === 'repos' ? t('charts.reposShort') : `Score ${t('charts.collaboration')}`}
                   isAnimationActive={true} 
                   animationBegin={0} 
                   animationDuration={600} 
@@ -2699,7 +2699,7 @@ export default function ChartsSection({ data }) {
                           <div className={styles.bridgeProfileMeta}>
                             <span className={styles.bridgeProfileLogin}>@{bp.login}</span>
                             <span className={styles.bridgeProfileRepoCount}>
-                              {bp.total_repos || 0} repos
+                              {bp.total_repos || 0} {t('charts.reposShort')}
                             </span>
                           </div>
                           <div className={styles.bridgeDisciplineTags}>
@@ -2999,7 +2999,7 @@ export default function ChartsSection({ data }) {
                           <button key={i} className={styles.entityDetailLangItem} onClick={() => { setFilter('language', langName); closeEntityDetail() }}>
                             <span className={styles.entityDetailLangName}>{langName}</span>
                             {pct != null && <span className={styles.entityDetailLangPct}>{pct.toFixed(0)}%</span>}
-                            {count != null && <span className={styles.entityDetailLangCount}>{count} repos</span>}
+                            {count != null && <span className={styles.entityDetailLangCount}>{count} {t('charts.reposShort')}</span>}
                           </button>
                         )
                       })}
@@ -3263,7 +3263,7 @@ export default function ChartsSection({ data }) {
                             color: DISCIPLINE_COLORS[disc] || '#888',
                             border: `1px solid ${DISCIPLINE_COLORS[disc] || '#888'}44`,
                           }}>
-                            {DISCIPLINE_LABELS[disc] || disc}: {count} repos
+                            {DISCIPLINE_LABELS[disc] || disc}: {count} {t('charts.reposShort')}
                           </span>
                         ))}
                       </div>

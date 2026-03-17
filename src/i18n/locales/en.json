@@ -109,6 +109,7 @@
     "totalRepos": "Total repos",
     "of": "of",
     "more": "more",
+    "others": "Others",
     "total": "Total",
     "merged": "merged",
     "uses": "uses",
@@ -654,7 +655,10 @@
   },
   "language": {
     "es": "Español",
-    "en": "English"
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "pt": "Português"
   },
   "universe": {
     "loader": {

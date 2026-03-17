@@ -109,6 +109,7 @@
     "totalRepos": "Repos totales",
     "of": "de",
     "more": "más",
+    "others": "Otros",
     "total": "Total",
     "merged": "mergeados",
     "uses": "utiliza",
@@ -229,9 +230,9 @@
       "quantumSoftware": "Software Cuántico",
       "quantumPhysics": "Física Cuántica",
       "quantumHardware": "Hardware Cuántico",
-      "classicalTooling": "Development Tooling",
+      "classicalTooling": "Herramientas de desarrollo",
       "education": "Educación/Investigación",
-      "multidisciplinary": "Multidisciplin@"
+      "multidisciplinary": "Multidisciplinar"
     },
     "disciplineDesc": {
       "quantumSoftware": "Desarrolladores enfocados en frameworks, compiladores y SDKs para computación cuántica",
@@ -654,7 +655,10 @@
   },
   "language": {
     "es": "Español",
-    "en": "English"
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "pt": "Português"
   },
   "universe": {
     "loader": {

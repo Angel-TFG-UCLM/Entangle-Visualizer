@@ -12,8 +12,10 @@
  * - Estadísticas de la base de datos
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import useAdminStore from '../../store/adminStore'
+import { useDashboardStore } from '../../store/dashboardStore'
 import { adminGetOperationLogs } from '../../services/api'
 import styles from './AdminPanel.module.css'
 import {
@@ -28,72 +30,72 @@ import {
 const OPERATION_DEFS = [
   {
     id: 'repo_ingestion',
-    label: 'Ingesta de Repositorios',
+    labelKey: 'admin.ops.repoIngestion',
     icon: <FiPackage size={18} />,
     type: 'ingestion',
     entity: 'repositories',
-    description: 'Busca y almacena repositorios del ecosistema quantum desde GitHub.',
-    warning: 'from_scratch limpiará todos los repositorios actuales.',
+    descriptionKey: 'admin.ops.repoIngestionDesc',
+    warningKey: 'admin.warnings.repoScratch',
     supportsModes: true,
   },
   {
     id: 'user_ingestion',
-    label: 'Ingesta de Usuarios',
+    labelKey: 'admin.ops.userIngestion',
     icon: <FiUser size={18} />,
     type: 'ingestion',
     entity: 'users',
-    description: 'Extrae usuarios colaboradores de los repositorios ingestados.',
-    warning: 'from_scratch limpiará todos los usuarios actuales.',
+    descriptionKey: 'admin.ops.userIngestionDesc',
+    warningKey: 'admin.warnings.userScratch',
     supportsModes: true,
   },
   {
     id: 'org_ingestion',
-    label: 'Ingesta de Organizaciones',
+    labelKey: 'admin.ops.orgIngestion',
     icon: <FiGrid size={18} />,
     type: 'ingestion',
     entity: 'organizations',
-    description: 'Descubre organizaciones desde los usuarios (bottom-up).',
-    warning: 'from_scratch limpiará todas las organizaciones actuales.',
+    descriptionKey: 'admin.ops.orgIngestionDesc',
+    warningKey: 'admin.warnings.orgScratch',
     supportsModes: true,
   },
   {
     id: 'repo_enrichment',
-    label: 'Enriquecimiento de Repos',
+    labelKey: 'admin.ops.repoEnrichment',
     icon: <FiSearch size={18} />,
     type: 'enrichment',
     entity: 'repositories',
-    description: 'Completa datos (lenguajes, topics, métricas) via GraphQL/REST.',
+    descriptionKey: 'admin.ops.repoEnrichmentDesc',
     supportsModes: false,
     supportsForceReenrich: true,
   },
   {
     id: 'user_enrichment',
-    label: 'Enriquecimiento de Usuarios',
+    labelKey: 'admin.ops.userEnrichment',
     icon: <FiCpu size={18} />,
     type: 'enrichment',
     entity: 'users',
-    description: 'Enriquece perfiles de usuario con datos adicionales de GitHub.',
+    descriptionKey: 'admin.ops.userEnrichmentDesc',
     supportsModes: false,
     supportsForceReenrich: true,
   },
   {
     id: 'org_enrichment',
-    label: 'Enriquecimiento de Orgs',
+    labelKey: 'admin.ops.orgEnrichment',
     icon: <FiActivity size={18} />,
     type: 'enrichment',
     entity: 'organizations',
-    description: 'Calcula métricas quantum: focus_score, repos, contributors.',
+    descriptionKey: 'admin.ops.orgEnrichmentDesc',
     supportsModes: false,
     supportsForceReenrich: true,
   },
   {
     id: 'full_pipeline',
-    label: 'Pipeline Completo',
+    labelKey: 'admin.ops.fullPipeline',
     icon: <FiZap size={18} />,
     type: 'pipeline',
     entity: null,
-    description: 'Ejecuta las 6 fases secuencialmente (ingesta + enriquecimiento de repos, users y orgs).',
-    warning: 'from_scratch limpiará TODAS las colecciones antes de reingestar. Esta operación puede tardar horas.',
+    descriptionKey: 'admin.ops.fullPipelineDesc',
+    warningKey: 'admin.warnings.fullScratch',
     supportsModes: true,
     supportsForceReenrich: true,
     isPipeline: true,
@@ -167,6 +169,7 @@ export default function AdminPanel() {
 // ════════════════════════════════════════════════════════════════════════════
 
 function AuthScreen({ passwordInputRef }) {
+  const { t } = useTranslation()
   const { hasPassword, authenticate, setupPassword, authError, isAuthLoading, checkHasPassword } = useAdminStore()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -198,9 +201,9 @@ function AuthScreen({ passwordInputRef }) {
         <div className={styles.authIcon}>
           <FiLock size={20} />
         </div>
-        <h2 className={styles.authTitle}>ENTANGLE Admin</h2>
+        <h2 className={styles.authTitle}>{t('admin.title')}</h2>
         <p className={styles.authSubtitle}>
-          {isSetup ? 'Configurar contraseña de administrador' : 'Introduce la contraseña de administrador'}
+          {isSetup ? t('admin.configurePassword') : t('admin.enterPassword')}
         </p>
       </div>
 
@@ -211,7 +214,7 @@ function AuthScreen({ passwordInputRef }) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={isSetup ? 'Nueva contraseña' : 'Contraseña'}
+            placeholder={isSetup ? t('admin.newPassword') : t('admin.currentPassword')}
             className={styles.authInput}
             autoComplete="off"
             disabled={isAuthLoading}
@@ -224,13 +227,13 @@ function AuthScreen({ passwordInputRef }) {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirmar contraseña"
+              placeholder={t('admin.confirmPassword')}
               className={styles.authInput}
               autoComplete="off"
               disabled={isAuthLoading}
             />
             {password && confirmPassword && password !== confirmPassword && (
-              <span className={styles.inputError}>Las contraseñas no coinciden</span>
+              <span className={styles.inputError}>{t('admin.passwordMismatch')}</span>
             )}
           </div>
         )}
@@ -250,13 +253,13 @@ function AuthScreen({ passwordInputRef }) {
           {isAuthLoading ? (
             <span className={styles.spinner} />
           ) : (
-            isSetup ? 'Configurar y Acceder' : 'Acceder'
+            isSetup ? t('admin.configureAndAccess') : t('admin.access')
           )}
         </button>
       </form>
 
       <div className={styles.authFooter}>
-        <span className={styles.shortcutHint}>Ctrl+Shift+A para toggle · Esc para cerrar</span>
+        <span className={styles.shortcutHint}>{t('admin.hint')}</span>
       </div>
     </div>
   )
@@ -268,13 +271,28 @@ function AuthScreen({ passwordInputRef }) {
 // ════════════════════════════════════════════════════════════════════════════
 
 function AdminDashboard() {
+  const { t } = useTranslation()
   const { activeTab, setActiveTab, logout, closePanel, dbStats } = useAdminStore()
+  const metadata = useDashboardStore(s => s.metadata)
+
+  // Derivar última ingesta del dbStats (siempre disponible tras login)
+  const lastIngestion = useMemo(() => {
+    if (!dbStats?.collections) return null
+    let latest = null
+    for (const info of Object.values(dbStats.collections)) {
+      if (info.last_updated) {
+        const d = new Date(info.last_updated)
+        if (!latest || d > latest) latest = d
+      }
+    }
+    return latest
+  }, [dbStats])
 
   const tabs = [
-    { id: 'operations', label: 'Operaciones', icon: <FiPlay /> },
-    { id: 'active', label: 'En Curso', icon: <FiActivity /> },
-    { id: 'history', label: 'Historial', icon: <FiRotateCcw /> },
-    { id: 'settings', label: 'Ajustes', icon: <FiSettings /> },
+    { id: 'operations', label: t('admin.tabs.operations'), icon: <FiPlay /> },
+    { id: 'active', label: t('admin.tabs.inProgress'), icon: <FiActivity /> },
+    { id: 'history', label: t('admin.tabs.history'), icon: <FiRotateCcw /> },
+    { id: 'settings', label: t('admin.tabs.settings'), icon: <FiSettings /> },
   ]
 
   return (
@@ -283,20 +301,34 @@ function AdminDashboard() {
       <div className={styles.dashHeader}>
         <div className={styles.dashTitleRow}>
           <span className={styles.dashLogo}><FiActivity size={20} /></span>
-          <h2 className={styles.dashTitle}>ENTANGLE Admin</h2>
+          <h2 className={styles.dashTitle}>{t('admin.title')}</h2>
           {dbStats && (
-            <div className={styles.dbBadges}>
-              <span className={styles.dbBadge}><FiDatabase /> {dbStats.collections?.repositories?.count?.toLocaleString() || '—'} repos</span>
-              <span className={styles.dbBadge}>{dbStats.collections?.users?.count?.toLocaleString() || '—'} users</span>
-              <span className={styles.dbBadge}>{dbStats.collections?.organizations?.count?.toLocaleString() || '—'} orgs</span>
+            <div className={styles.dbBadgesWrap}>
+              <div className={styles.dbBadges}>
+                <span className={styles.dbBadge}><FiDatabase /> {dbStats.collections?.repositories?.count?.toLocaleString() || '—'} repos</span>
+                <span className={styles.dbBadge}>{dbStats.collections?.users?.count?.toLocaleString() || '—'} users</span>
+                <span className={styles.dbBadge}>{dbStats.collections?.organizations?.count?.toLocaleString() || '—'} orgs</span>
+              </div>
+              <div className={styles.dbBadges}>
+                {lastIngestion && (
+                  <span className={styles.dbBadge} style={{ opacity: 0.55 }}>
+                    <FiClock size={10} /> {t('admin.lastIngestion')} {lastIngestion.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+                {metadata?.calculatedAt && (
+                  <span className={styles.dbBadge} style={{ opacity: 0.55 }}>
+                    <FiActivity size={10} /> {t('admin.lastDataUpdate')} {new Date(metadata.calculatedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
         <div className={styles.dashActions}>
-          <button className={styles.logoutBtn} onClick={logout} title="Cerrar sesión">
+          <button className={styles.logoutBtn} onClick={logout} title={t('admin.logout')}>
             <FiLogOut />
           </button>
-          <button className={styles.closeBtn} onClick={closePanel} title="Cerrar panel">
+          <button className={styles.closeBtn} onClick={closePanel} title={t('admin.closePanel')}>
             <FiX size={18} />
           </button>
         </div>
@@ -333,6 +365,7 @@ function AdminDashboard() {
 // ════════════════════════════════════════════════════════════════════════════
 
 function OperationsTab() {
+  const { t } = useTranslation()
   const { runOperation, error, setActiveTab } = useAdminStore()
   const [selectedMode, setSelectedMode] = useState({})
   const [forceReenrich, setForceReenrich] = useState({})
@@ -386,8 +419,8 @@ function OperationsTab() {
               <div className={styles.opCardHeader}>
                 <span className={styles.opIcon}>{opDef.icon}</span>
                 <div>
-                  <h4 className={styles.opLabel}>{opDef.label}</h4>
-                  <p className={styles.opDesc}>{opDef.description}</p>
+                  <h4 className={styles.opLabel}>{t(opDef.labelKey)}</h4>
+                  <p className={styles.opDesc}>{t(opDef.descriptionKey)}</p>
                 </div>
               </div>
 
@@ -398,20 +431,20 @@ function OperationsTab() {
                       className={`${styles.modeBtn} ${mode === 'incremental' ? styles.modeBtnActive : ''}`}
                       onClick={() => { setSelectedMode(s => ({ ...s, [opDef.id]: 'incremental' })); setConfirmOp(null) }}
                     >
-                      Incremental
+                      {t('admin.incremental')}
                     </button>
                     <button
                       className={`${styles.modeBtn} ${styles.modeBtnDanger} ${mode === 'from_scratch' ? styles.modeBtnActiveDanger : ''}`}
                       onClick={() => { setSelectedMode(s => ({ ...s, [opDef.id]: 'from_scratch' })); setConfirmOp(null) }}
                     >
-                      Desde cero
+                      {t('admin.fromScratch')}
                     </button>
                   </div>
                 )}
 
                 {opDef.supportsForceReenrich && (
                   <div className={styles.toggleRow}>
-                    <span className={styles.toggleLabel}>Forzar re-enriquecimiento</span>
+                    <span className={styles.toggleLabel}>{t('admin.forceReenrich')}</span>
                     <button
                       className={`${styles.toggleTrack} ${forceReenrich[opDef.id] ? styles.toggleOn : ''}`}
                       onClick={() => setForceReenrich(s => ({ ...s, [opDef.id]: !s[opDef.id] }))}
@@ -423,21 +456,21 @@ function OperationsTab() {
                   </div>
                 )}
 
-                {(isFromScratch || opDef.isPipeline) && opDef.warning && (
+                {(isFromScratch || opDef.isPipeline) && opDef.warningKey && (
                   <div className={styles.warningBox}>
                     <FiAlertTriangle />
-                    <span>{opDef.warning}</span>
+                    <span>{t(opDef.warningKey)}</span>
                   </div>
                 )}
 
                 {isConfirming ? (
                   <div className={styles.confirmRow}>
-                    <span className={styles.confirmText}>¿Confirmar ejecución?</span>
+                    <span className={styles.confirmText}>{t('admin.confirmExecution')}</span>
                     <button className={styles.confirmYes} onClick={() => handleLaunch(opDef)}>
-                      Sí, ejecutar
+                      {t('admin.yesExecute')}
                     </button>
                     <button className={styles.confirmNo} onClick={() => setConfirmOp(null)}>
-                      Cancelar
+                      {t('common.cancel')}
                     </button>
                   </div>
                 ) : (
@@ -451,7 +484,7 @@ function OperationsTab() {
                     ) : (
                       <>
                         <FiPlay />
-                        <span>Ejecutar</span>
+                        <span>{t('admin.execute')}</span>
                       </>
                     )}
                   </button>
@@ -471,6 +504,7 @@ function OperationsTab() {
 // ════════════════════════════════════════════════════════════════════════════
 
 function ActiveOperationsTab() {
+  const { t } = useTranslation()
   const { activeOperations, cancelOperation, loadActiveOperations } = useAdminStore()
 
   useEffect(() => {
@@ -487,8 +521,8 @@ function ActiveOperationsTab() {
       {runningOps.length === 0 && recentlyFinished.length === 0 ? (
         <div className={styles.emptyState}>
           <FiActivity />
-          <p>No hay operaciones en curso</p>
-          <span>Inicia una operación desde la pestaña "Operaciones"</span>
+          <p>{t('admin.noActiveOps')}</p>
+          <span>{t('admin.startFromOpsTab')}</span>
         </div>
       ) : (
         <>
@@ -496,7 +530,7 @@ function ActiveOperationsTab() {
             <div className={styles.activeSection}>
               <h3 className={styles.sectionTitle}>
                 <span className={styles.pulsingDot} />
-                En curso ({runningOps.length})
+                {t('admin.inProgress', { count: runningOps.length })}
               </h3>
               {runningOps.map(op => (
                 <ActiveOperationCard key={op.operation_id} operation={op} onCancel={cancelOperation} />
@@ -506,7 +540,7 @@ function ActiveOperationsTab() {
 
           {recentlyFinished.length > 0 && (
             <div className={styles.activeSection}>
-              <h3 className={styles.sectionTitle}>Finalizadas recientemente</h3>
+              <h3 className={styles.sectionTitle}>{t('admin.recentlyFinished')}</h3>
               {recentlyFinished.map(op => (
                 <FinishedOperationCard key={op.operation_id} operation={op} />
               ))}
@@ -519,6 +553,7 @@ function ActiveOperationsTab() {
 }
 
 function ActiveOperationCard({ operation, onCancel }) {
+  const { t } = useTranslation()
   const { token } = useAdminStore()
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalClosing, setTerminalClosing] = useState(false)
@@ -616,7 +651,7 @@ function ActiveOperationCard({ operation, onCancel }) {
             {OPERATION_DEFS.find(d => d.type === operation.operation_type && d.entity === operation.entity)?.icon || <FiZap />}
           </span>
           <div>
-            <h4>{opLabel}</h4>
+            <h4>{opLabelText}</h4>
             <span className={styles.activeCardMode}>{operation.mode}</span>
           </div>
         </div>
@@ -624,10 +659,10 @@ function ActiveOperationCard({ operation, onCancel }) {
           className={styles.cancelBtn}
           onClick={() => onCancel(operation.operation_id)}
           disabled={isCancelling}
-          title="Cancelar operación"
+          title={t('admin.cancelOperation')}
         >
           {isCancelling ? <span className={styles.spinner} /> : <FiSquare />}
-          <span>{isCancelling ? 'Cancelando...' : 'Cancelar'}</span>
+          <span>{isCancelling ? t('admin.cancelling') : t('common.cancel')}</span>
         </button>
       </div>
 
@@ -658,7 +693,7 @@ function ActiveOperationCard({ operation, onCancel }) {
       {/* Terminal toggle */}
       <button className={styles.terminalToggle} onClick={handleToggleTerminal}>
         <FiTerminal size={14} />
-        <span>Terminal</span>
+        <span>{t('admin.terminal')}</span>
         {terminalOpen ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
         {logs.length > 0 && <span className={styles.logCount}>{logs.length}</span>}
       </button>
@@ -672,7 +707,7 @@ function ActiveOperationCard({ operation, onCancel }) {
         >
           {logs.length === 0 ? (
             <div className={styles.terminalEmpty}>
-              <span className={styles.spinner} /> Esperando logs...
+              <span className={styles.spinner} /> {t('admin.waitingLogs')}
             </div>
           ) : (
             logs.map((log, i) => (
@@ -691,11 +726,12 @@ function ActiveOperationCard({ operation, onCancel }) {
 }
 
 function FinishedOperationCard({ operation }) {
+  const { t } = useTranslation()
   const statusConfig = {
-    completed: { label: 'Completado', class: styles.statusCompleted, icon: <FiCheckCircle size={16} /> },
-    completed_with_errors: { label: 'Con errores', class: styles.statusWarning, icon: <FiAlertTriangle size={16} /> },
-    failed: { label: 'Fallido', class: styles.statusFailed, icon: <FiXCircle size={16} /> },
-    cancelled: { label: 'Cancelado', class: styles.statusCancelled, icon: <FiSlash size={16} /> },
+    completed: { label: t('admin.statusCompleted'), class: styles.statusCompleted, icon: <FiCheckCircle size={16} /> },
+    completed_with_errors: { label: t('admin.statusWithErrors'), class: styles.statusWarning, icon: <FiAlertTriangle size={16} /> },
+    failed: { label: t('admin.statusFailed'), class: styles.statusFailed, icon: <FiXCircle size={16} /> },
+    cancelled: { label: t('admin.statusCancelled'), class: styles.statusCancelled, icon: <FiSlash size={16} /> },
   }
 
   const cfg = statusConfig[operation.status] || statusConfig.failed
@@ -716,7 +752,7 @@ function FinishedOperationCard({ operation }) {
       <div className={styles.finishedCardMain}>
         <span>{cfg.icon}</span>
         <div>
-          <h4>{opLabel}</h4>
+          <h4>{opLabelText}</h4>
           <span className={styles.finishedMeta}>
             {operation.mode} · {formatDuration(operation.duration_seconds)}
             {operation.items_processed > 0 && ` · ${operation.items_processed} items`}
@@ -736,6 +772,7 @@ function FinishedOperationCard({ operation }) {
 // ════════════════════════════════════════════════════════════════════════════
 
 function HistoryTab() {
+  const { t } = useTranslation()
   const { history, historyLoading, loadHistory, clearHistory } = useAdminStore()
   const [showClearConfirm, setShowClearConfirm] = useState(false)
 
@@ -764,21 +801,21 @@ function HistoryTab() {
   return (
     <div className={styles.historyTab}>
       <div className={styles.historyHeader}>
-        <h3 className={styles.sectionTitle}>Últimas operaciones</h3>
+        <h3 className={styles.sectionTitle}>{t('admin.latestOperations')}</h3>
         <div className={styles.historyActions}>
           <button className={styles.refreshBtn} onClick={loadHistory} disabled={historyLoading}>
-            Actualizar
+            {t('admin.update')}
           </button>
           {history.length > 0 && (
             showClearConfirm ? (
               <div className={styles.clearConfirm}>
-                <span>¿Borrar todo?</span>
-                <button className={styles.confirmYes} onClick={() => { clearHistory(); setShowClearConfirm(false) }}>Sí</button>
-                <button className={styles.confirmNo} onClick={() => setShowClearConfirm(false)}>No</button>
+                <span>{t('admin.clearConfirm')}</span>
+                <button className={styles.confirmYes} onClick={() => { clearHistory(); setShowClearConfirm(false) }}>{t('admin.yes')}</button>
+                <button className={styles.confirmNo} onClick={() => setShowClearConfirm(false)}>{t('admin.no')}</button>
               </div>
             ) : (
               <button className={styles.clearBtn} onClick={() => setShowClearConfirm(true)}>
-                <FiTrash2 /> Limpiar
+                <FiTrash2 /> {t('admin.clear')}
               </button>
             )
           )}
@@ -786,28 +823,28 @@ function HistoryTab() {
       </div>
 
       {historyLoading ? (
-        <div className={styles.emptyState}><span className={styles.spinner} /> Cargando...</div>
+        <div className={styles.emptyState}><span className={styles.spinner} /> {t('common.loading')}</div>
       ) : history.length === 0 ? (
         <div className={styles.emptyState}>
           <FiRotateCcw />
-          <p>Sin historial de operaciones</p>
+          <p>{t('admin.noHistory')}</p>
         </div>
       ) : (
         <div className={styles.historyTable}>
           <div className={styles.historyRow + ' ' + styles.historyRowHeader}>
-            <span>Estado</span>
-            <span>Operación</span>
-            <span>Modo</span>
-            <span>Duración</span>
-            <span>Items</span>
-            <span>Fecha</span>
+            <span>{t('admin.table.status')}</span>
+            <span>{t('admin.table.operation')}</span>
+            <span>{t('admin.table.mode')}</span>
+            <span>{t('admin.table.duration')}</span>
+            <span>{t('admin.table.items')}</span>
+            <span>{t('admin.table.date')}</span>
           </div>
           {history.map((op, i) => {
             const opDef = OPERATION_DEFS.find(d => d.type === op.operation_type && d.entity === op.entity)
             return (
               <div key={op.operation_id || i} className={styles.historyRow}>
                 <span>{statusBadge(op.status)}</span>
-                <span className={styles.historyOpName}>{opDef?.label || op.operation_type}</span>
+                <span className={styles.historyOpName}>{opDef?.labelKey ? t(opDef.labelKey) : op.operation_type}</span>
                 <span className={styles.historyMode}>{op.mode || '—'}</span>
                 <span className={styles.historyDuration}>{formatDuration(op.duration_seconds)}</span>
                 <span className={styles.historyItems}>{op.items_processed || 0}</span>
@@ -831,6 +868,7 @@ function HistoryTab() {
 // ════════════════════════════════════════════════════════════════════════════
 
 function SettingsTab() {
+  const { t } = useTranslation()
   const { setupPassword, dbStats, loadDbStats, dbStatsLoading } = useAdminStore()
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
@@ -846,12 +884,12 @@ function SettingsTab() {
     setPwdMsg(null)
     try {
       await setupPassword(newPwd, currentPwd)
-      setPwdMsg({ type: 'success', text: 'Contraseña actualizada correctamente' })
+      setPwdMsg({ type: 'success', text: t('admin.passwordUpdated') })
       setCurrentPwd('')
       setNewPwd('')
       setConfirmPwd('')
     } catch (err) {
-      setPwdMsg({ type: 'error', text: err.response?.data?.detail || 'Error al cambiar contraseña' })
+      setPwdMsg({ type: 'error', text: err.response?.data?.detail || t('admin.passwordError') })
     } finally {
       setChangingPwd(false)
     }
@@ -861,9 +899,9 @@ function SettingsTab() {
     <div className={styles.settingsTab}>
       {/* DB Stats */}
       <div className={styles.settingsSection}>
-        <h3 className={styles.sectionTitle}><FiDatabase /> Base de Datos</h3>
+        <h3 className={styles.sectionTitle}><FiDatabase /> {t('admin.database')}</h3>
         <button className={styles.refreshBtn} onClick={loadDbStats} disabled={dbStatsLoading}>
-          {dbStatsLoading ? <span className={styles.spinner} /> : 'Actualizar stats'}
+          {dbStatsLoading ? <span className={styles.spinner} /> : t('admin.updateStats')}
         </button>
         {dbStats && (
           <div className={styles.statsGrid}>
@@ -873,7 +911,7 @@ function SettingsTab() {
                 <span className={styles.statLabel}>{name}</span>
                 {info.last_updated && (
                   <span className={styles.statMeta}>
-                    Actualizado: {new Date(info.last_updated).toLocaleDateString('es-ES')}
+                    {t('admin.updated')} {new Date(info.last_updated).toLocaleDateString('es-ES')}
                   </span>
                 )}
               </div>
@@ -884,31 +922,31 @@ function SettingsTab() {
 
       {/* Change password */}
       <div className={styles.settingsSection}>
-        <h3 className={styles.sectionTitle}><FiLock /> Cambiar contraseña</h3>
+        <h3 className={styles.sectionTitle}><FiLock /> {t('admin.changePassword')}</h3>
         <form onSubmit={handleChangePassword} className={styles.pwdForm}>
           <input
             type="password"
             value={currentPwd}
             onChange={(e) => setCurrentPwd(e.target.value)}
-            placeholder="Contraseña actual"
+            placeholder={t('admin.currentPassword')}
             className={styles.settingsInput}
           />
           <input
             type="password"
             value={newPwd}
             onChange={(e) => setNewPwd(e.target.value)}
-            placeholder="Nueva contraseña"
+            placeholder={t('admin.newPassword')}
             className={styles.settingsInput}
           />
           <input
             type="password"
             value={confirmPwd}
             onChange={(e) => setConfirmPwd(e.target.value)}
-            placeholder="Confirmar nueva contraseña"
+            placeholder={t('admin.confirmNewPassword')}
             className={styles.settingsInput}
           />
           {newPwd && confirmPwd && newPwd !== confirmPwd && (
-            <span className={styles.inputError}>Las contraseñas no coinciden</span>
+            <span className={styles.inputError}>{t('admin.passwordMismatch')}</span>
           )}
           {pwdMsg && (
             <div className={pwdMsg.type === 'success' ? styles.successMsg : styles.errorMsg}>
@@ -921,13 +959,13 @@ function SettingsTab() {
             className={styles.settingsBtn}
             disabled={changingPwd || !currentPwd || !newPwd || newPwd !== confirmPwd || newPwd.length < 4}
           >
-            {changingPwd ? <span className={styles.spinner} /> : 'Cambiar contraseña'}
+            {changingPwd ? <span className={styles.spinner} /> : t('admin.changePassword')}
           </button>
         </form>
       </div>
 
       <div className={styles.settingsFooter}>
-        <span>Ctrl+Shift+A para toggle · Esc para cerrar</span>
+        <span>{t('admin.hint')}</span>
       </div>
     </div>
   )

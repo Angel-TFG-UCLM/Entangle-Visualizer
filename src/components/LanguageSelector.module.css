@@ -1,0 +1,155 @@
+/* ── Language Selector ── */
+
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  z-index: 9999;
+}
+
+/* ── Trigger ── */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(0, 212, 228, 0.85);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+  line-height: 1;
+}
+
+.trigger:hover {
+  background: rgba(0, 212, 228, 0.08);
+  border-color: rgba(0, 212, 228, 0.35);
+  box-shadow: 0 0 12px rgba(0, 212, 228, 0.08);
+}
+
+.triggerOpen {
+  background: rgba(0, 212, 228, 0.1);
+  border-color: rgba(0, 212, 228, 0.4);
+  box-shadow: 0 0 16px rgba(0, 212, 228, 0.12);
+}
+
+.currentLabel {
+  min-width: 1.6em;
+  text-align: center;
+}
+
+/* ── Chevron ── */
+.chevron {
+  transition: transform 0.25s ease;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Menu (rendered in portal on body) ── */
+.menu {
+  position: fixed;
+  transform: translateX(-100%);
+  min-width: 170px;
+  background: rgba(12, 12, 28, 0.96);
+  border: 1px solid rgba(0, 212, 228, 0.2);
+  border-radius: 10px;
+  padding: 5px;
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 1px rgba(0, 212, 228, 0.3);
+  list-style: none;
+  margin: 0;
+  animation: menuIn 0.2s ease forwards;
+  overflow: visible;
+  z-index: 99999;
+}
+
+/* ── Item ── */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  list-style: none;
+  opacity: 0;
+  animation: itemIn 0.22s ease forwards;
+}
+
+.item:hover {
+  background: rgba(0, 212, 228, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.active {
+  color: rgba(0, 212, 228, 0.95);
+  background: rgba(0, 212, 228, 0.08);
+}
+
+.active:hover {
+  background: rgba(0, 212, 228, 0.14);
+}
+
+.itemCode {
+  font-weight: 700;
+  font-size: 0.72rem;
+  min-width: 2em;
+  opacity: 0.7;
+  letter-spacing: 0.06em;
+}
+
+.active .itemCode {
+  opacity: 1;
+  color: rgba(0, 212, 228, 1);
+}
+
+.itemLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.checkIcon {
+  flex-shrink: 0;
+  color: rgba(0, 212, 228, 0.9);
+}
+
+/* ── Animations ── */
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

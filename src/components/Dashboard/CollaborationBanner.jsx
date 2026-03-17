@@ -11,9 +11,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
+import { useTranslation } from 'react-i18next'
 import styles from './CollaborationBanner.module.css'
 
 export default function CollaborationBanner() {
+  const { t } = useTranslation()
   const {
     collaborationAvailable,
     collaborationDiscovery,
@@ -115,27 +117,27 @@ export default function CollaborationBanner() {
       
       {/* Contenido central */}
       <div className={styles.content}>
-        <div className={styles.label}>QUANTUM UNIVERSE</div>
-        <h3 className={styles.title}>Explorar el Universo de Colaboración</h3>
+        <div className={styles.label}>{t('collaboration.bannerLabel')}</div>
+        <h3 className={styles.title}>{t('collaboration.bannerTitle')}</h3>
         <p className={styles.subtitle}>
           {metrics
-            ? `${metrics.graph_nodes || 0} nodos · ${metrics.graph_links || 0} enlaces · ${metrics.bridge_users_count || 0} usuarios puente`
-            : 'Red de entrelazamiento cuántico descubierta'
+            ? t('collaboration.bannerMetrics', { nodes: metrics.graph_nodes || 0, links: metrics.graph_links || 0, bridges: metrics.bridge_users_count || 0 })
+            : t('collaboration.bannerFallback')
           }
         </p>
       </div>
       
       {/* Toggle Tour Cósmico */}
-      <div className={styles.tourToggle} onClick={handleToggle} title="Iniciar Tour Cósmico al entrar">
+      <div className={styles.tourToggle} onClick={handleToggle} title={t('collaboration.tourHint')}>
         <div className={`${styles.toggleTrack} ${autoTour ? styles.toggleTrackOn : ''}`}>
           <div className={`${styles.toggleThumb} ${autoTour ? styles.toggleThumbOn : ''}`} />
         </div>
-        <span className={`${styles.toggleLabel} ${autoTour ? styles.toggleLabelOn : ''}`}>Tour</span>
+        <span className={`${styles.toggleLabel} ${autoTour ? styles.toggleLabelOn : ''}`}>{t('collaboration.tour')}</span>
       </div>
       
       {/* Botón CTA */}
       <div className={styles.cta}>
-        <span className={styles.ctaText}>Entrar</span>
+        <span className={styles.ctaText}>{t('collaboration.enter')}</span>
         <svg className={styles.ctaIcon} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>

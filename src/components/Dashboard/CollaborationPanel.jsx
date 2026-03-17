@@ -18,6 +18,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useTranslation } from 'react-i18next'
 import { useDashboardStore } from '../../store/dashboardStore'
 import {
   FiX, FiUsers, FiGitBranch, FiActivity, FiGrid, FiUser, FiLink, FiZap
@@ -35,12 +36,13 @@ const COLORS = {
   bridgeUser: '#ffbd00',
 }
 
-const TYPE_LABELS = { org: 'Organización', repo: 'Repositorio', user: 'Usuario' }
+const TYPE_KEYS = { org: 'collaboration.typeOrg', repo: 'collaboration.typeRepo', user: 'collaboration.typeUser' }
 
 /**
  * FullscreenCollaborationGraph - Grafo heroico con estilo NetworkGraph
  */
 function FullscreenCollaborationGraph({ data, onUserClick }) {
+  const { t } = useTranslation()
   const svgRef = useRef(null)
   const [hoveredNode, setHoveredNode] = useState(null)
   const [animationComplete, setAnimationComplete] = useState(false)
@@ -209,7 +211,7 @@ function FullscreenCollaborationGraph({ data, onUserClick }) {
     return (
       <div className={styles.graphEmpty}>
         <FiLink size={48} />
-        <p>No se encontraron relaciones de colaboración</p>
+        <p>{t('collaboration.noRelations')}</p>
       </div>
     )
   }
@@ -434,7 +436,7 @@ function FullscreenCollaborationGraph({ data, onUserClick }) {
                 fill="rgba(255,255,255,0.5)"
                 fontSize="10"
               >
-                {node.repos_count ? `${TYPE_LABELS[node.type]} · ${node.repos_count} repos` : TYPE_LABELS[node.type]}
+                {node.repos_count ? `${t(TYPE_KEYS[node.type])} · ${node.repos_count} ${t('collaboration.repos')}` : t(TYPE_KEYS[node.type])}
               </text>
             </g>
           )
@@ -448,6 +450,7 @@ function FullscreenCollaborationGraph({ data, onUserClick }) {
  * BridgeUsersList - Lista de usuarios puente
  */
 function BridgeUsersList({ users, onUserClick }) {
+  const { t } = useTranslation()
   if (!users?.length) return null
   
   return (
@@ -474,12 +477,12 @@ function BridgeUsersList({ users, onUserClick }) {
           <div className={styles.bridgeMeta}>
             <span className={styles.bridgeBadge}>
               <FiGitBranch size={11} />
-              {user.repos_count} repos
+              {user.repos_count} {t('collaboration.repos')}
             </span>
             {user.cross_org && (
               <span className={styles.crossOrgBadge}>
                 <FiGrid size={10} />
-                cross-org
+                {t('collaboration.crossOrg')}
               </span>
             )}
           </div>
@@ -494,6 +497,7 @@ function BridgeUsersList({ users, onUserClick }) {
  * CollaborationPanel - Overlay Fullscreen Principal
  */
 export default function CollaborationPanel() {
+  const { t } = useTranslation()
   const {
     showCollaborationGraph,
     collaborationDiscovery,
@@ -547,7 +551,7 @@ export default function CollaborationPanel() {
             <FiZap size={20} />
           </div>
           <div className={styles.headerText}>
-            <h2>Grafo de Colaboración</h2>
+            <h2>{t('collaboration.graphTitle')}</h2>
             <span className={styles.headerSummary}>{data?.summary}</span>
           </div>
         </div>
@@ -555,7 +559,7 @@ export default function CollaborationPanel() {
         <button 
           className={styles.closeBtn}
           onClick={closeCollaborationGraph}
-          aria-label="Cerrar"
+          aria-label={t('common.close')}
         >
           <FiX size={20} />
           <span>ESC</span>
@@ -575,19 +579,19 @@ export default function CollaborationPanel() {
           <div className={styles.legend}>
             <div className={styles.legendItem}>
               <div className={styles.legendDot} style={{ background: COLORS.org }} />
-              <span>Organizaciones</span>
+              <span>{t('collaboration.organizations')}</span>
             </div>
             <div className={styles.legendItem}>
               <div className={styles.legendDot} style={{ background: COLORS.repo }} />
-              <span>Repositorios</span>
+              <span>{t('collaboration.repositories')}</span>
             </div>
             <div className={styles.legendItem}>
               <div className={styles.legendDot} style={{ background: COLORS.user }} />
-              <span>Usuarios</span>
+              <span>{t('collaboration.users')}</span>
             </div>
             <div className={styles.legendItem}>
               <div className={styles.legendDot} style={{ background: COLORS.bridgeUser }} />
-              <span>Usuarios Puente</span>
+              <span>{t('collaboration.bridgeUsers')}</span>
             </div>
           </div>
         </div>
@@ -596,40 +600,40 @@ export default function CollaborationPanel() {
         <aside className={styles.sidebar}>
           {/* Métricas */}
           <section className={styles.sideSection}>
-            <h3><FiActivity size={14} /> Métricas</h3>
+            <h3><FiActivity size={14} /> {t('collaboration.metrics')}</h3>
             <div className={styles.metricsGrid}>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.bridge_users_count || 0}</span>
-                <span className={styles.metricLabel}>Bridge Users</span>
+                <span className={styles.metricLabel}>{t('collaboration.bridgeUsersMetric')}</span>
               </div>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.connected_repo_pairs || 0}</span>
-                <span className={styles.metricLabel}>Pares Conectados</span>
+                <span className={styles.metricLabel}>{t('collaboration.connectedPairs')}</span>
               </div>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.cross_org_users || 0}</span>
-                <span className={styles.metricLabel}>Cross-Org</span>
+                <span className={styles.metricLabel}>{t('collaboration.crossOrgMetric')}</span>
               </div>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.collaboration_density || 0}%</span>
-                <span className={styles.metricLabel}>Densidad</span>
+                <span className={styles.metricLabel}>{t('collaboration.density')}</span>
               </div>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.graph_nodes || 0}</span>
-                <span className={styles.metricLabel}>Nodos</span>
+                <span className={styles.metricLabel}>{t('collaboration.nodes')}</span>
               </div>
               <div className={styles.metricCard}>
                 <span className={styles.metricValue}>{metrics?.graph_links || 0}</span>
-                <span className={styles.metricLabel}>Enlaces</span>
+                <span className={styles.metricLabel}>{t('collaboration.links')}</span>
               </div>
             </div>
           </section>
           
           {/* Bridge Users */}
           <section className={styles.sideSection}>
-            <h3><FiUsers size={14} /> Usuarios Puente</h3>
+            <h3><FiUsers size={14} /> {t('collaboration.bridgeUsers')}</h3>
             <p className={styles.sideHint}>
-              Usuarios que contribuyen a múltiples repositorios, conectando equipos
+              {t('collaboration.bridgeUsersDesc')}
             </p>
             <BridgeUsersList 
               users={bridgeUsers}
@@ -640,7 +644,7 @@ export default function CollaborationPanel() {
           {/* Pares conectados */}
           {connectedPairs?.length > 0 && (
             <section className={styles.sideSection}>
-              <h3><FiLink size={14} /> Repos Más Conectados</h3>
+              <h3><FiLink size={14} /> {t('collaboration.mostConnectedRepos')}</h3>
               <ul className={styles.pairsList}>
                 {connectedPairs.slice(0, 8).map((pair, i) => (
                   <li key={i} className={styles.pairItem}>
@@ -649,7 +653,7 @@ export default function CollaborationPanel() {
                       <FiLink size={10} className={styles.pairLinkIcon} />
                       <span>{pair.repo_b?.split('/')[1] || pair.repo_b}</span>
                     </div>
-                    <span className={styles.pairCount}>{pair.shared_count} compartidos</span>
+                    <span className={styles.pairCount}>{pair.shared_count} {t('collaboration.shared')}</span>
                   </li>
                 ))}
               </ul>

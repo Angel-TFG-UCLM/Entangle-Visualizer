@@ -13,6 +13,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { 
   Star, Eye, Plus, Trash2, Download, Upload, X,
   ChevronRight, ChevronDown, Palette, Check, AlertCircle,
@@ -43,6 +44,7 @@ async function getCachedChildren(entityId) {
 
 /* ────────── Sub-componente: Repo expandible dentro del árbol ────────── */
 function TreeNodeRepo({ repo, depth, getTypeIcon }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState(null)
   const [loadingChildren, setLoadingChildren] = useState(false)
@@ -81,7 +83,7 @@ function TreeNodeRepo({ repo, depth, getTypeIcon }) {
         <div className={styles.treeNodeInfo}>
           <span className={styles.treeNodeName}>{repo.name}</span>
           <span className={styles.treeNodeMeta}>
-            {repo.subtitle || `${repo.collaborators_count || 0} colaboradores`}
+            {repo.subtitle || `${repo.collaborators_count || 0} ${t('favorites.collaborators')}`}
           </span>
         </div>
       </div>
@@ -105,7 +107,7 @@ function TreeNodeRepo({ repo, depth, getTypeIcon }) {
                 <span className={styles.treeNodeMeta}>{child.subtitle}</span>
               </div>
               {child.is_bridge && (
-                <span className={styles.bridgeBadge}>Bridge</span>
+                <span className={styles.bridgeBadge}>{t('favorites.bridgeBadge')}</span>
               )}
             </div>
           ))}
@@ -114,7 +116,7 @@ function TreeNodeRepo({ repo, depth, getTypeIcon }) {
 
       {expanded && children && children.length === 0 && (
         <div className={styles.treeEmpty} style={{ paddingLeft: `${24 + depth * 16}px` }}>
-          Sin colaboradores
+          {t('favorites.noCollaborators')}
         </div>
       )}
     </div>
@@ -123,6 +125,7 @@ function TreeNodeRepo({ repo, depth, getTypeIcon }) {
 
 /* ────────── Sub-componente: Nodo principal del árbol (org/repo/user directo) ────────── */
 function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState(null)
   const [loadingChildren, setLoadingChildren] = useState(false)
@@ -172,16 +175,16 @@ function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
         <div className={styles.treeNodeInfo}>
           <span className={styles.treeNodeName}>{entity.name}</span>
           <span className={styles.treeNodeMeta}>
-            {entity.type === 'organization' ? 'Organización'
-              : entity.type === 'repository' ? 'Repositorio'
-              : 'Usuario'}
+            {entity.type === 'organization' ? t('common.organization')
+              : entity.type === 'repository' ? t('common.repository')
+              : t('common.user')}
           </span>
         </div>
         {depth === 0 && onRemove && (
           <button
             className={styles.removeBtn}
             onClick={() => onRemove(entity)}
-            title="Eliminar de favoritos"
+            title={t('favorites.removeFavorite')}
           >
             <Trash2 size={13} />
           </button>
@@ -214,11 +217,11 @@ function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
                 <div className={styles.treeNodeInfo}>
                   <span className={styles.treeNodeName}>{child.name || child.login}</span>
                   <span className={styles.treeNodeMeta}>
-                    {child.subtitle || (child.is_bridge ? 'Bridge User' : 'Colaborador')}
+                    {child.subtitle || (child.is_bridge ? t('favorites.bridgeUser') : t('favorites.collaborator'))}
                   </span>
                 </div>
                 {child.is_bridge && (
-                  <span className={styles.bridgeBadge}>Bridge</span>
+                  <span className={styles.bridgeBadge}>{t('favorites.bridgeBadge')}</span>
                 )}
               </div>
             )
@@ -228,7 +231,7 @@ function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
 
       {expanded && children && children.length === 0 && (
         <div className={styles.treeEmpty} style={{ paddingLeft: `${24 + depth * 16}px` }}>
-          Sin entidades derivadas
+          {t('favorites.noChildren')}
         </div>
       )}
     </div>
@@ -237,6 +240,7 @@ function TreeNode({ entity, depth = 0, onRemove, getTypeIcon }) {
 
 /* ────────── Componente principal ────────── */
 export default function FavoritesPanel({ isOpen, onClose }) {
+  const { t } = useTranslation()
   const {
     favorites,
     views,
@@ -366,13 +370,13 @@ export default function FavoritesPanel({ isOpen, onClose }) {
       const results = await importData(data)
       setImportStatus({
         type: 'success',
-        message: `Importados: ${results.favorites} favoritos, ${results.views} vistas`,
+        message: t('favorites.importSuccess', { favorites: results.favorites, views: results.views }),
       })
       setTimeout(() => setImportStatus(null), 3000)
     } catch (err) {
       setImportStatus({
         type: 'error',
-        message: 'Error al importar: formato inválido',
+        message: t('favorites.importError'),
       })
       setTimeout(() => setImportStatus(null), 3000)
     }
@@ -406,7 +410,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
       setEntityDetailType(data._entity_type || entity.type)
     } catch (err) {
       console.error('Error loading entity detail:', err)
-      setDetailError('No se pudo cargar la información')
+      setDetailError(t('favorites.loadError'))
       setEntityDetail(null)
       setEntityDetailType(null)
     } finally {
@@ -455,7 +459,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
         <div className={styles.header}>
           <div className={styles.headerTitle}>
             <Star size={18} className={styles.headerIcon} />
-            <span>Favoritos & Vistas</span>
+            <span>{t('favorites.title')}</span>
           </div>
           <button className={styles.closeBtn} onClick={onClose}>
             <X size={18} />
@@ -486,7 +490,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
             onClick={() => setTab('favorites')}
           >
             <Star size={14} />
-            <span>Favoritos</span>
+            <span>{t('favorites.favorites')}</span>
             {favorites.length > 0 && (
               <span className={styles.tabBadge}>{favorites.length}</span>
             )}
@@ -496,7 +500,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
             onClick={() => setTab('views')}
           >
             <Eye size={14} />
-            <span>Vistas</span>
+            <span>{t('favorites.views')}</span>
             {views.length > 0 && (
               <span className={styles.tabBadge}>{views.length}</span>
             )}
@@ -515,7 +519,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                   <input
                     type="text"
                     className={styles.searchInput}
-                    placeholder="Buscar usuarios, repos, orgs..."
+                    placeholder={t('favorites.searchPlaceholder')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     autoComplete="off"
@@ -535,9 +539,9 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                 {searchQuery.trim().length >= 2 && (
                   <div className={styles.searchResults}>
                     {isSearching && searchResults.length === 0 ? (
-                      <div className={styles.searchLoading}>Buscando...</div>
+                      <div className={styles.searchLoading}>{t('favorites.searching')}</div>
                     ) : searchResults.length === 0 && !isSearching ? (
-                      <div className={styles.searchEmpty}>Sin resultados para "{searchQuery}"</div>
+                      <div className={styles.searchEmpty}>{t('favorites.noResults', { query: searchQuery })}</div>
                     ) : (
                       searchResults.map(entity => {
                         const favorited = isEntityFavorited(entity.id)
@@ -546,7 +550,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             <div 
                               className={styles.searchResultClickable}
                               onClick={() => handleOpenDetail(entity)}
-                              title="Ver detalles"
+                              title={t('favorites.viewDetails')}
                             >
                               <span className={styles.searchResultIcon}>{getTypeIcon(entity.type)}</span>
                               <div className={styles.searchResultInfo}>
@@ -559,7 +563,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             <button
                               className={`${styles.searchAddBtn} ${favorited ? styles.searchAddBtnActive : ''}`}
                               onClick={(e) => { e.stopPropagation(); handleAddFromSearch(entity) }}
-                              title={favorited ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                              title={favorited ? t('favorites.removeFavorite') : t('favorites.addFavorite')}
                             >
                               <Star size={14} fill={favorited ? 'currentColor' : 'none'} />
                             </button>
@@ -579,7 +583,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       <ArrowLeft size={14} />
                     </button>
                     <span className={styles.entityInlineHeaderTitle}>
-                      {entityDetailType === 'user' ? 'Usuario' : entityDetailType === 'repository' ? 'Repositorio' : 'Organización'}
+                      {entityDetailType === 'user' ? t('common.user') : entityDetailType === 'repository' ? t('common.repository') : t('common.organization')}
                     </span>
                     <button className={styles.entityInlineClose} onClick={handleCloseDetail}>
                       <X size={12} />
@@ -589,7 +593,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                   {loadingDetail && (
                     <div className={styles.entityInlineLoading}>
                       <Loader size={20} className={styles.searchSpinner} />
-                      <span>Cargando detalles...</span>
+                      <span>{t('favorites.loadingDetails')}</span>
                     </div>
                   )}
 
@@ -602,13 +606,13 @@ export default function FavoritesPanel({ isOpen, onClose }) {
 
                   {entityDetail && !loadingDetail && (() => {
                     const d = entityDetail
-                    const t = entityDetailType
+                    const et = entityDetailType
                     const typeColors = { user: '#00ff9f', repository: '#9D6FDB', organization: '#00D4E4' }
-                    const accentColor = typeColors[t] || '#00D4E4'
-                    const entityId = t === 'user' ? `user_${d.login}` : t === 'repository' ? `repo_${d.full_name || d.name}` : `org_${d.login}`
+                    const accentColor = typeColors[et] || '#00D4E4'
+                    const entityId = et === 'user' ? `user_${d.login}` : et === 'repository' ? `repo_${d.full_name || d.name}` : `org_${d.login}`
                     const favorited = isEntityFavorited(entityId)
-                    const githubUrl = t === 'user' ? `https://github.com/${d.login}`
-                      : t === 'repository' ? `https://github.com/${d.full_name || d.name}`
+                    const githubUrl = et === 'user' ? `https://github.com/${d.login}`
+                      : et === 'repository' ? `https://github.com/${d.full_name || d.name}`
                       : `https://github.com/${d.login}`
 
                     return (
@@ -619,21 +623,21 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             <img src={d.avatar_url} alt="" className={styles.entityInlineAvatar} />
                           ) : (
                             <div className={styles.entityInlineAvatarFallback} style={{ borderColor: accentColor }}>
-                              {t === 'user' ? <User size={18} /> : t === 'repository' ? <GitFork size={18} /> : <Building2 size={18} />}
+                              {et === 'user' ? <User size={18} /> : et === 'repository' ? <GitFork size={18} /> : <Building2 size={18} />}
                             </div>
                           )}
                           <div className={styles.entityInlineNameBlock}>
                             <h4 className={styles.entityInlineName}>
-                              {t === 'user' ? (d.name || d.login) : (d.name || d.full_name || d.login)}
+                              {et === 'user' ? (d.name || d.login) : (d.name || d.full_name || d.login)}
                             </h4>
-                            {t === 'user' && d.name && d.login && (
+                            {et === 'user' && d.name && d.login && (
                               <span className={styles.entityInlineLogin}>@{d.login}</span>
                             )}
-                            {t === 'repository' && d.full_name && (
+                            {et === 'repository' && d.full_name && (
                               <span className={styles.entityInlineLogin}>{d.full_name}</span>
                             )}
                             <span className={styles.entityInlineTypeBadge} style={{ color: accentColor, borderColor: `${accentColor}40` }}>
-                              {t === 'user' ? 'Usuario' : t === 'repository' ? 'Repositorio' : 'Organización'}
+                              {et === 'user' ? t('common.user') : et === 'repository' ? t('common.repository') : t('common.organization')}
                             </span>
                           </div>
                         </div>
@@ -646,12 +650,12 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                         {/* Badges */}
                         {(() => {
                           const badges = []
-                          if (t === 'organization' && d.is_verified) badges.push({ icon: Shield, label: 'Verificada', color: '#22C55E' })
-                          if (t === 'organization' && d.is_quantum_focused) badges.push({ icon: Zap, label: 'Quantum Focus', color: '#F59E0B' })
-                          if (t === 'repository' && d.is_fork) badges.push({ icon: GitFork, label: 'Fork', color: '#9D6FDB' })
-                          if (t === 'repository' && d.is_archived) badges.push({ icon: Archive, label: 'Archivado', color: '#EF4444' })
-                          if (t === 'user' && d.is_hireable) badges.push({ icon: Briefcase, label: 'Disponible', color: '#22C55E' })
-                          if (t === 'user' && d.quantum_expertise_score > 0) badges.push({ icon: Cpu, label: `QE ${d.quantum_expertise_score.toFixed(1)}`, color: '#00D4E4' })
+                          if (et === 'organization' && d.is_verified) badges.push({ icon: Shield, label: t('favorites.badgeVerified'), color: '#22C55E' })
+                          if (et === 'organization' && d.is_quantum_focused) badges.push({ icon: Zap, label: t('favorites.quantumFocus'), color: '#F59E0B' })
+                          if (et === 'repository' && d.is_fork) badges.push({ icon: GitFork, label: t('favorites.forkBadge'), color: '#9D6FDB' })
+                          if (et === 'repository' && d.is_archived) badges.push({ icon: Archive, label: t('favorites.badgeArchived'), color: '#EF4444' })
+                          if (et === 'user' && d.is_hireable) badges.push({ icon: Briefcase, label: t('favorites.badgeHireable'), color: '#22C55E' })
+                          if (et === 'user' && d.quantum_expertise_score > 0) badges.push({ icon: Cpu, label: `QE ${d.quantum_expertise_score.toFixed(1)}`, color: '#00D4E4' })
                           if (badges.length === 0) return null
                           return (
                             <div className={styles.entityInlineBadges}>
@@ -666,7 +670,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
 
                         {/* Stats Grid */}
                         <div className={styles.entityInlineStats}>
-                          {t === 'user' && (() => {
+                          {et === 'user' && (() => {
                             // Usar métricas pre-calculadas del backend (consistentes con Dashboard)
                             const contributions = d._total_quantum_contributions || 0
                             const repos = d._relevant_repos_count || 0
@@ -675,90 +679,90 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                               <>
                                 <div className={styles.entityInlineStat}>
                                   <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{collabScore.toLocaleString()}</span>
-                                  <span className={styles.entityInlineStatLbl}>Collab Score</span>
+                                  <span className={styles.entityInlineStatLbl}>{t('favorites.statCollabScore')}</span>
                                 </div>
                                 <div className={styles.entityInlineStat}>
                                   <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{contributions.toLocaleString()}</span>
-                                  <span className={styles.entityInlineStatLbl}>Contrib. Quantum</span>
+                                  <span className={styles.entityInlineStatLbl}>{t('favorites.statQuantumContrib')}</span>
                                 </div>
                                 <div className={styles.entityInlineStat}>
                                   <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.followers_count || 0).toLocaleString()}</span>
-                                  <span className={styles.entityInlineStatLbl}>Seguidores</span>
+                                  <span className={styles.entityInlineStatLbl}>{t('favorites.statFollowers')}</span>
                                 </div>
                                 <div className={styles.entityInlineStat}>
                                   <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{repos.toLocaleString()}</span>
-                                  <span className={styles.entityInlineStatLbl}>Repos Quantum</span>
+                                  <span className={styles.entityInlineStatLbl}>{t('favorites.statQuantumRepos')}</span>
                                 </div>
                               </>
                             )
                           })()}
-                          {t === 'repository' && (
+                          {et === 'repository' && (
                             <>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.stargazer_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Estrellas</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statStars')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{(d.fork_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Forks</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.forks')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{(d.collaborators_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Contribuidores</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statContributors')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{(d.watchers_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Watchers</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.watchers')}</span>
                               </div>
                             </>
                           )}
-                          {t === 'organization' && (
+                          {et === 'organization' && (
                             <>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#00D4E4' }}>{(d.quantum_repositories_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Repos Quantum</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statQuantumRepos')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#F59E0B' }}>{(d.total_stars || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Estrellas</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statStars')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#9D6FDB' }}>{(d.total_unique_contributors || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Contributors</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statContributors')}</span>
                               </div>
                               <div className={styles.entityInlineStat}>
                                 <span className={styles.entityInlineStatVal} style={{ color: '#00ff9f' }}>{(d.total_repositories_count || 0).toLocaleString()}</span>
-                                <span className={styles.entityInlineStatLbl}>Repos Totales</span>
+                                <span className={styles.entityInlineStatLbl}>{t('favorites.statTotalRepos')}</span>
                               </div>
                             </>
                           )}
                         </div>
 
                         {/* Additional info section */}
-                        {t === 'repository' && (
+                        {et === 'repository' && (
                           <div className={styles.entityInlineSection}>
                             <div className={styles.entityInlineMetaGrid}>
                               {d.primary_language && (
                                 <div className={styles.entityInlineMetaItem}>
-                                  <span className={styles.entityInlineMetaLabel}>Lenguaje</span>
+                                  <span className={styles.entityInlineMetaLabel}>{t('favorites.metaLanguage')}</span>
                                   <span className={styles.entityInlineMetaValue}>{d.primary_language}</span>
                                 </div>
                               )}
                               {d.commits_count > 0 && (
                                 <div className={styles.entityInlineMetaItem}>
-                                  <span className={styles.entityInlineMetaLabel}>Commits</span>
+                                  <span className={styles.entityInlineMetaLabel}>{t('favorites.commits')}</span>
                                   <span className={styles.entityInlineMetaValue}>{d.commits_count.toLocaleString()}</span>
                                 </div>
                               )}
                               {d.pull_requests_count > 0 && (
                                 <div className={styles.entityInlineMetaItem}>
-                                  <span className={styles.entityInlineMetaLabel}>PRs</span>
+                                  <span className={styles.entityInlineMetaLabel}>{t('favorites.prs')}</span>
                                   <span className={styles.entityInlineMetaValue}>{d.pull_requests_count.toLocaleString()}</span>
                                 </div>
                               )}
                               {d.issues_count > 0 && (
                                 <div className={styles.entityInlineMetaItem}>
-                                  <span className={styles.entityInlineMetaLabel}>Issues</span>
+                                  <span className={styles.entityInlineMetaLabel}>{t('favorites.issues')}</span>
                                   <span className={styles.entityInlineMetaValue}>{d.issues_count.toLocaleString()}</span>
                                 </div>
                               )}
@@ -773,7 +777,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                           </div>
                         )}
 
-                        {t === 'user' && (
+                        {et === 'user' && (
                           <div className={styles.entityInlineSection}>
                             <div className={styles.entityInlineMetaGrid}>
                               {d.location && (
@@ -797,21 +801,21 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             </div>
                             {Array.isArray(d.organizations) && d.organizations.length > 0 && (
                               <div className={styles.entityInlineOrgs}>
-                                <span className={styles.entityInlineOrgsLabel}>Organizaciones:</span>
+                                <span className={styles.entityInlineOrgsLabel}>{t('favorites.metaOrganizations')}</span>
                                 {d.organizations.slice(0, 5).map((org, i) => (
                                   <span key={i} className={styles.entityInlineOrgTag}>
                                     {typeof org === 'string' ? org : org.login || org.name}
                                   </span>
                                 ))}
                                 {d.organizations.length > 5 && (
-                                  <span className={styles.entityInlineOrgMore}>+{d.organizations.length - 5} más</span>
+                                  <span className={styles.entityInlineOrgMore}>+{d.organizations.length - 5} {t('favorites.more')}</span>
                                 )}
                               </div>
                             )}
                           </div>
                         )}
 
-                        {t === 'organization' && (
+                        {et === 'organization' && (
                           <div className={styles.entityInlineSection}>
                             <div className={styles.entityInlineMetaGrid}>
                               {d.location && (
@@ -835,7 +839,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             </div>
                             {Array.isArray(d.top_languages) && d.top_languages.length > 0 && (
                               <div className={styles.entityInlineOrgs}>
-                                <span className={styles.entityInlineOrgsLabel}>Lenguajes:</span>
+                                <span className={styles.entityInlineOrgsLabel}>{t('favorites.metaLanguages')}</span>
                                 {d.top_languages.slice(0, 5).map((lang, i) => {
                                   const langName = typeof lang === 'string' ? lang : lang?.name
                                   if (!langName) return null
@@ -850,10 +854,10 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                         <div className={styles.entityInlineActions}>
                           <button
                             className={`${styles.entityInlineActionBtn} ${favorited ? styles.entityInlineActionActive : ''}`}
-                            onClick={() => toggleFavorite({ id: entityId, name: d.name || d.login || d.full_name, type: t })}
+                            onClick={() => toggleFavorite({ id: entityId, name: d.name || d.login || d.full_name, type: et })}
                           >
                             <Star size={13} fill={favorited ? 'currentColor' : 'none'} />
-                            <span>{favorited ? 'En favoritos' : 'Añadir a favoritos'}</span>
+                            <span>{favorited ? t('favorites.inFavorites') : t('favorites.addFavorite')}</span>
                           </button>
                           <a
                             href={githubUrl}
@@ -864,13 +868,13 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                             <ExternalLink size={13} />
                             <span>GitHub</span>
                           </a>
-                          {t === 'user' && d.login && (
+                          {et === 'user' && d.login && (
                             <button
                               className={`${styles.entityInlineActionBtn} ${styles.entityInlineActionNetwork}`}
                               onClick={() => handleCollaborationNetwork(d.login)}
                             >
                               <Network size={13} />
-                              <span>Red de colaboración</span>
+                              <span>{t('favorites.collabNetwork')}</span>
                             </button>
                           )}
                         </div>
@@ -883,8 +887,8 @@ export default function FavoritesPanel({ isOpen, onClose }) {
               {favorites.length === 0 && searchQuery.trim().length < 2 && !entityDetail && !loadingDetail ? (
                 <div className={styles.emptyState}>
                   <Star size={32} strokeWidth={1} />
-                  <p>Sin favoritos aún</p>
-                  <span>Usa la barra de búsqueda o marca entidades desde el Universo 3D</span>
+                  <p>{t('favorites.noFavorites')}</p>
+                  <span>{t('favorites.noFavoritesHint')}</span>
                 </div>
               ) : (
                 <>
@@ -895,18 +899,18 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       onClick={() => setShowCreateView(true)}
                     >
                       <Plus size={14} />
-                      <span>Crear vista con favoritos</span>
+                      <span>{t('favorites.createView')}</span>
                     </button>
                   )}
 
                   {/* Create view form */}
                   {showCreateView && (
                     <div className={styles.createViewForm}>
-                      <h4 className={styles.formTitle}>Nueva Vista Personalizada</h4>
+                      <h4 className={styles.formTitle}>{t('favorites.newCustomView')}</h4>
                       <input
                         type="text"
                         className={styles.formInput}
-                        placeholder="Nombre de la vista..."
+                        placeholder={t('favorites.viewNamePlaceholder')}
                         value={newViewName}
                         onChange={e => setNewViewName(e.target.value)}
                         maxLength={40}
@@ -946,7 +950,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                           className={styles.formCancel}
                           onClick={() => setShowCreateView(false)}
                         >
-                          Cancelar
+                          {t('common.cancel')}
                         </button>
                         <button 
                           className={styles.formSubmit}
@@ -954,7 +958,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                           disabled={!newViewName.trim() || selectedForView.length === 0 || isLoading}
                         >
                           <Plus size={14} />
-                          Crear Vista ({selectedForView.length})
+                          {t('favorites.createViewCount', { count: selectedForView.length })}
                         </button>
                       </div>
                     </div>
@@ -967,7 +971,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       <div className={styles.treeGroup}>
                         <div className={styles.treeGroupHeader}>
                           <Building2 size={12} />
-                          <span>Organizaciones ({orgFavs.length})</span>
+                          <span>{t('favorites.treeOrganizations', { count: orgFavs.length })}</span>
                         </div>
                         {orgFavs.map(fav => (
                           <TreeNode
@@ -986,7 +990,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       <div className={styles.treeGroup}>
                         <div className={styles.treeGroupHeader}>
                           <GitFork size={12} />
-                          <span>Repositorios ({repoFavs.length})</span>
+                          <span>{t('favorites.treeRepositories', { count: repoFavs.length })}</span>
                         </div>
                         {repoFavs.map(fav => (
                           <TreeNode
@@ -1005,7 +1009,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       <div className={styles.treeGroup}>
                         <div className={styles.treeGroupHeader}>
                           <User size={12} />
-                          <span>Usuarios ({userFavs.length})</span>
+                          <span>{t('favorites.treeUsers', { count: userFavs.length })}</span>
                         </div>
                         {userFavs.map(fav => (
                           <TreeNode
@@ -1030,8 +1034,8 @@ export default function FavoritesPanel({ isOpen, onClose }) {
               {views.length === 0 ? (
                 <div className={styles.emptyState}>
                   <Eye size={32} strokeWidth={1} />
-                  <p>Sin vistas personalizadas</p>
-                  <span>Crea vistas desde tus favoritos para filtrar el dashboard</span>
+                  <p>{t('favorites.noCustomViews')}</p>
+                  <span>{t('favorites.createViewHint')}</span>
                 </div>
               ) : (
                 <div className={styles.list}>
@@ -1050,17 +1054,17 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       >
                         <span className={styles.viewName}>{view.name}</span>
                         <span className={styles.viewMeta}>
-                          {view.entity_ids?.length || 0} entidades
+                          {view.entity_ids?.length || 0} {t('favorites.entities')}
                         </span>
                       </div>
                       <div className={styles.viewActions}>
                         {activeViewId === view.id ? (
-                          <span className={styles.activeBadge}>Activa</span>
+                          <span className={styles.activeBadge}>{t('favorites.active')}</span>
                         ) : (
                           <button 
                             className={styles.activateBtn}
                             onClick={() => handleActivateView(view.id)}
-                            title="Activar vista"
+                            title={t('favorites.activateView')}
                           >
                             <ChevronRight size={14} />
                           </button>
@@ -1068,7 +1072,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                         <button 
                           className={styles.removeBtn}
                           onClick={() => handleDeleteView(view.id)}
-                          title="Eliminar vista"
+                          title={t('favorites.deleteView')}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1085,7 +1089,7 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                   onClick={() => activateView(null)}
                 >
                   <X size={14} />
-                  <span>Volver al dashboard global</span>
+                  <span>{t('favorites.backToGlobal')}</span>
                 </button>
               )}
             </>
@@ -1094,17 +1098,17 @@ export default function FavoritesPanel({ isOpen, onClose }) {
 
         {/* Footer with export/import */}
         <div className={styles.footer}>
-          <button className={styles.footerBtn} onClick={handleExport} title="Exportar datos">
+          <button className={styles.footerBtn} onClick={handleExport} title={t('favorites.exportTooltip')}>
             <Download size={14} />
-            <span>Exportar</span>
+            <span>{t('favorites.export')}</span>
           </button>
           <button 
             className={styles.footerBtn} 
             onClick={() => fileInputRef.current?.click()}
-            title="Importar datos"
+            title={t('favorites.importTooltip')}
           >
             <Upload size={14} />
-            <span>Importar</span>
+            <span>{t('favorites.import')}</span>
           </button>
           <input
             ref={fileInputRef}

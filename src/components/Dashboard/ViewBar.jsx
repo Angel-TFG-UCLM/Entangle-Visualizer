@@ -10,10 +10,12 @@
  */
 
 import { X, Eye, Loader } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import useFavoritesStore from '../../store/favoritesStore'
 import styles from './ViewBar.module.css'
 
 export default function ViewBar() {
+  const { t } = useTranslation()
   const activeViewId = useFavoritesStore(s => s.activeViewId)
   const views = useFavoritesStore(s => s.views)
   const isLoadingViewData = useFavoritesStore(s => s.isLoadingViewData)
@@ -33,10 +35,10 @@ export default function ViewBar() {
             style={{ background: view.color || '#00ffaa' }}
           />
           <Eye size={14} className={styles.viewBarIcon} />
-          <span className={styles.viewBarLabel}>Vista activa:</span>
+          <span className={styles.viewBarLabel}>{t('favorites.activeView')}</span>
           <span className={styles.viewBarName}>{view.name}</span>
           <span className={styles.viewBarCount}>
-            {view.entity_ids?.length || 0} entidades
+            {t('favorites.entities', { count: view.entity_ids?.length || 0 })}
           </span>
           {isLoadingViewData && (
             <Loader size={12} className={styles.viewBarSpinner} />
@@ -45,10 +47,10 @@ export default function ViewBar() {
         <button 
           className={styles.viewBarClose}
           onClick={() => activateView(null)}
-          title="Volver al dashboard global"
+          title={t('favorites.backToGlobal')}
         >
           <X size={14} />
-          <span>Dashboard global</span>
+          <span>{t('favorites.globalDashboard')}</span>
         </button>
       </div>
     </div>

@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, ResponsiveContainer, Tooltip,
@@ -30,6 +31,7 @@ const RADAR_METRICS = [
 ]
 
 export default function OrgComparisonRadar() {
+  const { t } = useTranslation()
   const enriched = useEnrichedData()
   const containerRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
@@ -127,10 +129,10 @@ export default function OrgComparisonRadar() {
     <div ref={containerRef} className={`${styles.container} ${isVisible ? styles.visible : ''}`}>
       <div className={styles.header}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>Comparativa de Organizaciones</h3>
+          <h3 className={styles.title}>{t('radar.title')}</h3>
         </div>
         <p className={styles.subtitle}>
-          Radar de métricas normalizadas (0–100) para las top organizaciones
+          {t('radar.subtitle')}
         </p>
       </div>
 
@@ -190,7 +192,7 @@ export default function OrgComparisonRadar() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.metricTh}>Métrica</th>
+              <th className={styles.metricTh}>{t('radar.metricLabel')}</th>
               {topOrgs.filter(o => activeOrgs.has(o.login)).map(org => (
                 <th
                   key={org.login}

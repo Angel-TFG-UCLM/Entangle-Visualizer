@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect, Fragment } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDashboardStore } from '../../store/dashboardStore'
 import { useEnrichedData } from '../../hooks/useEnrichedData'
 import styles from './BridgeUsersTable.module.css'
@@ -21,6 +22,7 @@ const COLOR_PALETTE = [
 ]
 
 export default function BridgeUsersTable() {
+  const { t } = useTranslation()
   const collaborationDiscovery = useDashboardStore(s => s.collaborationDiscovery)
   const dataSource = useDashboardStore(s => s.dataSource)
   const enriched = useEnrichedData()
@@ -138,13 +140,13 @@ export default function BridgeUsersTable() {
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>Bridge Users</h3>
+          <h3 className={styles.title}>{t('bridge.title')}</h3>
           <span className={styles.badge}>
-            {summary.totalBridge} usuarios puente
+            {t('bridge.badge', { count: summary.totalBridge })}
           </span>
         </div>
         <p className={styles.subtitle}>
-          Contribuidores que trabajan en repos de múltiples organizaciones
+          {t('bridge.subtitle')}
         </p>
       </div>
 
@@ -152,19 +154,19 @@ export default function BridgeUsersTable() {
       <div className={styles.summaryRow}>
         <div className={styles.summaryStat}>
           <span className={styles.summaryValue}>{summary.totalBridge}</span>
-          <span className={styles.summaryLabel}>Bridge Users</span>
+          <span className={styles.summaryLabel}>{t('bridge.statBridge')}</span>
         </div>
         <div className={styles.summaryStat}>
           <span className={styles.summaryValue}>{summary.totalOrgs}</span>
-          <span className={styles.summaryLabel}>Organizaciones</span>
+          <span className={styles.summaryLabel}>{t('bridge.statOrgs')}</span>
         </div>
         <div className={styles.summaryStat}>
           <span className={styles.summaryValue}>{summary.crossOrg}</span>
-          <span className={styles.summaryLabel}>Cross-Org</span>
+          <span className={styles.summaryLabel}>{t('bridge.statCrossOrg')}</span>
         </div>
         <div className={styles.summaryStat}>
           <span className={styles.summaryValue}>{summary.avgRepos}</span>
-          <span className={styles.summaryLabel}>Repos/User</span>
+          <span className={styles.summaryLabel}>{t('bridge.statReposUser')}</span>
         </div>
       </div>
 
@@ -174,16 +176,16 @@ export default function BridgeUsersTable() {
           <thead>
             <tr>
               <th className={`${styles.th} ${sortField === 'name' ? styles.thActive : ''}`} onClick={() => handleSort('name')}>
-                Usuario <SortArrow field="name" />
+                {t('bridge.colUser')} <SortArrow field="name" />
               </th>
               <th className={`${styles.th} ${sortField === 'orgs' ? styles.thActive : ''}`} onClick={() => handleSort('orgs')}>
-                Orgs <SortArrow field="orgs" />
+                {t('bridge.colOrgs')} <SortArrow field="orgs" />
               </th>
               <th className={`${styles.th} ${sortField === 'repos_count' ? styles.thActive : ''}`} onClick={() => handleSort('repos_count')}>
-                Repos <SortArrow field="repos_count" />
+                {t('bridge.colRepos')} <SortArrow field="repos_count" />
               </th>
               <th className={`${styles.th} ${sortField === 'expertise' ? styles.thActive : ''}`} onClick={() => handleSort('expertise')}>
-                Expertise <SortArrow field="expertise" />
+                {t('bridge.colExpertise')} <SortArrow field="expertise" />
               </th>
             </tr>
           </thead>
@@ -285,7 +287,7 @@ export default function BridgeUsersTable() {
                           {user.repos.length > 12 && (
                             <div className={styles.detailRepo}>
                               <span className={styles.detailRepoName} style={{ color: 'var(--color-text-muted)' }}>
-                                +{user.repos.length - 12} repos más…
+                                +{user.repos.length - 12} {t('bridge.moreRepos')}
                               </span>
                             </div>
                           )}

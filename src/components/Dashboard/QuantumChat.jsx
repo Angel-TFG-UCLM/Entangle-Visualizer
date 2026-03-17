@@ -226,9 +226,9 @@ export default function QuantumChat() {
   }, [])
 
   const send = useCallback(async (text) => {
-    const t = (text ?? '').trim()
-    if (!t || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: t }])
+    const msg = (text ?? '').trim()
+    if (!msg || loading) return
+    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
     if (!expanded) setExpanded(true)
     setLoading(true)
@@ -249,7 +249,7 @@ export default function QuantumChat() {
     abortRef.current = controller
 
     try {
-      await sendChatMessageStream(t, history, {
+      await sendChatMessageStream(msg, history, {
         onStatus: (event) => {
           if (event.message) setStatusMsg(event.message)
         },

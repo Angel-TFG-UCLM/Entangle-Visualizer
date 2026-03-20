@@ -19,6 +19,22 @@ import {
 } from 'react-icons/fi'
 import styles from './NetworkGraph.module.css'
 
+// Known bot logins — filters bots missed by backend isBot flag
+const KNOWN_BOT_LOGINS = new Set([
+  'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
+  'sonarcloud', 'claude', 'actions-user', 'github-actions',
+  'copilot', 'deepsource-autofix', 'imgbot', 'allcontributors',
+  'pre-commit-ci', 'netlify', 'vercel', 'railway', 'render',
+  'mergify', 'kodiakhq', 'whitesource-bolt', 'mend-bolt-for-github',
+  'depfu', 'pyup-bot', 'fossabot', 'semantic-release-bot',
+  'github-pages', 'web-flow',
+])
+function isBotNode(n) {
+  if (n.isBot) return true
+  const login = (n.login || n.name || n.id?.replace('user_', '') || '').toLowerCase()
+  return KNOWN_BOT_LOGINS.has(login) || login.endsWith('[bot]') || login.endsWith('-bot')
+}
+
 // ── Paleta de colores ──
 const COLORS = {
   org: '#00f7ff',
@@ -85,8 +101,10 @@ function buildCollaborationGraph(collaborationDiscovery, networkMetrics, selecte
 
   const limits = DETAIL_LEVELS[detailLevel] || DETAIL_LEVELS.normal
 
-  const allNodes = collaborationDiscovery.graph.nodes
-  const allLinks = collaborationDiscovery.graph.links
+  // Filter out bot nodes before processing
+  const botIds = new Set(collaborationDiscovery.graph.nodes.filter(n => isBotNode(n)).map(n => n.id))
+  const allNodes = collaborationDiscovery.graph.nodes.filter(n => !botIds.has(n.id))
+  const allLinks = collaborationDiscovery.graph.links.filter(l => !botIds.has(l.source) && !botIds.has(l.target))
   const nodeMetrics = networkMetrics?.node_metrics || {}
 
   // ── INDEX: build a lookup map for all nodes by id (O(n) once) ──
@@ -1310,7 +1328,7 @@ export default function NetworkGraph() {
                           <strong style={{ color: COLORS.bridge }}>{node._connectedOrgs.length} orgs</strong>
                         </div>
                       )}
-                      {node.repos_count > 0 && (
+                      {!node._isBridge && node.repos_count > 0 && (
                         <div className={styles.ntStatRow}>
                           <span><FiPackage size={11} className={styles.ntIcon} /> {t('network.repositories')}</span>
                           <strong style={{ color: '#bd00ff' }}>{node.repos_count.toLocaleString()}</strong>

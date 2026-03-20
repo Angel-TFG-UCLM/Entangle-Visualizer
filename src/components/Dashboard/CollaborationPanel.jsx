@@ -23,6 +23,22 @@ import { useDashboardStore } from '../../store/dashboardStore'
 import {
   FiX, FiUsers, FiGitBranch, FiActivity, FiGrid, FiUser, FiLink, FiZap
 } from 'react-icons/fi'
+
+// Known bot logins — filters bots missed by backend isBot flag
+const KNOWN_BOT_LOGINS = new Set([
+  'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
+  'sonarcloud', 'claude', 'actions-user', 'github-actions',
+  'copilot', 'deepsource-autofix', 'imgbot', 'allcontributors',
+  'pre-commit-ci', 'netlify', 'vercel', 'railway', 'render',
+  'mergify', 'kodiakhq', 'whitesource-bolt', 'mend-bolt-for-github',
+  'depfu', 'pyup-bot', 'fossabot', 'semantic-release-bot',
+  'github-pages', 'web-flow',
+])
+function isBotLogin(login) {
+  if (!login) return false
+  const ll = login.toLowerCase()
+  return KNOWN_BOT_LOGINS.has(ll) || ll.endsWith('[bot]') || ll.endsWith('-bot')
+}
 import styles from './CollaborationPanel.module.css'
 
 // Colores consistentes con NetworkGraph
@@ -539,7 +555,7 @@ export default function CollaborationPanel() {
   const data = collaborationDiscovery
   const graph = data?.graph
   const metrics = data?.metrics
-  const bridgeUsers = data?.bridge_users
+  const bridgeUsers = (data?.bridge_users || []).filter(u => !isBotLogin(u.login))
   const connectedPairs = data?.connected_pairs
   
   return (

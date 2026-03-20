@@ -43,6 +43,22 @@ const REPO_MAX_ORBIT = 55 // órbita máxima qubit→procesador
 const USER_MIN_ORBIT = 4  // órbita mínima partícula→qubit
 const USER_MAX_ORBIT = 10 // órbita máxima partícula→qubit
 
+// Known bot logins — fallback when backend isBot flag is missing from cached data
+const KNOWN_BOT_LOGINS = new Set([
+  'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
+  'sonarcloud', 'claude', 'actions-user', 'github-actions',
+  'copilot', 'deepsource-autofix', 'imgbot', 'allcontributors',
+  'pre-commit-ci', 'netlify', 'vercel', 'railway', 'render',
+  'mergify', 'kodiakhq', 'whitesource-bolt', 'mend-bolt-for-github',
+  'depfu', 'pyup-bot', 'fossabot', 'semantic-release-bot',
+  'github-pages', 'web-flow',
+])
+function isBotNode(n) {
+  if (n.isBot) return true
+  const login = (n.login || n.name || n.id?.replace('user_', '') || '').toLowerCase()
+  return KNOWN_BOT_LOGINS.has(login) || login.endsWith('[bot]') || login.endsWith('-bot')
+}
+
 // Generador pseudo-aleatorio con semilla (para reproducibilidad visual)
 function seededRandom(seed) {
   let s = seed
@@ -1233,7 +1249,9 @@ const PARTICLE_VERTEX = /* glsl */`
     size *= (0.4 + densitySize * 0.6);
 
     // === Glow intensity - crece con la revelación del bridge ===
-    vGlow = mix(1.0, 1.0 + personalFlash * 0.6, bridgeBlend);
+    // Normal users: slightly brighter base glow
+    float normalGlow = 1.15;
+    vGlow = mix(normalGlow, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
     if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
@@ -4241,9 +4259,19 @@ function TourViewportLabels({ universeData, activeNodeIdsRef, tourStep, tourWayp
   // Pre-rank todas las entidades por importancia (solo se recalcula con universeData)
   const rankedEntities = useMemo(() => {
     if (!universeData) return []
-    const { orgNodes, repoNodes, userNodes, orgRepos, positions } = universeData
+    const { orgNodes, repoNodes, userNodes, orgRepos, positions, connections } = universeData
 
     const entities = []
+
+    // Compute user → orgs from graph links (robust: works even without backend fields)
+    const userOrgsMap = new Map()
+    for (const conn of (connections || [])) {
+      if (conn.type !== 'contributed_to') continue
+      const orgName = conn.target?.replace('repo_', '').split('/')[0]
+      if (!orgName) continue
+      if (!userOrgsMap.has(conn.source)) userOrgsMap.set(conn.source, new Set())
+      userOrgsMap.get(conn.source).add(orgName)
+    }
 
     // Orgs: importancia = nº repos de la org
     for (const node of orgNodes) {
@@ -4273,10 +4301,16 @@ function TourViewportLabels({ universeData, activeNodeIdsRef, tourStep, tourWayp
     for (const node of userNodes) {
       if (!positions[node.id]) continue
       const bridgeBonus = node.isBridge ? 50 : 0
+      const graphOrgs = userOrgsMap.get(node.id)
+      const computedOrgsCount = graphOrgs ? graphOrgs.size : 0
+      const computedConnectedOrgs = graphOrgs ? [...graphOrgs] : []
       entities.push({
         id: node.id, type: 'user',
         name: node.login || node.name || node.id,
         isBridge: node.isBridge,
+        isBot: isBotNode(node),
+        orgs_count: computedOrgsCount || node.orgs_count || 0,
+        connected_orgs: computedConnectedOrgs.length > 0 ? computedConnectedOrgs : (node.connected_orgs || []),
         importance: (node.repos_count || 0) + bridgeBonus,
         pos: positions[node.id],
       })
@@ -4446,8 +4480,8 @@ function FloatingLabel({ entity, position }) {
         </span>
         <span className={styles.label3dName}>{name}</span>
         {ent.stars > 0 && <span className={styles.label3dMeta}>⭐ {ent.stars}</span>}
-        {ent.isBridge && (
-          <span className={styles.label3dBridge}>⚛ Bridge User · {ent.repos_count} repos</span>
+        {ent.isBridge && !ent.isBot && (
+          <span className={styles.label3dBridge}>⚛ Bridge User · {ent.orgs_count || ent.connected_orgs?.length || '?'} orgs</span>
         )}
       </div>
     </Html>
@@ -5046,8 +5080,19 @@ function generateTourWaypoints(universeData, temporalRange, t) {
   const entanglementLinks = connections?.filter(c => c.type === 'entangled_with') || []
   const entanglementCount = entanglementLinks.length
 
-  //  7. Bridge users 
-  const bridgeUsers = userNodes?.filter(u => u.isBridge) || []
+  //  7. Bridge users (compute orgs from graph links for robustness) 
+  const tourUserOrgsMap = new Map()
+  for (const conn of (connections || [])) {
+    if (conn.type !== 'contributed_to') continue
+    const orgName = conn.target?.replace('repo_', '').split('/')[0]
+    if (!orgName) continue
+    if (!tourUserOrgsMap.has(conn.source)) tourUserOrgsMap.set(conn.source, new Set())
+    tourUserOrgsMap.get(conn.source).add(orgName)
+  }
+  const bridgeUsers = (userNodes?.filter(u => u.isBridge && !isBotNode(u)) || []).map(u => {
+    const graphOrgs = tourUserOrgsMap.get(u.id)
+    return { ...u, orgs_count: graphOrgs?.size || u.orgs_count || 0, connected_orgs: graphOrgs ? [...graphOrgs] : (u.connected_orgs || []) }
+  })
   const bridgeCount = bridgeUsers.length
 
   //  8. Top languages 
@@ -5389,8 +5434,8 @@ function generateTourWaypoints(universeData, temporalRange, t) {
   //  WP 6: USUARIOS PUENTE — Los conectores del ecosistema 
   if (bridgeCount > 0) {
     // Encontrar el bridge user que más repos tiene
-    const topBridges = [...bridgeUsers].sort((a, b) => (b.repos_count || 0) - (a.repos_count || 0)).slice(0, 3)
-    const topBridgeNames = topBridges.map(u => `${u.name || u.login} (${u.repos_count || 0} repos)`).join(', ')
+    const topBridges = [...bridgeUsers].sort((a, b) => (b.orgs_count || 0) - (a.orgs_count || 0)).slice(0, 3)
+    const topBridgeNames = topBridges.map(u => `${u.name || u.login} (${u.orgs_count || u.connected_orgs?.length || 0} orgs)`).join(', ')
     const bridgePct = ((bridgeCount / totalUsers) * 100).toFixed(1)
     const normalCount = totalUsers - bridgeCount
     const bridgePriority = topBridges.map(u => u.id || u.login)
@@ -6499,7 +6544,7 @@ export default function UniverseView() {
     const graph = collaborationDiscovery?.graph
     if (!graph || showBots) return graph
     const botIds = new Set(
-      graph.nodes.filter(n => n.isBot).map(n => n.id)
+      graph.nodes.filter(n => isBotNode(n)).map(n => n.id)
     )
     if (botIds.size === 0) return graph
     return {
@@ -6511,7 +6556,7 @@ export default function UniverseView() {
   const botCount = useMemo(() => {
     const nodes = collaborationDiscovery?.graph?.nodes
     if (!nodes) return 0
-    return nodes.filter(n => n.isBot).length
+    return nodes.filter(n => isBotNode(n)).length
   }, [collaborationDiscovery])
 
   // === Layout computation via Web Worker (no bloquea el hilo principal) ===

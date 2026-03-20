@@ -425,6 +425,27 @@
     "classifying": "Classification de votre question…",
     "executing": "Exécution : ",
     "dataReceived": "Données reçues",
+    "resultsObtained": "{{count}} résultats obtenus",
+    "analystProcessing": "Analyste traite les données reçues…",
+    "analystPreparing": "Analyste prépare la requête…",
+    "drafting": "Rédaction de la réponse…",
+    "toolNames": {
+      "query_database": "Interrogation de la base de données",
+      "run_aggregation": "Exécution de l'analyse agrégée",
+      "get_collection_schema": "Inspection de la structure de données",
+      "default": "Traitement"
+    },
+    "collectionNames": {
+      "repositories": "dépôts",
+      "organizations": "organisations",
+      "users": "utilisateurs",
+      "metrics": "métriques"
+    },
+    "toolPrepositions": {
+      "in": "dans",
+      "of": "de",
+      "withFilters": "avec filtres"
+    },
     "reasoningCancelled": "Raisonnement annulé.",
     "cancelledByUser": "Raisonnement annulé par l'utilisateur.",
     "connectionError": "Erreur de connexion.",

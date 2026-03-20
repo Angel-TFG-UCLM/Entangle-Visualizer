@@ -7,6 +7,7 @@
  */
 
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
@@ -18,6 +19,22 @@ import {
 } from 'react-icons/fi'
 import styles from './NetworkGraph.module.css'
 
+// Known bot logins — filters bots missed by backend isBot flag
+const KNOWN_BOT_LOGINS = new Set([
+  'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
+  'sonarcloud', 'claude', 'actions-user', 'github-actions',
+  'copilot', 'deepsource-autofix', 'imgbot', 'allcontributors',
+  'pre-commit-ci', 'netlify', 'vercel', 'railway', 'render',
+  'mergify', 'kodiakhq', 'whitesource-bolt', 'mend-bolt-for-github',
+  'depfu', 'pyup-bot', 'fossabot', 'semantic-release-bot',
+  'github-pages', 'web-flow',
+])
+function isBotNode(n) {
+  if (n.isBot) return true
+  const login = (n.login || n.name || n.id?.replace('user_', '') || '').toLowerCase()
+  return KNOWN_BOT_LOGINS.has(login) || login.endsWith('[bot]') || login.endsWith('-bot')
+}
+
 // ── Paleta de colores ──
 const COLORS = {
   org: '#00f7ff',
@@ -27,9 +44,19 @@ const COLORS = {
   highlight: '#ffbd00',
   link: 'rgba(255, 255, 255, 0.08)',
   linkContrib: 'rgba(0, 255, 159, 0.12)',
-  linkOwns: 'rgba(189, 0, 255, 0.12)',
+  linkOwns: 'rgba(187, 153, 255, 0.18)',
   linkEntangled: 'rgba(0, 247, 255, 0.25)',
   linkHover: '#ffbd00',
+}
+
+// ── Genera un path hexagonal para repos ──
+function hexagonPath(cx, cy, r) {
+  const pts = []
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 2
+    pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`)
+  }
+  return `M${pts.join('L')}Z`
 }
 
 // ── Palette for org sector wedges (subtle fills) ──
@@ -74,8 +101,10 @@ function buildCollaborationGraph(collaborationDiscovery, networkMetrics, selecte
 
   const limits = DETAIL_LEVELS[detailLevel] || DETAIL_LEVELS.normal
 
-  const allNodes = collaborationDiscovery.graph.nodes
-  const allLinks = collaborationDiscovery.graph.links
+  // Filter out bot nodes before processing
+  const botIds = new Set(collaborationDiscovery.graph.nodes.filter(n => isBotNode(n)).map(n => n.id))
+  const allNodes = collaborationDiscovery.graph.nodes.filter(n => !botIds.has(n.id))
+  const allLinks = collaborationDiscovery.graph.links.filter(l => !botIds.has(l.source) && !botIds.has(l.target))
   const nodeMetrics = networkMetrics?.node_metrics || {}
 
   // ── INDEX: build a lookup map for all nodes by id (O(n) once) ──
@@ -363,6 +392,7 @@ function buildCollaborationGraph(collaborationDiscovery, networkMetrics, selecte
  * FilterBadge - indicador de filtro activo con animaciones
  */
 function FilterBadge({ value, onClear, label }) {
+  const { t } = useTranslation()
   const [state, setState] = useState('hidden')
   const [displayValue, setDisplayValue] = useState(value)
   const prevValueRef = useRef(null)
@@ -417,7 +447,7 @@ function FilterBadge({ value, onClear, label }) {
       <div ref={valueRef} className={`${styles.filterValueWrapper} ${valueOverflows ? styles.filterValueMarquee : ''}`}>
         <strong className={state === 'changing' ? styles.valueChanging : ''}>{displayValue}</strong>
       </div>
-      <button className={styles.clearButton} onClick={onClear} title="Quitar filtro">✕</button>
+      <button className={styles.clearButton} onClick={onClear} title={t('network.removeFilter')}>✕</button>
     </div>
   )
 }
@@ -426,6 +456,7 @@ function FilterBadge({ value, onClear, label }) {
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
 export default function NetworkGraph() {
+  const { t } = useTranslation()
   const svgRef = useRef()
   const sectionRef = useRef()
   const [hoveredNode, setHoveredNode] = useState(null)
@@ -818,8 +849,8 @@ export default function NetworkGraph() {
     <section ref={sectionRef} className={styles.graphSection}>
       <div className={styles.sectionHeader}>
         <div className={styles.headerLeft}>
-          <h2 className={styles.sectionTitle}>🔗 Red de Colaboración</h2>
-          <p className={styles.sectionSubtitle}>Grafo de colaboración real entre organizaciones</p>
+          <h2 className={styles.sectionTitle}>🔗 {t('network.title')}</h2>
+          <p className={styles.sectionSubtitle}>{t('network.subtitle')}</p>
         </div>
         <div className={styles.headerRight}>
           {/* Detail level toggle */}
@@ -829,17 +860,17 @@ export default function NetworkGraph() {
                 key={key}
                 className={`${styles.detailBtn} ${detailLevel === key ? styles.detailBtnActive : ''}`}
                 onClick={() => { setDetailLevel(key); setAnimationComplete(false); setTimeout(() => setAnimationComplete(true), 100) }}
-                title={`${cfg.label}: ${cfg.maxReposPerOrg} repos, ${cfg.maxSinglePerOrg} users por org`}
+                title={`${t(`network.detail.${key}`)}: ${cfg.maxReposPerOrg} repos, ${cfg.maxSinglePerOrg} users`}
               >
-                {cfg.label}
+                {t(`network.detail.${key}`)}
               </button>
             ))}
           </div>
           <div className={styles.legend}>
-            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.org }} /><span>Orgs</span></div>
-            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.repo }} /><span>Repos</span></div>
-            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.bridge }} /><span>Bridge</span></div>
-            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.user }} /><span>Users</span></div>
+            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.org }} /><span>{t('network.legendOrgs')}</span></div>
+            <div className={styles.legendItem}><svg width="10" height="10" viewBox="-5 -5 10 10"><polygon points="-4,-4.6 4,-4.6 5.2,0 4,4.6 -4,4.6 -5.2,0" fill={COLORS.repo} /></svg><span>{t('network.legendRepos')}</span></div>
+            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.bridge }} /><span>{t('network.legendBridge')}</span></div>
+            <div className={styles.legendItem}><div className={styles.legendDot} style={{ background: COLORS.user }} /><span>{t('network.legendUsers')}</span></div>
           </div>
         </div>
       </div>
@@ -850,7 +881,7 @@ export default function NetworkGraph() {
           <div className={styles.orgSelectorBar}>
             <div className={styles.orgSelectedChips}>
               {pickedOrgs.length === 0 && (
-                <span className={styles.orgPlaceholderText}>Ninguna organización seleccionada</span>
+                <span className={styles.orgPlaceholderText}>{t('network.noOrgSelected')}</span>
               )}
               {pickedOrgs.slice(0, 5).map(login => {
                 const org = availableOrgs.find(o => o.login === login)
@@ -862,7 +893,7 @@ export default function NetworkGraph() {
                 )
               })}
               {pickedOrgs.length > 5 && (
-                <span className={styles.orgMiniChipMore}>+{pickedOrgs.length - 5} más</span>
+                <span className={styles.orgMiniChipMore}>+{pickedOrgs.length - 5} {t('network.more')}</span>
               )}
             </div>
             {/* Favorites auto-build button */}
@@ -870,7 +901,7 @@ export default function NetworkGraph() {
               <button
                 className={styles.orgFavoritesBtn}
                 onClick={loadFromFavorites}
-                title={`Cargar ${favOrgCount} orgs favoritas`}
+                title={t('network.loadFavOrgs', { count: favOrgCount })}
               >
                 <FiStar size={13} />
                 <span>{favOrgCount}</span>
@@ -895,20 +926,20 @@ export default function NetworkGraph() {
                   ref={searchInputRef}
                   type="text"
                   className={styles.orgSearchInput}
-                  placeholder="Buscar organización…"
+                  placeholder={t('network.searchOrg')}
                   value={orgSearchTerm}
                   onChange={e => setOrgSearchTerm(e.target.value)}
                   autoFocus
                 />
                 <button className={styles.selectAllBtn} onClick={selectAll}>
-                  {pickedOrgs.length === availableOrgs.length ? '✕ Ninguna' : '✓ Todas'}
+                  {pickedOrgs.length === availableOrgs.length ? t('network.selectNone') : t('network.selectAll')}
                 </button>
               </div>
 
               <div className={styles.orgDropdownList}>
                 {recommendedOrgs.length > 0 && (
                   <>
-                    <div className={styles.orgDropdownSection}>⭐ Recomendadas</div>
+                    <div className={styles.orgDropdownSection}>⭐ {t('network.recommended')}</div>
                     {recommendedOrgs.map(org => {
                       const isActive = pickedOrgs.includes(org.login)
                       return (
@@ -928,7 +959,7 @@ export default function NetworkGraph() {
                 {otherOrgs.length > 0 && (
                   <>
                     {recommendedOrgs.length > 0 && <div className={styles.orgDropdownDivider} />}
-                    <div className={styles.orgDropdownSection}>Otras organizaciones</div>
+                    <div className={styles.orgDropdownSection}>{t('network.otherOrgs')}</div>
                     {otherOrgs.map(org => {
                       const isActive = pickedOrgs.includes(org.login)
                       return (
@@ -945,7 +976,7 @@ export default function NetworkGraph() {
                   </>
                 )}
                 {filteredDropdownOrgs.length === 0 && (
-                  <div className={styles.orgDropdownEmpty}>Sin resultados para "{orgSearchTerm}"</div>
+                  <div className={styles.orgDropdownEmpty}>{t('network.noResults', { term: orgSearchTerm })}</div>
                 )}
               </div>
             </div>
@@ -955,15 +986,15 @@ export default function NetworkGraph() {
 
       <div className={styles.graphContainer}>
         <div className={styles.badgesRow}>
-          <FilterBadge value={selectedOrg} label="Organización" onClear={() => setFilter('org', selectedOrg)} />
-          <FilterBadge value={selectedLanguage} label="Lenguaje" onClear={() => setFilter('language', selectedLanguage)} />
+          <FilterBadge value={selectedOrg} label={t('network.organization')} onClear={() => setFilter('org', selectedOrg)} />
+          <FilterBadge value={selectedLanguage} label={t('network.language')} onClear={() => setFilter('language', selectedLanguage)} />
         </div>
 
         {/* Loading */}
         {isLoading && nodes.length === 0 && (
           <div className={styles.loadingOverlay}>
             <div className={styles.loadingSpinner} />
-            <span className={styles.loadingText}>Analizando red de colaboración…</span>
+            <span className={styles.loadingText}>{t('network.analyzing')}</span>
           </div>
         )}
 
@@ -972,8 +1003,7 @@ export default function NetworkGraph() {
           <div className={styles.noData}>
             <span className={styles.noDataIcon}><FiTarget size={42} /></span>
             <p className={styles.noDataText}>
-              No se detectaron patrones de colaboración entre los datos actuales.
-              Necesitas al menos 2 organizaciones con repositorios y colaboradores compartidos.
+              {t('network.noCollaboration')}
             </p>
           </div>
         )}
@@ -983,9 +1013,9 @@ export default function NetworkGraph() {
           <div className={styles.placeholder}>
             <span className={styles.placeholderIcon}><FiGlobe size={42} /></span>
             <p className={styles.placeholderText}>
-              Selecciona <strong>2 o más organizaciones</strong> para visualizar el grafo de colaboración entre ellas.
+              {t('network.selectTwoOrMore')}
             </p>
-            <span className={styles.placeholderHint}>↑ Usa los selectores de arriba</span>
+            <span className={styles.placeholderHint}>{t('network.useSelectorsAbove')}</span>
           </div>
         )}
 
@@ -1163,9 +1193,20 @@ export default function NetworkGraph() {
                       {node._isBridge && (
                         <circle cx={node.x} cy={node.y} r={size + 3} fill="none" stroke={COLORS.bridge} strokeWidth="1" strokeDasharray="2 3" opacity={dimOpacity * 0.5} />
                       )}
-                      <circle cx={node.x} cy={node.y} r={isFocused ? size + 1 : size} fill={color} filter={isHovered || isFocused ? 'url(#glowStrong2)' : 'url(#glow2)'} opacity={dimOpacity} className={styles.nodeCircle} />
-                      {(isHovered || isFocused) && (
-                        <circle cx={node.x} cy={node.y} r={size + 4} fill="none" stroke={color} strokeWidth={isFocused ? 2 : 1.5} className={styles.nodeRing} />
+                      {node.type === 'repo' ? (
+                        <>
+                          <path d={hexagonPath(node.x, node.y, isFocused ? size + 1 : size)} fill={color} filter={isHovered || isFocused ? 'url(#glowStrong2)' : 'url(#glow2)'} opacity={dimOpacity} className={styles.nodeCircle} />
+                          {(isHovered || isFocused) && (
+                            <path d={hexagonPath(node.x, node.y, size + 4)} fill="none" stroke={color} strokeWidth={isFocused ? 2 : 1.5} className={styles.nodeRing} />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <circle cx={node.x} cy={node.y} r={isFocused ? size + 1 : size} fill={color} filter={isHovered || isFocused ? 'url(#glowStrong2)' : 'url(#glow2)'} opacity={dimOpacity} className={styles.nodeCircle} />
+                          {(isHovered || isFocused) && (
+                            <circle cx={node.x} cy={node.y} r={size + 4} fill="none" stroke={color} strokeWidth={isFocused ? 2 : 1.5} className={styles.nodeRing} />
+                          )}
+                        </>
                       )}
                     </g>
                   )
@@ -1198,10 +1239,10 @@ export default function NetworkGraph() {
                   <span className={styles.focusBarDot} style={{ background: fColor }} />
                   <span className={styles.focusBarText}>
                     <strong style={{ color: fColor }}>{fNode.label || fNode.login || fNode.id}</strong>
-                    {' · '}{neighborCount} {neighborCount === 1 ? 'conexión' : 'conexiones'}
+                    {' · '}{neighborCount} {neighborCount === 1 ? t('network.connection') : t('network.connections')}
                   </span>
                   <button className={styles.focusBarClose} onClick={() => setFocusedNodeId(null)}>
-                    <FiX size={13} /> Quitar foco
+                    <FiX size={13} /> {t('network.removeFocus')}
                   </button>
                 </div>
               )
@@ -1283,19 +1324,19 @@ export default function NetworkGraph() {
                     <div className={styles.ntStats}>
                       {node._isBridge && node._connectedOrgs?.length > 0 && (
                         <div className={styles.ntStatRow}>
-                          <span><FiLink2 size={11} className={styles.ntIcon} /> Conecta</span>
+                          <span><FiLink2 size={11} className={styles.ntIcon} /> {t('network.connects')}</span>
                           <strong style={{ color: COLORS.bridge }}>{node._connectedOrgs.length} orgs</strong>
                         </div>
                       )}
-                      {node.repos_count > 0 && (
+                      {!node._isBridge && node.repos_count > 0 && (
                         <div className={styles.ntStatRow}>
-                          <span><FiPackage size={11} className={styles.ntIcon} /> Repositorios</span>
+                          <span><FiPackage size={11} className={styles.ntIcon} /> {t('network.repositories')}</span>
                           <strong style={{ color: '#bd00ff' }}>{node.repos_count.toLocaleString()}</strong>
                         </div>
                       )}
                       {m.collab_centrality > 0 && (
                         <div className={styles.ntStatRow}>
-                          <span><FiBarChart2 size={11} className={styles.ntIcon} /> Centralidad</span>
+                          <span><FiBarChart2 size={11} className={styles.ntIcon} /> {t('network.centrality')}</span>
                           <strong style={{ color: '#00D4E4' }}>
                             {Math.round(m.collab_centrality)}%
                           </strong>
@@ -1303,7 +1344,7 @@ export default function NetworkGraph() {
                       )}
                       {m.collab_connectivity_raw > 0 && (
                         <div className={styles.ntStatRow}>
-                          <span><FiGitBranch size={11} className={styles.ntIcon} /> Repos activos</span>
+                          <span><FiGitBranch size={11} className={styles.ntIcon} /> {t('network.activeRepos')}</span>
                           <strong style={{ color: '#00ff9f' }}>{m.collab_connectivity_raw}</strong>
                         </div>
                       )}
@@ -1349,25 +1390,25 @@ export default function NetworkGraph() {
                     <div className={styles.ntStats}>
                       {node.language && (
                         <div className={styles.ntStatRow}>
-                          <span><FiCode size={11} className={styles.ntIcon} /> Lenguaje</span>
+                          <span><FiCode size={11} className={styles.ntIcon} /> {t('network.language')}</span>
                           <span className={styles.ntLangBadge}>{node.language}</span>
                         </div>
                       )}
                       {(node.stars != null && node.stars > 0) && (
                         <div className={styles.ntStatRow}>
-                          <span><FiStar size={11} className={styles.ntIcon} /> Estrellas</span>
+                          <span><FiStar size={11} className={styles.ntIcon} /> {t('network.stars')}</span>
                           <strong style={{ color: '#F59E0B' }}>{node.stars.toLocaleString()}</strong>
                         </div>
                       )}
                       {node.forks > 0 && (
                         <div className={styles.ntStatRow}>
-                          <span><FiGitBranch size={11} className={styles.ntIcon} /> Forks</span>
+                          <span><FiGitBranch size={11} className={styles.ntIcon} /> {t('network.forks')}</span>
                           <strong style={{ color: '#9D6FDB' }}>{node.forks.toLocaleString()}</strong>
                         </div>
                       )}
                       {node.org && (
                         <div className={styles.ntStatRow}>
-                          <span><FiGlobe size={11} className={styles.ntIcon} /> Organización</span>
+                          <span><FiGlobe size={11} className={styles.ntIcon} /> {t('network.organization')}</span>
                           <strong style={{ color: COLORS.org }}>{node.org}</strong>
                         </div>
                       )}
@@ -1382,12 +1423,12 @@ export default function NetworkGraph() {
                         <div className={styles.ntTags}>
                           {node.is_verified && (
                             <span className={styles.ntTag} style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
-                              <FiCheckCircle size={10} className={styles.ntIcon} /> Verificada
+                              <FiCheckCircle size={10} className={styles.ntIcon} /> {t('network.verified')}
                             </span>
                           )}
                           {node.is_quantum_focused && (
                             <span className={styles.ntTag} style={{ background: 'rgba(255,60,172,0.15)', color: '#FF3CAC' }}>
-                              <FiZap size={10} className={styles.ntIcon} /> Quantum Focused
+                              <FiZap size={10} className={styles.ntIcon} /> {t('network.quantumFocused')}
                             </span>
                           )}
                           {node.location && (
@@ -1402,19 +1443,19 @@ export default function NetworkGraph() {
                       <div className={styles.ntStats}>
                         {node.graph_repos_count > 0 && (
                           <div className={styles.ntStatRow}>
-                            <span><FiPackage size={11} className={styles.ntIcon} /> Repos en grafo</span>
+                            <span><FiPackage size={11} className={styles.ntIcon} /> {t('network.reposInGraph')}</span>
                             <strong style={{ color: '#bd00ff' }}>{node.graph_repos_count}</strong>
                           </div>
                         )}
                         {node.graph_contributors_count > 0 && (
                           <div className={styles.ntStatRow}>
-                            <span><FiUsers size={11} className={styles.ntIcon} /> Contribuidores</span>
+                            <span><FiUsers size={11} className={styles.ntIcon} /> {t('network.contributors')}</span>
                             <strong style={{ color: '#00ff9f' }}>{node.graph_contributors_count}</strong>
                           </div>
                         )}
                         {node.graph_bridge_count > 0 && (
                           <div className={styles.ntStatRow}>
-                            <span><FiGitMerge size={11} className={styles.ntIcon} /> Bridge users</span>
+                            <span><FiGitMerge size={11} className={styles.ntIcon} /> {t('network.bridgeUsersLabel')}</span>
                             <strong style={{ color: COLORS.bridge }}>{node.graph_bridge_count}</strong>
                           </div>
                         )}
@@ -1427,31 +1468,31 @@ export default function NetworkGraph() {
                           <div className={styles.ntStats}>
                             {node.quantum_focus_score > 0 && (
                               <div className={styles.ntStatRow}>
-                                <span><FiTarget size={11} className={styles.ntIcon} /> Quantum Focus</span>
+                                <span><FiTarget size={11} className={styles.ntIcon} /> {t('network.quantumFocus')}</span>
                                 <strong style={{ color: '#FF3CAC' }}>{Math.round(node.quantum_focus_score)}%</strong>
                               </div>
                             )}
                             {node.quantum_repos_count > 0 && (
                               <div className={styles.ntStatRow}>
-                                <span><FiCompass size={11} className={styles.ntIcon} /> Repos quantum</span>
+                                <span><FiCompass size={11} className={styles.ntIcon} /> {t('network.quantumRepos')}</span>
                                 <strong style={{ color: '#00D4E4' }}>{node.quantum_repos_count}{node.total_repos_count > 0 ? <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/{node.total_repos_count}</span> : ''}</strong>
                               </div>
                             )}
                             {!node.quantum_repos_count && node.total_repos_count > 0 && (
                               <div className={styles.ntStatRow}>
-                                <span><FiPackage size={11} className={styles.ntIcon} /> Repos totales</span>
+                                <span><FiPackage size={11} className={styles.ntIcon} /> {t('network.totalRepos')}</span>
                                 <strong style={{ color: '#bd00ff' }}>{node.total_repos_count.toLocaleString()}</strong>
                               </div>
                             )}
                             {node.members_count > 0 && (
                               <div className={styles.ntStatRow}>
-                                <span><FiUsers size={11} className={styles.ntIcon} /> Miembros</span>
+                                <span><FiUsers size={11} className={styles.ntIcon} /> {t('network.members')}</span>
                                 <strong style={{ color: '#00ff9f' }}>{node.members_count.toLocaleString()}</strong>
                               </div>
                             )}
                             {node.total_stars > 0 && (
                               <div className={styles.ntStatRow}>
-                                <span><FiStar size={11} className={styles.ntIcon} /> Estrellas</span>
+                                <span><FiStar size={11} className={styles.ntIcon} /> {t('network.stars')}</span>
                                 <strong style={{ color: '#F59E0B' }}>{node.total_stars.toLocaleString()}</strong>
                               </div>
                             )}
@@ -1476,9 +1517,9 @@ export default function NetworkGraph() {
 
                   {/* ── FOOTER ── */}
                   <div className={styles.ntFooter}>
-                    {node.type === 'org' && 'click para enfocar'}
-                    {node.type === 'repo' && 'click para enfocar'}
-                    {node.type === 'user' && (node._isBridge ? 'bridge user · conecta organizaciones' : 'colaborador')}
+                    {node.type === 'org' && t('network.clickToFocus')}
+                    {node.type === 'repo' && t('network.clickToFocus')}
+                    {node.type === 'user' && (node._isBridge ? t('network.bridgeUserHint') : t('network.collaborator'))}
                   </div>
                 </div>
               )
@@ -1491,25 +1532,25 @@ export default function NetworkGraph() {
               <div className={`${styles.metricsBar} ${animationComplete ? styles.metricsVisible : styles.metricsHidden}`}>
                 <div className={styles.metricItem}>
                   <span className={styles.metricValue}>{graphMetrics.bridgeCount}{graphMetrics.totalBridgeAll > graphMetrics.bridgeCount ? <span className={styles.metricTotal}>/{graphMetrics.totalBridgeAll}</span> : ''}</span>
-                  <span className={styles.metricLabel}>Bridge Users</span>
+                  <span className={styles.metricLabel}>{t('network.bridgeUsersMetric')}</span>
                 </div>
                 <div className={styles.metricItem}>
                   <span className={styles.metricValue}>{graphMetrics.totalUsers}{graphMetrics.totalUsersAll > graphMetrics.totalUsers ? <span className={styles.metricTotal}>/{graphMetrics.totalUsersAll}</span> : ''}</span>
-                  <span className={styles.metricLabel}>Colaboradores</span>
+                  <span className={styles.metricLabel}>{t('network.collaborators')}</span>
                 </div>
                 <div className={styles.metricItem}>
                   <span className={styles.metricValue}>{graphMetrics.totalRepos}{graphMetrics.totalReposAll > graphMetrics.totalRepos ? <span className={styles.metricTotal}>/{graphMetrics.totalReposAll}</span> : ''}</span>
-                  <span className={styles.metricLabel}>Repositorios</span>
+                  <span className={styles.metricLabel}>{t('network.repositories')}</span>
                 </div>
                 {graphMetrics.avgCentrality > 0 && (
                   <div className={styles.metricItem}>
                     <span className={styles.metricValue}>{graphMetrics.avgCentrality > 1 ? graphMetrics.avgCentrality.toFixed(1) : (graphMetrics.avgCentrality * 100).toFixed(0) + '%'}</span>
-                    <span className={styles.metricLabel}>Centralidad Media</span>
+                    <span className={styles.metricLabel}>{t('network.avgCentrality')}</span>
                   </div>
                 )}
                 {graphMetrics.isTruncated && (
                   <div className={styles.truncationHint}>
-                    Mostrando los nodos más relevantes · Cambia el nivel de detalle para ver más · Consulta el <strong>Universo Cuántico</strong> para la información completa
+                    {t('network.truncationHint')}
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@
  * Metáfora cuántica coherente con el proyecto ENTANGLE:
  *
  *   ◈ Organizaciones  = Procesadores Cuánticos  (toros de energía rotando)
- *   ◈ Repositorios    = Qubits                  (esferas + nubes de probabilidad)
+ *   ◈ Repositorios    = Qubits                  (octaedros + nubes de probabilidad)
  *   ◈ Usuarios        = Partículas Cuánticas    (orbitales alrededor de qubits)
  *   ◈ Bridge Users    = Partículas Entrelazadas  (dorado, pulso sincronizado)
  *   ◈ Conexiones      = Canales de Entrelazamiento (ondas sinusoidales)
@@ -29,6 +29,7 @@ import { useDashboardStore, computeTemporalVisibility } from '../../store/dashbo
 import useFavoritesStore from '../../store/favoritesStore'
 import { useDevStore } from '../../store/devStore'
 import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimize2, FiHelpCircle, FiChevronDown, FiChevronLeft, FiEye, FiEyeOff, FiSearch, FiTarget, FiActivity, FiLayers, FiShield, FiCrosshair, FiLoader, FiSettings, FiShare2, FiStar, FiCode, FiGlobe, FiExternalLink, FiHash, FiPercent, FiArrowRight, FiBarChart2, FiBookmark, FiTrendingUp, FiTrendingDown, FiAward, FiHeart, FiAlertTriangle, FiLink, FiCalendar, FiPlay } from 'react-icons/fi'
+import { useTranslation } from 'react-i18next'
 import BlackHoleExit from './BlackHoleExit'
 import BigBangEntry from './BigBangEntry'
 import styles from './UniverseView.module.css'
@@ -41,6 +42,22 @@ const REPO_MIN_ORBIT = 18 // órbita mínima qubit→procesador
 const REPO_MAX_ORBIT = 55 // órbita máxima qubit→procesador
 const USER_MIN_ORBIT = 4  // órbita mínima partícula→qubit
 const USER_MAX_ORBIT = 10 // órbita máxima partícula→qubit
+
+// Known bot logins — fallback when backend isBot flag is missing from cached data
+const KNOWN_BOT_LOGINS = new Set([
+  'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
+  'sonarcloud', 'claude', 'actions-user', 'github-actions',
+  'copilot', 'deepsource-autofix', 'imgbot', 'allcontributors',
+  'pre-commit-ci', 'netlify', 'vercel', 'railway', 'render',
+  'mergify', 'kodiakhq', 'whitesource-bolt', 'mend-bolt-for-github',
+  'depfu', 'pyup-bot', 'fossabot', 'semantic-release-bot',
+  'github-pages', 'web-flow',
+])
+function isBotNode(n) {
+  if (n.isBot) return true
+  const login = (n.login || n.name || n.id?.replace('user_', '') || '').toLowerCase()
+  return KNOWN_BOT_LOGINS.has(login) || login.endsWith('[bot]') || login.endsWith('-bot')
+}
 
 // Generador pseudo-aleatorio con semilla (para reproducibilidad visual)
 function seededRandom(seed) {
@@ -900,7 +917,7 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
 }
 
 // ============================================================================
-// QUBITS (Repos) - Esferas con ejes de Bloch
+// QUBITS (Repos) - Octaedros con ejes de Bloch
 // ============================================================================
 
 function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressKey, highlightSet, lensData, lensRevealDelay = 100, activeNodeIdsRef }) {
@@ -908,7 +925,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
   const hitRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const visRef = useRef(null)
-  const sphereGeo = useMemo(() => new THREE.SphereGeometry(0.55, 16, 16), [])
+  const sphereGeo = useMemo(() => new THREE.OctahedronGeometry(0.65, 0), [])
   const hitGeo = useMemo(() => new THREE.SphereGeometry(2.5, 6, 6), [])
   const hitMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), [])
   const qubitMat = useMemo(() => new THREE.MeshBasicMaterial({
@@ -1020,7 +1037,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
 
   return (
     <>
-      <instancedMesh ref={ref} args={[sphereGeo, qubitMat, repoNodes.length]} />
+      <instancedMesh ref={ref} args={[sphereGeo, qubitMat, repoNodes.length]} frustumCulled={false} />
       <instancedMesh
         ref={hitRef}
         args={[hitGeo, hitMat, repoNodes.length]}
@@ -1232,7 +1249,9 @@ const PARTICLE_VERTEX = /* glsl */`
     size *= (0.4 + densitySize * 0.6);
 
     // === Glow intensity - crece con la revelación del bridge ===
-    vGlow = mix(1.0, 1.0 + personalFlash * 0.6, bridgeBlend);
+    // Normal users: slightly brighter base glow
+    float normalGlow = 1.15;
+    vGlow = mix(normalGlow, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
     if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
@@ -2060,7 +2079,7 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
   // Material de shader personalizado - GPU calcula posiciones desde atributos + uniforms
   const shaderMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
-      uColor: { value: new THREE.Color('#00d4e4').multiplyScalar(1.5) },
+      uColor: { value: new THREE.Color('#bb99ff').multiplyScalar(1.5) },
       uOpacity: { value: 0 },
       uTime: { value: 0 },
       uDrawProgress: { value: 0 },
@@ -4240,9 +4259,19 @@ function TourViewportLabels({ universeData, activeNodeIdsRef, tourStep, tourWayp
   // Pre-rank todas las entidades por importancia (solo se recalcula con universeData)
   const rankedEntities = useMemo(() => {
     if (!universeData) return []
-    const { orgNodes, repoNodes, userNodes, orgRepos, positions } = universeData
+    const { orgNodes, repoNodes, userNodes, orgRepos, positions, connections } = universeData
 
     const entities = []
+
+    // Compute user → orgs from graph links (robust: works even without backend fields)
+    const userOrgsMap = new Map()
+    for (const conn of (connections || [])) {
+      if (conn.type !== 'contributed_to') continue
+      const orgName = conn.target?.replace('repo_', '').split('/')[0]
+      if (!orgName) continue
+      if (!userOrgsMap.has(conn.source)) userOrgsMap.set(conn.source, new Set())
+      userOrgsMap.get(conn.source).add(orgName)
+    }
 
     // Orgs: importancia = nº repos de la org
     for (const node of orgNodes) {
@@ -4272,10 +4301,16 @@ function TourViewportLabels({ universeData, activeNodeIdsRef, tourStep, tourWayp
     for (const node of userNodes) {
       if (!positions[node.id]) continue
       const bridgeBonus = node.isBridge ? 50 : 0
+      const graphOrgs = userOrgsMap.get(node.id)
+      const computedOrgsCount = graphOrgs ? graphOrgs.size : 0
+      const computedConnectedOrgs = graphOrgs ? [...graphOrgs] : []
       entities.push({
         id: node.id, type: 'user',
         name: node.login || node.name || node.id,
         isBridge: node.isBridge,
+        isBot: isBotNode(node),
+        orgs_count: computedOrgsCount || node.orgs_count || 0,
+        connected_orgs: computedConnectedOrgs.length > 0 ? computedConnectedOrgs : (node.connected_orgs || []),
         importance: (node.repos_count || 0) + bridgeBonus,
         pos: positions[node.id],
       })
@@ -4408,6 +4443,7 @@ function TourViewportLabels({ universeData, activeNodeIdsRef, tourStep, tourWayp
 // ============================================================================
 
 function FloatingLabel({ entity, position }) {
+  const { t } = useTranslation()
   const [phase, setPhase] = useState('hidden') // hidden | show | exit
   const dataRef = useRef(null)
   const timerRef = useRef(null)
@@ -4428,7 +4464,7 @@ function FloatingLabel({ entity, position }) {
 
   const { entity: ent, position: pos } = dataRef.current
   const name = ent.name || ent.login || ent.full_name || ent.id
-  const typeMap = { org: 'Organización (Procesador)', repo: 'Repositorio (Qubit)', user: 'Usuario (Partícula)' }
+  const typeMap = { org: t('universe.legend.orgs') + ' (' + t('universe.legend.processors') + ')', repo: t('universe.legend.repos') + ' (' + t('universe.legend.qubits') + ')', user: t('universe.legend.usersLabel') + ' (' + t('universe.legend.particles') + ')' }
   const colorMap = { org: '#00f7ff', repo: '#bd00ff', user: '#00ff9f' }
 
   // Offset Y en unidades 3D para posicionar el label ENCIMA de la entidad
@@ -4444,8 +4480,8 @@ function FloatingLabel({ entity, position }) {
         </span>
         <span className={styles.label3dName}>{name}</span>
         {ent.stars > 0 && <span className={styles.label3dMeta}>⭐ {ent.stars}</span>}
-        {ent.isBridge && (
-          <span className={styles.label3dBridge}>⚛ Bridge User · {ent.repos_count} repos</span>
+        {ent.isBridge && !ent.isBot && (
+          <span className={styles.label3dBridge}>⚛ Bridge User · {ent.orgs_count || ent.connected_orgs?.length || '?'} orgs</span>
         )}
       </div>
     </Html>
@@ -4976,7 +5012,7 @@ function areSiblingOrgs(o1, o2) {
 // CINEMATIC TOUR - Generador de waypoints narrativos
 // ============================================================================
 
-function generateTourWaypoints(universeData, temporalRange) {
+function generateTourWaypoints(universeData, temporalRange, t) {
   if (!universeData || !temporalRange) return []
   const { orgNodes, repoNodes, userNodes, positions, orgRepos, orgScore, connections } = universeData
   const yMin = temporalRange.min, yMax = temporalRange.max
@@ -5044,8 +5080,19 @@ function generateTourWaypoints(universeData, temporalRange) {
   const entanglementLinks = connections?.filter(c => c.type === 'entangled_with') || []
   const entanglementCount = entanglementLinks.length
 
-  //  7. Bridge users 
-  const bridgeUsers = userNodes?.filter(u => u.isBridge) || []
+  //  7. Bridge users (compute orgs from graph links for robustness) 
+  const tourUserOrgsMap = new Map()
+  for (const conn of (connections || [])) {
+    if (conn.type !== 'contributed_to') continue
+    const orgName = conn.target?.replace('repo_', '').split('/')[0]
+    if (!orgName) continue
+    if (!tourUserOrgsMap.has(conn.source)) tourUserOrgsMap.set(conn.source, new Set())
+    tourUserOrgsMap.get(conn.source).add(orgName)
+  }
+  const bridgeUsers = (userNodes?.filter(u => u.isBridge && !isBotNode(u)) || []).map(u => {
+    const graphOrgs = tourUserOrgsMap.get(u.id)
+    return { ...u, orgs_count: graphOrgs?.size || u.orgs_count || 0, connected_orgs: graphOrgs ? [...graphOrgs] : (u.connected_orgs || []) }
+  })
   const bridgeCount = bridgeUsers.length
 
   //  8. Top languages 
@@ -5125,7 +5172,7 @@ function generateTourWaypoints(universeData, temporalRange) {
     duration: 18,
     isVoid: true,
     title: '',
-    text: `En 1981, Feynman imaginó un ordenador cuántico. Shor y Grover lo convirtieron en algoritmos revolucionarios, y durante décadas los laboratorios lucharon por construir qubits estables. Para ${yMin}, la computación cuántica era un campo consolidado pero cerrado: avances en papers, prototipos tras puertas cerradas, colaboración medida en citas, no en commits. En GitHub, silencio absoluto.`,
+    text: t('universe.tourWp.void.text', { year: yMin }),
   })
 
   //  WP 1: PRELUDIO — "Y de pronto, un día…" 
@@ -5137,7 +5184,7 @@ function generateTourWaypoints(universeData, temporalRange) {
     isPreludio: true,
     triggerBigBangAt: 9,
     title: '',
-    text: 'Entonces la industria decidió abrir sus puertas al mundo…',
+    text: t('universe.tourWp.prelude.text'),
   })
 
   //  WP 2: GÉNESIS — El Big Bang del ecosistema 
@@ -5149,11 +5196,11 @@ function generateTourWaypoints(universeData, temporalRange) {
 
   // Contexto histórico real para enriquecer la narrativa del Génesis
   const genesisMilestones = []
-  if (firstActiveYear <= 2016 && yMax >= 2016) genesisMilestones.push('el lanzamiento de IBM Quantum Experience (2016)')
-  if (firstActiveYear <= 2017 && yMax >= 2017) genesisMilestones.push('la publicación de Qiskit y Q# (2017)')
-  if (firstActiveYear <= 2017 && yMax >= 2017 && keyOrgsFound['rigetti']) genesisMilestones.push('la apertura del Forest SDK de Rigetti')
+  if (firstActiveYear <= 2016 && yMax >= 2016) genesisMilestones.push(t('universe.tourWp.genesis.milestoneIBM'))
+  if (firstActiveYear <= 2017 && yMax >= 2017) genesisMilestones.push(t('universe.tourWp.genesis.milestoneQiskit'))
+  if (firstActiveYear <= 2017 && yMax >= 2017 && keyOrgsFound['rigetti']) genesisMilestones.push(t('universe.tourWp.genesis.milestoneRigetti'))
   const genesisHistContext = genesisMilestones.length > 0
-    ? ` ${genesisMilestones.join(', ')} catalizan esta apertura.`
+    ? ` ${genesisMilestones.join(', ')}${t('universe.tourWp.genesis.milestoneSuffix')}`
     : ''
 
   waypoints.push({
@@ -5162,8 +5209,15 @@ function generateTourWaypoints(universeData, temporalRange) {
     camTarget: [0, 0, 0],
     duration: 16,
     isGenesis: true,
-    title: 'Génesis Open-Source',
-    text: `Año ${firstActiveYear}: comienza la era del código abierto cuántico.${genesisHistContext} ${total.toLocaleString()} repos, ${totalOrgs} organizaciones y ${totalUsers.toLocaleString()} desarrolladores irán materializándose en este universo.${hasIndustryOrgs ? ` Gigantes como ${keyOrgNamesList.slice(0, 3).join(', ')} liderarán la apertura.` : ''} Lo que vivía confinado en laboratorios está a punto de construirse de forma colaborativa.`,
+    title: t('universe.tourWp.genesis.title'),
+    text: t('universe.tourWp.genesis.text', {
+      year: firstActiveYear,
+      histContext: genesisHistContext,
+      total: total.toLocaleString(),
+      totalOrgs,
+      totalUsers: totalUsers.toLocaleString(),
+      industryContext: hasIndustryOrgs ? t('universe.tourWp.genesis.industryLeaders', { names: keyOrgNamesList.slice(0, 3).join(', ') }) : '',
+    }),
   })
 
   //  WP 3: PRIMERAS FLUCTUACIONES — Pioneros reales 
@@ -5175,17 +5229,22 @@ function generateTourWaypoints(universeData, temporalRange) {
   // Detectar si los primeros repos/orgs son de la industria o proyectos pequeños
   const firstOrgIsKey = firstOrgs.length > 0 && Object.values(keyOrgsFound).some(v => firstOrgs.some(o => o.id === v.org.id))
   const firstNodePriorityIds = [...firstOrgs.slice(0, 3).map(o => o.id), ...firstRepos.slice(0, 4).map(r => r.id)]
+  const firstNodeTextKey = firstOrgs.length > 0
+    ? (firstOrgIsKey ? 'universe.tourWp.firstNodes.textIndustry' : 'universe.tourWp.firstNodes.textExperimental')
+    : 'universe.tourWp.firstNodes.textNoOrgs'
   waypoints.push({
     year: firstActiveYear + 0.5,
     ...(firstOrgPos ? camFor(firstOrgPos, 80) : { camPos: [0, 180, 450], camTarget: [0, 0, 0] }),
     duration: 12,
     priorityIds: firstNodePriorityIds,
-    title: 'Los Primeros Nodos',
-    text: firstOrgs.length > 0
-      ? (firstOrgIsKey
-        ? `En ${firstActiveYear}, ${firstOrgs.length} organizaciones publican ${firstRepos.length} repos. ${firstOrgNames} abren su código con proyectos como ${firstRepoNames}, sentando las bases del ecosistema abierto.`
-        : `Los primeros ${firstRepos.length} repos de ${firstActiveYear} no son de grandes corporaciones: proyectos experimentales como ${firstRepoNames}. Organizaciones como ${firstOrgNames} exploran el terreno, allanando el camino para los grandes actores.`)
-      : `En ${firstActiveYear} emergen ${firstRepos.length} repos experimentales: ${firstRepoNames}. Pequeñas semillas plantadas antes de que la industria reconociera el potencial del open-source cuántico.`,
+    title: t('universe.tourWp.firstNodes.title'),
+    text: t(firstNodeTextKey, {
+      year: firstActiveYear,
+      orgCount: firstOrgs.length,
+      repoCount: firstRepos.length,
+      orgNames: firstOrgNames,
+      repoNames: firstRepoNames,
+    }),
   })
 
   //  WP 3b: PRIMER GIGANTE — La primera gran org industrial en el ecosistema 
@@ -5218,7 +5277,15 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 13,
       priorityIds: fkPriorityIds,
       title: firstKeyOrg.label,
-      text: `En ${firstKeyOrg.year}, ${firstKeyOrg.label} irrumpe con ${fkRepos.length} repos y ${fkStars.toLocaleString()} ★.${fkTopRepo ? ` Su proyecto insignia, ${fkTopRepo.name} (${(fkTopRepo.stars || 0).toLocaleString()} ★), se convierte en referencia global.` : ''}${fkLangs.length > 0 ? ` Stack principal: ${fkLangs.join(', ')}.` : ''}${sameEraOrgs.length > 0 ? ` En esta misma etapa se incorporan ${sameEraOrgs.join(' y ')}: la industria apuesta por el open-source cuántico.` : ' La industria apuesta por construir en abierto.'}`,
+      text: t('universe.tourWp.firstGiant.text', {
+        year: firstKeyOrg.year,
+        label: firstKeyOrg.label,
+        repoCount: fkRepos.length,
+        stars: fkStars.toLocaleString(),
+        flagship: fkTopRepo ? t('universe.tourWp.firstGiant.flagship', { name: fkTopRepo.name, stars: (fkTopRepo.stars || 0).toLocaleString() }) : '',
+        stack: fkLangs.length > 0 ? t('universe.tourWp.firstGiant.stack', { langs: fkLangs.join(', ') }) : '',
+        era: sameEraOrgs.length > 0 ? t('universe.tourWp.firstGiant.sameEra', { names: sameEraOrgs.join(' y ') }) : t('universe.tourWp.firstGiant.sameEraDefault'),
+      }),
     })
   }
 
@@ -5241,8 +5308,11 @@ function generateTourWaypoints(universeData, temporalRange) {
         ...(focus2019Pos ? camFor(focus2019Pos, 70) : { camPos: [200, 300, -150], camTarget: [0, 0, 0] }),
         duration: 14,
         priorityIds: priority2019,
-        title: 'Aceleración 2019',
-        text: `2019 marca un punto de inflexión en el ecosistema.${growth2019 > 0 ? ` ${growth2019} nuevos repos elevan el total a ${accum2019}.` : ''}${orgs2019.length > 0 ? ` ${orgs2019.length} nuevas organizaciones se incorporan${topOrgs2019 ? `: ${topOrgs2019}` : ''}.` : ''} La carrera por la supremacía cuántica y la creciente inversión global impulsan la actividad open-source a niveles sin precedentes.`,
+        title: t('universe.tourWp.acceleration.title'),
+        text: t('universe.tourWp.acceleration.text', {
+          growthContext: growth2019 > 0 ? t('universe.tourWp.acceleration.growth', { count: growth2019, total: accum2019 }) : '',
+          orgsContext: orgs2019.length > 0 ? t('universe.tourWp.acceleration.newOrgs', { count: orgs2019.length, names: topOrgs2019 ? `: ${topOrgs2019}` : '' }) : '',
+        }),
       })
     }
   }
@@ -5265,8 +5335,12 @@ function generateTourWaypoints(universeData, temporalRange) {
       camTarget: [0, 30, 0],
       duration: 13,
       priorityIds: priority2020,
-      title: 'Competencia Estructurada',
-      text: `Entre 2020 y 2021, el ecosistema entra en competencia estructurada: plataformas, estándares y comunidades.${reposBiennium > 0 ? ` ${reposBiennium} nuevos repos (acumulado: ${accum2021}).` : ''}${newOrgsCount > 0 ? ` ${newOrgsCount} nuevas organizaciones, muchas startups especializadas.` : ''}${periodCollabs > 0 ? ` ${periodCollabs} nuevos enlaces de colaboración inter-org evidencian redes cada vez más densas.` : ''} El ecosistema pasa de actores aislados a estructura industrial integrada.`,
+      title: t('universe.tourWp.competition.title'),
+      text: t('universe.tourWp.competition.text', {
+        reposContext: reposBiennium > 0 ? t('universe.tourWp.competition.repos', { count: reposBiennium, total: accum2021 }) : '',
+        orgsContext: newOrgsCount > 0 ? t('universe.tourWp.competition.orgs', { count: newOrgsCount }) : '',
+        collabsContext: periodCollabs > 0 ? t('universe.tourWp.competition.collabs', { count: periodCollabs }) : '',
+      }),
     })
   }
 
@@ -5286,7 +5360,13 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 13,
       priorityIds: epicenterPriority,
       title: oName(epicenterOrg),
-      text: `${oName(epicenterOrg)} ocupa el centro gravitacional del ecosistema: la organización más conectada. ${epicenterRepos.length} repos y ${epicenterStars.toLocaleString()} ★ acumuladas.${epicenterTopRepo ? ` Proyecto insignia: ${epicenterTopRepo.name} (${(epicenterTopRepo.stars || 0).toLocaleString()} ★).` : ''}${epicenterLangs.length > 0 ? ` Stack: ${epicenterLangs.join(', ')}.` : ''} Un hub que atrae colaboradores y genera influencia en todas direcciones.`,
+      text: t('universe.tourWp.epicenter.text', {
+        name: oName(epicenterOrg),
+        repoCount: epicenterRepos.length,
+        stars: epicenterStars.toLocaleString(),
+        flagship: epicenterTopRepo ? t('universe.tourWp.epicenter.flagship', { name: epicenterTopRepo.name, stars: (epicenterTopRepo.stars || 0).toLocaleString() }) : '',
+        stack: epicenterLangs.length > 0 ? t('universe.tourWp.epicenter.stack', { langs: epicenterLangs.join(', ') }) : '',
+      }),
     })
   }
 
@@ -5304,7 +5384,14 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 12,
       priorityIds: starPriority,
       title: `★ ${topRepo.name}`,
-      text: `${topRepo.name}: ${topStars.toLocaleString()} ★${ownerOrg ? `, de ${oName(ownerOrg)}` : ''}${topRepo.language ? `, en ${topRepo.language}` : ''}. El repo más influyente del ecosistema. Otros destacados: ${top3Names}. En total, ${totalStarsAll.toLocaleString()} ★ acumuladas en todo el ecosistema.`,
+      text: t('universe.tourWp.stellarQubit.text', {
+        name: topRepo.name,
+        stars: topStars.toLocaleString(),
+        owner: ownerOrg ? t('universe.tourWp.stellarQubit.owner', { name: oName(ownerOrg) }) : '',
+        language: topRepo.language ? t('universe.tourWp.stellarQubit.language', { lang: topRepo.language }) : '',
+        top3: top3Names,
+        totalStars: totalStarsAll.toLocaleString(),
+      }),
     })
   }
 
@@ -5335,16 +5422,20 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 13,
       isEntanglement: true,
       priorityIds: [...new Set(entanglementPriorityIds)],
-      title: 'Entrelazamiento',
-      text: `La fortaleza del ecosistema está en sus conexiones. ${genuineCount} enlaces de colaboración real unen a ${collabOrgCount} organizaciones a través de desarrolladores que contribuyen en múltiples proyectos. Vínculos más fuertes: ${strongPairs}. Cada arco luminoso es un puente de talento entre equipos.`,
+      title: t('universe.tourWp.entanglement.title'),
+      text: t('universe.tourWp.entanglement.text', {
+        count: genuineCount,
+        orgCount: collabOrgCount,
+        strongPairs,
+      }),
     })
   }
 
   //  WP 6: USUARIOS PUENTE — Los conectores del ecosistema 
   if (bridgeCount > 0) {
     // Encontrar el bridge user que más repos tiene
-    const topBridges = [...bridgeUsers].sort((a, b) => (b.repos_count || 0) - (a.repos_count || 0)).slice(0, 3)
-    const topBridgeNames = topBridges.map(u => `${u.name || u.login} (${u.repos_count || 0} repos)`).join(', ')
+    const topBridges = [...bridgeUsers].sort((a, b) => (b.orgs_count || 0) - (a.orgs_count || 0)).slice(0, 3)
+    const topBridgeNames = topBridges.map(u => `${u.name || u.login} (${u.orgs_count || u.connected_orgs?.length || 0} orgs)`).join(', ')
     const bridgePct = ((bridgeCount / totalUsers) * 100).toFixed(1)
     const normalCount = totalUsers - bridgeCount
     const bridgePriority = topBridges.map(u => u.id || u.login)
@@ -5355,8 +5446,14 @@ function generateTourWaypoints(universeData, temporalRange) {
       duration: 13,
       isBridgeUsers: true,
       priorityIds: bridgePriority,
-      title: 'Usuarios Puente',
-      text: `De ${totalUsers.toLocaleString()} desarrolladores, ${bridgeCount.toLocaleString()} son usuarios puente (${bridgePct}%): los puntos dorados. Contribuyen a repos de múltiples organizaciones, tejiendo la red de colaboración. Los más activos: ${topBridgeNames}. Sin ellos, los ${normalCount.toLocaleString()} restantes quedarían fragmentados en silos inconexos.`,
+      title: t('universe.tourWp.bridgeUsers.title'),
+      text: t('universe.tourWp.bridgeUsers.text', {
+        totalUsers: totalUsers.toLocaleString(),
+        bridgeCount: bridgeCount.toLocaleString(),
+        pct: bridgePct,
+        topNames: topBridgeNames,
+        normalCount: normalCount.toLocaleString(),
+      }),
     })
   }
 
@@ -5376,8 +5473,26 @@ function generateTourWaypoints(universeData, temporalRange) {
     camTarget: [0, 0, 0],
     duration: 13,
     priorityIds: peakPriority,
-    title: 'Inflación Cósmica',
-    text: `${peakYear}: el mayor salto del ecosistema. ${peakGrowth} nuevos repos (+${growthPct}%).${peakKeyOrgs.length > 0 ? ` ${peakKeyOrgs.join(' y ')} ${peakKeyOrgs.length > 1 ? 'publican' : 'publica'} código abierto, catalizando la expansión.` : ''}${peakOrgNames ? ` Se incorporan ${peakOrgNames}.` : ''} Acumulado: de ${prevYearAccum} a ${accumByYear[peakYear] || 0} repos en doce meses.`,
+    title: t('universe.tourWp.cosmicInflation.title'),
+    text: (() => {
+      const keyOrgsContext = peakKeyOrgs.length > 0
+        ? (peakKeyOrgs.length > 1
+          ? t('universe.tourWp.cosmicInflation.keyOrgsN', { names: peakKeyOrgs.join(' y ') })
+          : t('universe.tourWp.cosmicInflation.keyOrgs1', { names: peakKeyOrgs[0] }))
+        : ''
+      const orgNamesCtx = peakOrgNames
+        ? t('universe.tourWp.cosmicInflation.newOrgs', { names: peakOrgNames })
+        : ''
+      return t('universe.tourWp.cosmicInflation.text', {
+        year: peakYear,
+        growth: peakGrowth,
+        pct: growthPct,
+        keyOrgsContext,
+        orgNames: orgNamesCtx,
+        prev: prevYearAccum,
+        accum: accumByYear[peakYear] || 0,
+      })
+    })(),
   })
 
   //  WP 8: BABEL CUÁNTICA — Diversidad de lenguajes 
@@ -5390,8 +5505,13 @@ function generateTourWaypoints(universeData, temporalRange) {
       camPos: [-300, 200, 200],
       camTarget: [0, 50, 0],
       duration: 12,
-      title: 'Babel Cuántica',
-      text: `${totalLangs} lenguajes coexisten en el ecosistema. ${topLangs[0][0]} domina con el ${dominantPct}%, pero la diversidad es clave: ${langBreakdown}. Desde simulación de circuitos hasta control de hardware, cada lenguaje cubre una necesidad específica.`,
+      title: t('universe.tourWp.quantumBabel.title'),
+      text: t('universe.tourWp.quantumBabel.text', {
+        totalLangs,
+        dominant: topLangs[0][0],
+        pct: dominantPct,
+        breakdown: langBreakdown,
+      }),
     })
   }
 
@@ -5413,8 +5533,25 @@ function generateTourWaypoints(universeData, temporalRange) {
       camPos: [-200, 350, 500],
       camTarget: [0, 50, 0],
       duration: 13,
-      title: 'Consolidación',
-      text: `Desde 2022: consolidación y madurez. ${reposPost2022} repos (${pctRecent}% del total)${orgsPost2022 > 0 ? `, ${orgsPost2022} nuevas orgs` : ''}.${parseInt(top3Pct) < 50 ? ` Las top 3 orgs concentran solo el ${top3Pct}% de los repos: el conocimiento se descentraliza.` : ` Las top 3 orgs concentran el ${top3Pct}%, pero la diversidad crece.`}${recentCollabs > 0 ? ` ${recentCollabs} nuevas colaboraciones cross-org.` : ''} Proyectos especializados en tooling, middleware y corrección de errores marcan esta era de madurez.`,
+      title: t('universe.tourWp.consolidation.title'),
+      text: (() => {
+        const orgsContext = orgsPost2022 > 0
+          ? t('universe.tourWp.consolidation.orgs', { count: orgsPost2022 })
+          : ''
+        const concentrationContext = parseInt(top3Pct) < 50
+          ? t('universe.tourWp.consolidation.decentral', { pct: top3Pct })
+          : t('universe.tourWp.consolidation.centralGrowing', { pct: top3Pct })
+        const collabsContext = recentCollabs > 0
+          ? t('universe.tourWp.consolidation.collabs', { count: recentCollabs })
+          : ''
+        return t('universe.tourWp.consolidation.text', {
+          repoCount: reposPost2022,
+          pct: pctRecent,
+          orgsContext,
+          concentrationContext,
+          collabsContext,
+        })
+      })(),
     })
   }
 
@@ -5428,8 +5565,14 @@ function generateTourWaypoints(universeData, temporalRange) {
     duration: 14,
     isFinal: true,
     priorityIds: finalPriority,
-    title: 'El Universo Cuántico',
-    text: `${total.toLocaleString()} repos, ${totalOrgs} organizaciones, ${totalUsers.toLocaleString()} desarrolladores, ${genuineLinks.length} colaboraciones reales. Mayores hubs: ${topOrgNames}. De la intuición de Feynman a un ecosistema vivo y descentralizado donde academia e industria construyen juntas el futuro de la computación cuántica.`,
+    title: t('universe.tourWp.finalPanorama.title'),
+    text: t('universe.tourWp.finalPanorama.text', {
+      totalRepos: total.toLocaleString(),
+      totalOrgs,
+      totalUsers: totalUsers.toLocaleString(),
+      collabs: genuineLinks.length,
+      topOrgs: topOrgNames,
+    }),
   })
 
   //  Ordenar cronológicamente para progresión lineal 
@@ -5819,6 +5962,7 @@ async function processLayoutResultAsync(result, requestIdRef) {
 // ============================================================================
 
 export default function UniverseView() {
+  const { t, i18n } = useTranslation()
   const showCollaborationGraph = useDashboardStore(s => s.showCollaborationGraph)
   const collaborationDiscovery = useDashboardStore(s => s.collaborationDiscovery)
   const closeCollaborationGraph = useDashboardStore(s => s.closeCollaborationGraph)
@@ -5842,10 +5986,14 @@ export default function UniverseView() {
   const setSliderYear = useDashboardStore(s => s.setSliderYear)
   // Estado local para slider fluido — computa visibilidad y escribe directamente a la ref
   const [localSlider, setLocalSlider] = useState(null)
+  const [localSliderMin, setLocalSliderMin] = useState(null) // punto mínimo del rango dual
   useEffect(() => {
     // Sincronizar slider local cuando el store cambia (reset, settings panel, etc.)
     if (storeSliderYear != null) setLocalSlider(storeSliderYear)
   }, [storeSliderYear])
+  useEffect(() => {
+    if (temporalRange) setLocalSliderMin(temporalRange.min)
+  }, [temporalRange])
 
   // Favoritos
   const toggleFavorite = useFavoritesStore(s => s.toggleFavorite)
@@ -5902,11 +6050,12 @@ export default function UniverseView() {
   // (settings panel, reset), NO en cada render (que sobreescribiría el cálculo local del slider)
   useEffect(() => { activeNodeIdsRef.current = activeNodeIds }, [activeNodeIds])
 
-  // Handler del slider: computa visibilidad localmente y escribe a la ref → 0 re-renders del Canvas
+  // Handler del slider MAX: computa visibilidad localmente y escribe a la ref → 0 re-renders del Canvas
   const handleSliderChange = useCallback((value) => {
     setLocalSlider(value)
     if (!temporalRange) return
-    if (value >= temporalRange.max) {
+    const minVal = localSliderMin ?? temporalRange.min
+    if (value >= temporalRange.max && minVal <= temporalRange.min) {
       activeNodeIdsRef.current = null
       return
     }
@@ -5914,8 +6063,24 @@ export default function UniverseView() {
     const nodes = state.collaborationDiscovery?.graph?.nodes
     const links = state.collaborationDiscovery?.graph?.links
     if (!nodes || !links) return
-    activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, temporalRange.min, value)
-  }, [temporalRange])
+    activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, minVal, value)
+  }, [temporalRange, localSliderMin])
+
+  // Handler del slider MIN: ajustar el punto de inicio del rango
+  const handleSliderMinChange = useCallback((value) => {
+    setLocalSliderMin(value)
+    if (!temporalRange) return
+    const maxVal = localSlider ?? temporalRange.max
+    if (value <= temporalRange.min && maxVal >= temporalRange.max) {
+      activeNodeIdsRef.current = null
+      return
+    }
+    const state = useDashboardStore.getState()
+    const nodes = state.collaborationDiscovery?.graph?.nodes
+    const links = state.collaborationDiscovery?.graph?.links
+    if (!nodes || !links) return
+    activeNodeIdsRef.current = computeTemporalVisibility(nodes, links, value, maxVal)
+  }, [temporalRange, localSlider])
 
   // === CINEMATIC TOUR (100 % manual — avanza solo con Next/Prev) ===
   const [tourActive, setTourActive] = useState(false)
@@ -5958,6 +6123,7 @@ export default function UniverseView() {
     // Restaurar slider al máximo (todo visible)
     if (temporalRange) {
       setLocalSlider(temporalRange.max)
+      setLocalSliderMin(temporalRange.min)
       activeNodeIdsRef.current = null
       setSliderYear(temporalRange.max)
     }
@@ -6378,7 +6544,7 @@ export default function UniverseView() {
     const graph = collaborationDiscovery?.graph
     if (!graph || showBots) return graph
     const botIds = new Set(
-      graph.nodes.filter(n => n.isBot).map(n => n.id)
+      graph.nodes.filter(n => isBotNode(n)).map(n => n.id)
     )
     if (botIds.size === 0) return graph
     return {
@@ -6390,7 +6556,7 @@ export default function UniverseView() {
   const botCount = useMemo(() => {
     const nodes = collaborationDiscovery?.graph?.nodes
     if (!nodes) return 0
-    return nodes.filter(n => n.isBot).length
+    return nodes.filter(n => isBotNode(n)).length
   }, [collaborationDiscovery])
 
   // === Layout computation via Web Worker (no bloquea el hilo principal) ===
@@ -6401,9 +6567,9 @@ export default function UniverseView() {
   // Compute tour waypoints when universe data or temporal range change
   useEffect(() => {
     if (universeData && temporalRange) {
-      tourWaypointsRef.current = generateTourWaypoints(universeData, temporalRange)
+      tourWaypointsRef.current = generateTourWaypoints(universeData, temporalRange, t)
     }
-  }, [universeData, temporalRange])
+  }, [universeData, temporalRange, t])
 
   // Set de IDs de favoritos para filtrado rápido
   // Herencia: si una org es favorita, sus repos y users también se incluyen
@@ -6669,10 +6835,10 @@ export default function UniverseView() {
     const id = ++detailRequestIdRef.current
     // Defer worker postMessage a next frame para no competir con la transición de cámara
     const raf = requestAnimationFrame(() => {
-      detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics, requestId: id })
+      detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics, requestId: id, lang: i18n.language })
     })
     return () => cancelAnimationFrame(raf)
-  }, [selectedEntity, universeData, networkMetrics])
+  }, [selectedEntity, universeData, networkMetrics, i18n.language])
   // Pin / unpin para modo comparación
   const handlePinToggle = useCallback(() => {
     if (pinnedEntity?.id === selectedEntity?.id) {
@@ -6756,7 +6922,7 @@ export default function UniverseView() {
   }, [showCollaborationGraph, networkMetrics, isLoadingMetrics, metricsLoadAttempted, loadNetworkMetrics])
 
   // === LENS TRANSITION HANDLER ===
-  const LENS_NAMES = { communities: 'Comunidades', centrality: 'Centralidad', busFactor: 'Resiliencia', intensity: 'Intensidad', disciplines: 'Disciplinas' }
+  const LENS_NAMES = { communities: t('universe.lens.communities'), centrality: t('universe.lens.centrality'), busFactor: t('universe.lens.resilience'), intensity: t('universe.lens.intensity'), disciplines: t('universe.lens.disciplines') }
   const LENS_COLORS = { communities: '#6c5ce7', centrality: '#00b4d8', busFactor: '#ff6b6b', intensity: '#ffd166', disciplines: '#00ff9f' }
 
   const handleLensClick = useCallback(async (lensId) => {
@@ -6795,7 +6961,7 @@ export default function UniverseView() {
       lensWithOverlay.current = true
       setLensTransitioning(true)
       setLensTransitionColor(LENS_COLORS[lensId] || '#ffffff')
-      setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
+      setLensLoadingLabel(t('universe.lens.rendering', { name: LENS_NAMES[lensId] || lensId }))
 
       try {
         // Wait for canvas to blur + overlay to appear
@@ -6820,8 +6986,8 @@ export default function UniverseView() {
     setLensTransitionColor(LENS_COLORS[lensId] || '#ffffff')
     setLensLoadingLabel(
       !networkMetrics
-        ? 'Analizando red cuántica...'
-        : `Renderizando ${LENS_NAMES[lensId] || lensId}...`
+        ? t('universe.lens.analyzingNetwork')
+        : t('universe.lens.rendering', { name: LENS_NAMES[lensId] || lensId })
     )
 
     try {
@@ -6830,12 +6996,12 @@ export default function UniverseView() {
 
       // Ensure metrics are loaded
       if (!networkMetrics) {
-        setLensLoadingLabel('Procesando estructura de red...')
+        setLensLoadingLabel(t('universe.lens.analyzingNetwork'))
         const success = await loadNetworkMetrics()
         if (!success) {
           return
         }
-        setLensLoadingLabel(`Renderizando ${LENS_NAMES[lensId] || lensId}...`)
+        setLensLoadingLabel(t('universe.lens.rendering', { name: LENS_NAMES[lensId] || lensId }))
         await new Promise(r => setTimeout(r, 300))
       }
 
@@ -7227,7 +7393,7 @@ export default function UniverseView() {
           <div className={styles.loaderScanline} />
           <div className={styles.loaderContent}>
             <img src="/logo.png" alt="ENTANGLE" className={styles.loaderLogo} />
-            <p className={styles.loaderSub}>Quantum Software Ecosystem Analysis</p>
+            <p className={styles.loaderSub}>{t('app.subtitle')}</p>
             <div className={styles.loaderSpinnerWrap}>
               {/* Átomo SVG realista con órbitas elípticas y electrones brillantes */}
               <svg className={styles.loaderAtomSVG} viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -7294,10 +7460,10 @@ export default function UniverseView() {
             </div>
             {/* Mensajes cíclicos - puro CSS, sin JS setInterval */}
             <div className={styles.loaderMessages}>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>Colapsando funciones de onda...</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>Calculando posiciones orbitales...</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '3.2s' }}>Entrelazando nodos cuánticos...</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '4.8s' }}>Materializando el universo...</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>{t('universe.loader.wave')}</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>{t('universe.loader.orbital')}</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '3.2s' }}>{t('universe.loader.entangling')}</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '4.8s' }}>{t('universe.loader.materializing')}</p>
             </div>
           </div>
         </div>
@@ -7337,14 +7503,14 @@ export default function UniverseView() {
       <header className={`${styles.header} ${tourUIClass}`}>
         <div className={styles.headerLeft}>
           <div className={styles.headerBrand}>
-            <span className={styles.headerAtom}>⚛</span>
+            <img src="/logo.png" alt="ENTANGLE" className={styles.headerLogo} />
             <div className={styles.headerTitleGroup}>
               <h2>ENTANGLE</h2>
-              <span className={styles.headerTag}>Quantum Field</span>
+              <span className={styles.headerTag}>{t('universe.header.quantumField')}</span>
             </div>
           </div>
           <div className={styles.headerDividerV} />
-          <span className={styles.headerSub}>Grafo de colaboración cuántica</span>
+          <span className={styles.headerSub}>{t('universe.header.subtitle')}</span>
         </div>
         <div className={styles.headerRight}>
           <div className={styles.settingsWrapper} ref={settingsRef}>
@@ -7353,18 +7519,18 @@ export default function UniverseView() {
               onClick={() => showSettings ? closeSettings() : setShowSettings(true)}
             >
               <FiSettings size={14} />
-              <span>Ajustes</span>
+              <span>{t('universe.settings.title')}</span>
             </button>
             {(showSettings || settingsClosing) && (
               <div className={`${styles.settingsDropdown} ${settingsClosing ? styles.settingsDropdownClosing : ''}`}>
                 <div className={styles.settingsSection}>
-                  <span className={styles.settingsSectionTitle}>Visualización</span>
+                  <span className={styles.settingsSectionTitle}>{t('universe.settings.visualization')}</span>
                   <button
                     className={`${styles.settingsItem} ${simpleMode ? styles.settingsItemActive : ''}`}
                     onClick={() => setSimpleMode(s => !s)}
                   >
                     <FiLayers size={12} />
-                    <span>{simpleMode ? 'Modo simple' : 'Modo completo'}</span>
+                    <span>{simpleMode ? t('universe.settings.simpleMode') : t('universe.settings.fullMode')}</span>
                     <span className={`${styles.settingsToggleIndicator} ${simpleMode ? styles.settingsToggleOn : ''}`} />
                   </button>
                   <button
@@ -7372,7 +7538,7 @@ export default function UniverseView() {
                     onClick={() => setShowZones(z => !z)}
                   >
                     <FiTarget size={12} />
-                    <span>Fronteras zonales</span>
+                    <span>{t('universe.settings.zoneBorders')}</span>
                     <span className={`${styles.settingsToggleIndicator} ${showZones ? styles.settingsToggleOn : ''}`} />
                   </button>
                   {botCount > 0 && (
@@ -7381,7 +7547,7 @@ export default function UniverseView() {
                       onClick={() => { setShowBots(b => !b); setSelectedEntity(null); setResetTrigger(t => t + 1) }}
                     >
                       {showBots ? <FiEye size={12} /> : <FiEyeOff size={12} />}
-                      <span>{showBots ? 'Bots visibles' : `Bots ocultos (${botCount})`}</span>
+                      <span>{showBots ? t('universe.settings.botsVisible') : t('universe.settings.botsHidden', { count: botCount })}</span>
                       <span className={`${styles.settingsToggleIndicator} ${showBots ? styles.settingsToggleOn : ''}`} />
                     </button>
                   )}
@@ -7391,20 +7557,20 @@ export default function UniverseView() {
                       onClick={() => setShowFavoritesOnly(f => !f)}
                     >
                       <FiStar size={12} />
-                      <span>{showFavoritesOnly ? `Solo favoritos (${favorites.length})` : `Filtrar favoritos (${favorites.length})`}</span>
+                      <span>{showFavoritesOnly ? t('universe.settings.favoritesOnly', { count: favorites.length }) : t('universe.settings.filterFavorites', { count: favorites.length })}</span>
                       <span className={`${styles.settingsToggleIndicator} ${showFavoritesOnly ? styles.settingsToggleOn : ''}`} />
                     </button>
                   )}
                 </div>
                 <div className={styles.settingsDivider} />
                 <div className={styles.settingsSection}>
-                  <span className={styles.settingsSectionTitle}>Resaltar entidades</span>
+                  <span className={styles.settingsSectionTitle}>{t('universe.settings.highlightEntities')}</span>
                   {[
-                    { key: 'org', icon: <FiGrid size={12} />, label: 'Organizaciones', color: '#00f7ff' },
-                    { key: 'repo', icon: <FiGitBranch size={12} />, label: 'Repositorios', color: '#bd00ff' },
-                    { key: 'user-normal', icon: <FiUser size={12} />, label: 'Usuarios', color: '#00ff9f' },
-                    { key: 'user-bridge', icon: <FiZap size={12} />, label: 'Bridge users', color: '#ffbd00' },
-                    { key: 'collab', icon: <FiShare2 size={12} />, label: 'Colaboración org↔org', color: '#ff6b6b' },
+                    { key: 'org', icon: <FiGrid size={12} />, label: t('universe.settings.organizations'), color: '#00f7ff' },
+                    { key: 'repo', icon: <FiGitBranch size={12} />, label: t('universe.settings.repositories'), color: '#bd00ff' },
+                    { key: 'user-normal', icon: <FiUser size={12} />, label: t('universe.settings.users'), color: '#00ff9f' },
+                    { key: 'user-bridge', icon: <FiZap size={12} />, label: t('universe.settings.bridgeUsers'), color: '#ffbd00' },
+                    { key: 'collab', icon: <FiShare2 size={12} />, label: t('universe.settings.orgCollaboration'), color: '#ff6b6b' },
                   ].map(({ key, icon, label, color }) => (
                     <button
                       key={key}
@@ -7427,10 +7593,10 @@ export default function UniverseView() {
                 </div>
                 <div className={styles.settingsDivider} />
                 <div className={styles.settingsSection}>
-                  <span className={styles.settingsSectionTitle}><FiCalendar size={10} style={{ marginRight: 4 }} />Filtro temporal</span>
+                  <span className={styles.settingsSectionTitle}><FiCalendar size={10} style={{ marginRight: 4 }} />{t('universe.settings.temporalFilter')}</span>
                   <div className={styles.temporalFilterRow}>
                     <div className={styles.temporalInputGroup}>
-                      <label className={styles.temporalLabel}>Desde</label>
+                      <label className={styles.temporalLabel}>{t('universe.settings.from')}</label>
                       <input
                         type="number"
                         className={styles.temporalInput}
@@ -7443,7 +7609,7 @@ export default function UniverseView() {
                     </div>
                     <span className={styles.temporalDash}>–</span>
                     <div className={styles.temporalInputGroup}>
-                      <label className={styles.temporalLabel}>Hasta</label>
+                      <label className={styles.temporalLabel}>{t('universe.settings.to')}</label>
                       <input
                         type="number"
                         className={styles.temporalInput}
@@ -7467,7 +7633,7 @@ export default function UniverseView() {
                         closeSettings()
                       }}
                     >
-                      Aplicar
+                      {t('universe.settings.apply')}
                     </button>
                     {temporalFilter && (
                       <button
@@ -7479,7 +7645,7 @@ export default function UniverseView() {
                           closeSettings()
                         }}
                       >
-                        <FiX size={10} /> Quitar
+                        <FiX size={10} /> {t('universe.settings.remove')}
                       </button>
                     )}
                   </div>
@@ -7504,7 +7670,7 @@ export default function UniverseView() {
           <FiSearch size={14} className={styles.searchIcon} />
           <input
             className={styles.searchInput}
-            placeholder="Buscar organización, repositorio o usuario..."
+            placeholder={t('universe.search.placeholder')}
             value={searchQuery}
             onChange={handleSearchChange}
             onFocus={() => {
@@ -7524,14 +7690,14 @@ export default function UniverseView() {
           )}
         </div>
         {searchFocused && searchResults.length > 0 && (() => {
-          const typeLabels = { org: 'Organizaciones (Procesadores)', repo: 'Repositorios (Qubits)', user: 'Usuarios (Partículas)' }
+          const typeLabels = { org: t('universe.search.typeOrg'), repo: t('universe.search.typeRepo'), user: t('universe.search.typeUser') }
           const typeIcons = { org: '⊛', repo: '◉', user: '•' }
           const groupCounts = { org: 0, repo: 0, user: 0 }
           for (const r of searchResults) groupCounts[r.type] = (groupCounts[r.type] || 0) + 1
           let lastType = null
           return (
             <div className={styles.searchDropdown}>
-              <div className={styles.searchResultCount}>{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</div>
+              <div className={styles.searchResultCount}>{t('universe.search.resultCount', { count: searchResults.length })}</div>
               {searchResults.map(n => {
                 const showHeader = n.type !== lastType
                 lastType = n.type
@@ -7569,12 +7735,12 @@ export default function UniverseView() {
 
       {/* === BARRA DE LENTES ANALÍTICAS === */}
       <div className={`${styles.lensToolbar} ${tourUIClass}`}>
-        <span className={styles.lensLabel}>Lentes</span>
+        <span className={styles.lensLabel}>{t('universe.lens.label')}</span>
         {[
-          { id: 'communities', icon: <FiLayers size={13} />, name: 'Comunidades', color: '#6c5ce7' },
-          { id: 'centrality', icon: <FiActivity size={13} />, name: 'Centralidad', color: '#00b4d8' },
-          { id: 'busFactor', icon: <FiShield size={13} />, name: 'Resiliencia', color: '#ff6b6b' },
-          { id: 'intensity', icon: <FiZap size={13} />, name: 'Intensidad', color: '#ffd166' },
+          { id: 'communities', icon: <FiLayers size={13} />, name: t('universe.lens.communities'), color: '#6c5ce7' },
+          { id: 'centrality', icon: <FiActivity size={13} />, name: t('universe.lens.centrality'), color: '#00b4d8' },
+          { id: 'busFactor', icon: <FiShield size={13} />, name: t('universe.lens.resilience'), color: '#ff6b6b' },
+          { id: 'intensity', icon: <FiZap size={13} />, name: t('universe.lens.intensity'), color: '#ffd166' },
         ].map(lens => (
           <button
             key={lens.id}
@@ -7596,17 +7762,17 @@ export default function UniverseView() {
             disabled={lensTransitioning}
           >
             {lensTransitioning && activeLens === 'disciplines' ? <FiLoader size={13} className={styles.lensSpinner} /> : <FiUsers size={13} />}
-            <span>Disciplinas</span>
+            <span>{t('universe.lens.disciplines')}</span>
           </button>
           <div className={styles.disciplineFilterPopup}>
-            <span className={styles.disciplineFilterTitle}>Filtrar por disciplina</span>
+            <span className={styles.disciplineFilterTitle}>{t('universe.lens.filterByDiscipline')}</span>
             {[
-              { key: 'quantum_software', label: 'Software Cuántico', color: '#6c5ce7' },
-              { key: 'quantum_physics', label: 'Física Cuántica', color: '#00b4d8' },
-              { key: 'quantum_hardware', label: 'Hardware Cuántico', color: '#ff6b6b' },
-              { key: 'classical_tooling', label: 'Tooling Clásico', color: '#ffd166' },
-              { key: 'education_research', label: 'Educación/Investigación', color: '#00ff9f' },
-              { key: 'multidisciplinary', label: 'Multidisciplinar', color: '#e879f9' },
+              { key: 'quantum_software', label: t('universe.discipline.quantumSoftware'), color: '#6c5ce7' },
+              { key: 'quantum_physics', label: t('universe.discipline.quantumPhysics'), color: '#00b4d8' },
+              { key: 'quantum_hardware', label: t('universe.discipline.quantumHardware'), color: '#ff6b6b' },
+              { key: 'classical_tooling', label: t('universe.discipline.classicalTooling'), color: '#ffd166' },
+              { key: 'education_research', label: t('universe.discipline.education'), color: '#00ff9f' },
+              { key: 'multidisciplinary', label: t('universe.discipline.multidisciplinary'), color: '#e879f9' },
             ].map(({ key, label, color }) => (
               <button
                 key={key}
@@ -7633,7 +7799,7 @@ export default function UniverseView() {
               onClick={(e) => { e.stopPropagation(); setDisciplineFilter(new Set()) }}
             >
               <FiX size={9} />
-              <span>Limpiar</span>
+              <span>{t('universe.lens.clear')}</span>
             </button>
           </div>
         </div>
@@ -7644,7 +7810,7 @@ export default function UniverseView() {
           onClick={() => showTunneling ? closeTunneling() : setShowTunneling(true)}
         >
           <FiCrosshair size={13} />
-          <span>Túnel</span>
+          <span>{t('universe.lens.tunnel')}</span>
         </button>
       </div>
 
@@ -7655,7 +7821,7 @@ export default function UniverseView() {
           <div className={styles.tunnelingPanelHeader}>
             <div className={styles.tunnelingPanelTitle}>
               <FiCrosshair size={14} />
-              <span>Quantum Tunneling</span>
+              <span>{t('universe.tunnel.title')}</span>
             </div>
             <button className={styles.tunnelingPanelClose} onClick={() => { closeTunneling(); clearTunneling() }}>
               <FiX size={14} />
@@ -7669,7 +7835,7 @@ export default function UniverseView() {
               <div className={styles.tunnelingInputWrapper}>
                 <input
                   className={styles.tunnelingInput}
-                  placeholder="Entidad origen..."
+                  placeholder={t('universe.tunnel.sourcePlaceholder')}
                   value={tunnelingSource}
                   onChange={(e) => {
                     setTunnelingSource(e.target.value)
@@ -7713,7 +7879,7 @@ export default function UniverseView() {
               <div className={styles.tunnelingInputWrapper}>
                 <input
                   className={styles.tunnelingInput}
-                  placeholder="Entidad destino..."
+                  placeholder={t('universe.tunnel.targetPlaceholder')}
                   value={tunnelingTarget}
                   onChange={(e) => {
                     setTunnelingTarget(e.target.value)
@@ -7752,9 +7918,9 @@ export default function UniverseView() {
           {/* Botón de búsqueda */}
           <button className={styles.tunnelingSearchBtn} onClick={handleTunnelingSearch} disabled={isLoadingTunneling || !tunnelingSource || !tunnelingTarget}>
             {isLoadingTunneling ? (
-              <><FiLoader size={13} className={styles.lensSpinner} /> <span>Buscando...</span></>
+              <><FiLoader size={13} className={styles.lensSpinner} /> <span>{t('universe.tunnel.searching')}</span></>
             ) : (
-              <><FiZap size={13} /> <span>Encontrar camino</span></>
+              <><FiZap size={13} /> <span>{t('universe.tunnel.findPath')}</span></>
             )}
           </button>
 
@@ -7766,12 +7932,12 @@ export default function UniverseView() {
                   <div className={styles.tunnelingResultHeader}>
                     <div className={styles.tunnelingResultBadge}>
                       <FiZap size={12} />
-                      <span>{tunnelingPath.length} salto{tunnelingPath.length !== 1 ? 's' : ''}</span>
+                      <span>{t('universe.tunnel.jumps', { count: tunnelingPath.length })}</span>
                     </div>
                     {tunnelingPath.edges && tunnelingPath.edges.length > 0 && (
                       <div className={styles.tunnelingResultBadge} data-variant="secondary">
                         <FiLink size={10} />
-                        <span>{tunnelingPath.edges.length} conexiones</span>
+                        <span>{t('universe.tunnel.connections', { count: tunnelingPath.edges.length })}</span>
                       </div>
                     )}
                     <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
@@ -7779,7 +7945,7 @@ export default function UniverseView() {
                   <div className={styles.tunnelingTimeline}>
                     {tunnelingPath.path.map((node, idx) => {
                       const colorMap = { org: '#00f7ff', repo: '#bd00ff', user: '#00ff9f' }
-                      const typeLabel = { org: 'Organización', repo: 'Repositorio', user: 'Usuario' }
+                      const typeLabel = { org: t('universe.tunnel.typeOrg'), repo: t('universe.tunnel.typeRepo'), user: t('universe.tunnel.typeUser') }
                       const isFirst = idx === 0
                       const isLast = idx === tunnelingPath.path.length - 1
                       return (
@@ -7817,7 +7983,7 @@ export default function UniverseView() {
               ) : (
                 <div className={styles.tunnelingNoPath}>
                   <FiAlertTriangle size={14} />
-                  <span>No existe canal cuántico entre estas entidades</span>
+                  <span>{t('universe.tunnel.noPath')}</span>
                   <button onClick={clearTunneling} className={styles.tunnelingCloseBtn}><FiX size={12} /></button>
                 </div>
               )}
@@ -7826,14 +7992,37 @@ export default function UniverseView() {
         </div>
       )}
 
+      {/* Leyenda de disciplinas — visible solo con la lente de disciplinas activa */}
+      {activeLens === 'disciplines' && (
+        <div className={`${styles.disciplineLegend} ${tourUIClass}`}>
+          <div className={styles.legendCard}>
+            <div className={styles.disciplineLegendTitle}>{t('charts.discipline')}</div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#6c5ce7', boxShadow: '0 0 8px #6c5ce7' }} /><span>{t('universe.discipline.quantumSoftware')}</span></div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00b4d8', boxShadow: '0 0 8px #00b4d8' }} /><span>{t('universe.discipline.quantumPhysics')}</span></div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ff6b6b', boxShadow: '0 0 8px #ff6b6b' }} /><span>{t('universe.discipline.quantumHardware')}</span></div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffd166', boxShadow: '0 0 8px #ffd166' }} /><span>{t('universe.discipline.classicalTooling')}</span></div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 8px #00ff9f' }} /><span>{t('universe.discipline.education')}</span></div>
+            <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#e879f9', boxShadow: '0 0 8px #e879f9' }} /><span>{t('universe.discipline.multidisciplinary')}</span></div>
+          </div>
+        </div>
+      )}
+
       {/* Leyenda cuántica */}
       <div className={`${styles.legend} ${tourUIClass}`}>
         <div className={styles.legendCard}>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00f7ff', boxShadow: '0 0 10px #00f7ff' }} /><span>Orgs</span><span className={styles.legendType}>Procesadores</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#bd00ff', boxShadow: '0 0 10px #bd00ff' }} /><span>Repos</span><span className={styles.legendType}>Qubits</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} /><span>Users</span><span className={styles.legendType}>Partículas</span></div>
-          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} /><span>Bridge</span><span className={styles.legendType}>Entrelazadas</span></div>
-          <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #00d4e4, #bd70db)' }} /><span>Canales</span><span className={styles.legendType}>Collab</span></div>
+          <div className={styles.legendItem}>
+            <svg width="14" height="14" viewBox="-7 -7 14 14" className={styles.legendOrgIcon}>
+              <ellipse rx="6" ry="1.5" fill="none" stroke="#00f7ff" strokeWidth="0.8" opacity="0.9" />
+              <ellipse rx="6" ry="1.5" fill="none" stroke="#00f7ff" strokeWidth="0.8" opacity="0.7" transform="rotate(60)" />
+              <ellipse rx="6" ry="1.5" fill="none" stroke="#00f7ff" strokeWidth="0.8" opacity="0.7" transform="rotate(120)" />
+              <circle r="1.5" fill="#00f7ff" opacity="0.8" />
+            </svg>
+            <span>{t('universe.legend.orgs')}</span><span className={styles.legendType}>{t('universe.legend.processors')}</span>
+          </div>
+          <div className={styles.legendItem}><svg width="8" height="8" viewBox="0 0 8 8" overflow="visible" className={styles.legendRepoIcon}><polygon points="4,0 8,4 4,8 0,4" fill="#bd00ff" /></svg><span>{t('universe.legend.repos')}</span><span className={styles.legendType}>{t('universe.legend.qubits')}</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#00ff9f', boxShadow: '0 0 10px #00ff9f' }} /><span>{t('universe.legend.usersLabel')}</span><span className={styles.legendType}>{t('universe.legend.particles')}</span></div>
+          <div className={styles.legendItem}><span className={styles.legendDot} style={{ background: '#ffbd00', boxShadow: '0 0 10px #ffbd00' }} /><span>{t('universe.legend.bridge')}</span><span className={styles.legendType}>{t('universe.legend.entangled')}</span></div>
+          <div className={styles.legendItem}><span className={styles.legendLine} style={{ background: 'linear-gradient(90deg, #bb99ff, #bd70db)' }} /><span>{t('universe.legend.channels')}</span><span className={styles.legendType}>{t('universe.legend.collab')}</span></div>
         </div>
       </div>
 
@@ -7845,11 +8034,11 @@ export default function UniverseView() {
             <span className={styles.metricValue2}>{temporalFilter.yearFrom || '∞'}–{temporalFilter.yearTo || '∞'}</span>
           </div>
         )}
-        <div className={styles.metricPill}><FiGlobe size={11} style={{ color: '#00f7ff' }} /><span className={styles.metricValue2}>{universeData?.orgNodes?.length || 0}</span><span className={styles.metricLabel2}>orgs</span></div>
-        <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>repos</span></div>
-        <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>users</span></div>
-        <div className={styles.metricPill}><FiGitBranch size={11} /><span className={styles.metricValue2}>{metrics?.connected_repo_pairs || 0}</span><span className={styles.metricLabel2}>canales</span></div>
-        <div className={styles.metricPill}><FiZap size={11} style={{ color: '#ffbd00' }} /><span className={styles.metricValue2}>{metrics?.bridge_users_count || 0}</span><span className={styles.metricLabel2}>bridge</span></div>
+        <div className={styles.metricPill}><FiGlobe size={11} style={{ color: '#00f7ff' }} /><span className={styles.metricValue2}>{universeData?.orgNodes?.length || 0}</span><span className={styles.metricLabel2}>{t('universe.metrics.orgs')}</span></div>
+        <div className={styles.metricPill}><FiGrid size={11} /><span className={styles.metricValue2}>{universeData?.repoNodes?.length || 0}</span><span className={styles.metricLabel2}>{t('universe.metrics.repos')}</span></div>
+        <div className={styles.metricPill}><FiUsers size={11} /><span className={styles.metricValue2}>{universeData?.userNodes?.length || 0}</span><span className={styles.metricLabel2}>{t('universe.metrics.users')}</span></div>
+        <div className={styles.metricPill}><FiGitBranch size={11} /><span className={styles.metricValue2}>{metrics?.connected_repo_pairs || 0}</span><span className={styles.metricLabel2}>{t('universe.metrics.channels')}</span></div>
+        <div className={styles.metricPill}><FiZap size={11} style={{ color: '#ffbd00' }} /><span className={styles.metricValue2}>{metrics?.bridge_users_count || 0}</span><span className={styles.metricLabel2}>{t('universe.metrics.bridge')}</span></div>
       </div>
 
       {/* Panel de detalle - PRO */}
@@ -7876,7 +8065,7 @@ export default function UniverseView() {
           {/* === TOOLBAR === */}
           <div className={styles.detailToolbar}>
             {navHistory.length > 0 && (
-              <button className={styles.detailToolBtn} onClick={navigateBack} data-tip="Volver">
+              <button className={styles.detailToolBtn} onClick={navigateBack} data-tip={t('universe.detail.backTip')}>
                 <FiChevronLeft size={14} />
               </button>
             )}
@@ -7893,21 +8082,21 @@ export default function UniverseView() {
                   avatar_url: selectedEntity.avatar_url,
                 })
               }}
-              data-tip={isFavorite(`${selectedEntity.type === 'org' ? 'org' : selectedEntity.type === 'repo' ? 'repo' : 'user'}_${selectedEntity.login || selectedEntity.full_name || selectedEntity.id}`) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+              data-tip={isFavorite(`${selectedEntity.type === 'org' ? 'org' : selectedEntity.type === 'repo' ? 'repo' : 'user'}_${selectedEntity.login || selectedEntity.full_name || selectedEntity.id}`) ? t('universe.detail.removeFavorite') : t('universe.detail.addFavorite')}
             >
               <FiStar size={13} />
             </button>
             <button
               className={`${styles.detailToolBtn} ${isPinned ? styles.detailToolBtnActive : ''}`}
               onClick={handlePinToggle}
-              data-tip={isPinned ? 'Dejar de comparar' : 'Fijar para comparar'}
+              data-tip={isPinned ? t('universe.detail.unpinCompare') : t('universe.detail.pinCompare')}
             >
               <FiBookmark size={13} />
             </button>
             <button
               className={styles.detailToolBtn}
               onClick={() => setDetailExpanded(e => !e)}
-              data-tip={detailExpanded ? 'Compactar' : 'Expandir'}
+              data-tip={detailExpanded ? t('universe.detail.compact') : t('universe.detail.expand')}
             >
               {detailExpanded ? <FiMinimize2 size={13} /> : <FiMaximize2 size={13} />}
             </button>
@@ -7920,7 +8109,7 @@ export default function UniverseView() {
           {detailLoading && (
             <div className={styles.detailLoadingOverlay}>
               <FiLoader size={22} className={styles.detailLoadingSpinner} />
-              <span className={styles.detailLoadingText}>Analizando entidad…</span>
+              <span className={styles.detailLoadingText}>{t('universe.detail.analyzingEntity')}</span>
             </div>
           )}
 
@@ -7945,7 +8134,7 @@ export default function UniverseView() {
             <div className={styles.detailHeaderText}>
               <h3>{selectedEntity.name || selectedEntity.login || selectedEntity.full_name}</h3>
               <span className={styles.detailType} style={{ color: entityColor }}>
-                {{ org: 'Organización (Procesador)', repo: 'Repositorio (Qubit)', user: 'Usuario (Partícula)' }[selectedEntity.type]}
+                {{ org: t('universe.detail.entityTypeOrg'), repo: t('universe.detail.entityTypeRepo'), user: t('universe.detail.entityTypeUser') }[selectedEntity.type]}
               </span>
             </div>
           </div>
@@ -7954,12 +8143,12 @@ export default function UniverseView() {
           <div className={styles.detailHandle}>
             <span>@{selectedEntity.login || selectedEntity.full_name || selectedEntity.id}</span>
             {(selectedEntity.type === 'org' || selectedEntity.type === 'user') && selectedEntity.login && (
-              <a href={`https://github.com/${selectedEntity.login}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip="Ver en GitHub">
+              <a href={`https://github.com/${selectedEntity.login}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip={t('universe.detail.viewOnGitHub')}>
                 <FiExternalLink size={11} />
               </a>
             )}
             {selectedEntity.type === 'repo' && selectedEntity.full_name && (
-              <a href={`https://github.com/${selectedEntity.full_name}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip="Ver en GitHub">
+              <a href={`https://github.com/${selectedEntity.full_name}`} target="_blank" rel="noopener noreferrer" className={styles.detailGhLink} data-tip={t('universe.detail.viewOnGitHub')}>
                 <FiExternalLink size={11} />
               </a>
             )}
@@ -7968,10 +8157,10 @@ export default function UniverseView() {
           {/* === BADGE BRIDGE === */}
           {selectedEntity.isBridge && (
             <div className={styles.detailBridge}
-              data-tip="Un usuario 'puente' contribuye a repositorios de múltiples organizaciones, conectando equipos que de otra forma no colaborarían">
+              data-tip={t('universe.detail.bridgeExplainTip')}>
               <FiZap size={12} />
-              <span>Bridge User (Entrelazada)</span>
-              <span className={styles.detailBridgeHint}>Conecta {userOrgs.length} organizaciones</span>
+              <span>{t('universe.detail.bridgeUserBadge')}</span>
+              <span className={styles.detailBridgeHint}>{t('universe.detail.connects', { count: userOrgs.length })}</span>
             </div>
           )}
 
@@ -7982,7 +8171,7 @@ export default function UniverseView() {
               <div className={styles.detailDisciplineInfo}>
                 <span className={styles.detailDisciplineLabel}>{nm.discipline_label || nm.discipline}</span>
                 {nm.discipline_confidence != null && (
-                  <span className={styles.detailDisciplineConf}>{Math.round(nm.discipline_confidence * 100)}% confianza</span>
+                  <span className={styles.detailDisciplineConf}>{Math.round(nm.discipline_confidence * 100)}% {t('universe.detail.confidence')}</span>
                 )}
                 {/* Multidisciplinary: show component disciplines with mini bars */}
                 {nm.discipline === 'multidisciplinary' && nm.discipline_top_colors?.length >= 2 && (
@@ -8003,7 +8192,7 @@ export default function UniverseView() {
           {/* === NETWORK ROLE + ZONE BADGE === */}
           {networkRole && (
             <div className={styles.detailRoleBadge} style={{ '--role-color': networkRole.color }}
-              data-tip="Clasificación automática basada en centralidad y conectividad en la red de colaboración">
+              data-tip={t('universe.detail.networkRoleTip')}>
               <span className={styles.detailRoleIcon}>{networkRole.icon}</span>
               <div className={styles.detailRoleText}>
                 <span className={styles.detailRoleLabel}>{networkRole.label}</span>
@@ -8020,7 +8209,7 @@ export default function UniverseView() {
           {/* === COLLABORATION RADAR - perfil pentagonal === */}
           {radarAxes.length === 5 && (
             <div className={styles.detailRadar}
-              data-tip="Perfil de colaboración: muestra las fortalezas relativas en 5 dimensiones clave">
+              data-tip={t('universe.detail.radarTip')}>
               <svg viewBox="-80 -25 360 260" className={styles.detailRadarSvg}>
                 {/* Grid pentagonal - 3 niveles */}
                 {[1, 0.66, 0.33].map((scale, si) => (
@@ -8095,7 +8284,7 @@ export default function UniverseView() {
               </div>
               <div className={styles.detailCompareMetrics}>
                 <div className={styles.detailCompareRow}>
-                  <span className={styles.detailCompareLabel}>Centralidad</span>
+                  <span className={styles.detailCompareLabel}>{t('universe.detail.centrality')}</span>
                   <div className={styles.detailCompareDual}>
                     <div className={styles.detailCompareDualBar}>
                       <div style={{ width: `${centrality}%`, background: entityColor }} />
@@ -8108,7 +8297,7 @@ export default function UniverseView() {
                   </div>
                 </div>
                 <div className={styles.detailCompareRow}>
-                  <span className={styles.detailCompareLabel}>Conectividad</span>
+                  <span className={styles.detailCompareLabel}>{t('universe.detail.connectivity')}</span>
                   <div className={styles.detailCompareDual}>
                     <div className={styles.detailCompareDualBar}>
                       <div style={{ width: `${connectivity}%`, background: entityColor }} />
@@ -8127,13 +8316,13 @@ export default function UniverseView() {
           {/*  COLLABORATION DNA  */}
           {detailExpanded && !collabDNA && !_advancedLoaded && radarAxes.length >= 3 && (
             <div className={styles.detailDNA}>
-              <p className={styles.detailSectionTitle}><FiHash size={10} /> Collaboration DNA</p>
+              <p className={styles.detailSectionTitle}><FiHash size={10} /> {t('universe.detail.collabDNA')}</p>
               <div className={styles.detailSkeleton}><div className={styles.detailSkeletonShimmer} /></div>
             </div>
           )}
           {collabDNA && detailExpanded && (
             <div className={styles.detailDNA}>
-              <p className={styles.detailSectionTitle} data-tip="Huella visual única generada a partir del perfil colaborativo de esta entidad"><FiHash size={10} /> Collaboration DNA</p>
+              <p className={styles.detailSectionTitle} data-tip={t('universe.detail.collabDNATip')}><FiHash size={10} /> {t('universe.detail.collabDNA')}</p>
               <svg viewBox="0 0 200 60" className={styles.detailDNASvg}>
                 {/* Background grid */}
                 {Array.from({ length: 20 }, (_, i) => (
@@ -8182,18 +8371,18 @@ export default function UniverseView() {
           <div className={styles.detailTabs}>
             <button className={`${styles.detailTabBtn} ${detailTab === 'info' ? styles.detailTabActive : ''}`}
               onClick={() => setDetailTab('info')} style={{ '--tab-color': entityColor }}
-              data-tip="Información general: métricas, repositorios y lenguajes">
-              <FiBarChart2 size={11} /> Info
+              data-tip={t('universe.detail.infoTip')}>
+              <FiBarChart2 size={11} /> {t('universe.detail.info')}
             </button>
             <button className={`${styles.detailTabBtn} ${detailTab === 'red' ? styles.detailTabActive : ''}`}
               onClick={() => setDetailTab('red')} style={{ '--tab-color': entityColor }}
-              data-tip="Métricas de red: centralidad, conectividad y comunidad">
-              <FiActivity size={11} /> Red
+              data-tip={t('universe.detail.networkTip')}>
+              <FiActivity size={11} /> {t('universe.detail.network')}
             </button>
             <button className={`${styles.detailTabBtn} ${detailTab === 'explorer' ? styles.detailTabActive : ''}`}
               onClick={() => setDetailTab('explorer')} style={{ '--tab-color': entityColor }}
-              data-tip="Explorar conexiones: usuarios, repos y organizaciones relacionadas">
-              <FiSearch size={11} /> Explorar
+              data-tip={t('universe.detail.exploreTip')}>
+              <FiSearch size={11} /> {t('universe.detail.explore')}
             </button>
           </div>
 
@@ -8204,40 +8393,40 @@ export default function UniverseView() {
               {selectedEntity.type === 'org' && (
                 <>
                   <div className={styles.detailStatsGrid}>
-                    <div className={styles.detailStatCard} data-tip="Número total de repositorios en esta organización">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.orgReposTip')}>
                       <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                       <span className={styles.detailStatValue}>{orgReposList.length}</span>
-                      <span className={styles.detailStatLabel}>Repositorios</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.repositories')}</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Usuarios únicos que contribuyen a repos de esta org">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.orgContribTip')}>
                       <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
                       <span className={styles.detailStatValue}>{orgTotalUsers}</span>
-                      <span className={styles.detailStatLabel}>Contributors</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.contributors')}</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Usuarios que contribuyen a múltiples organizaciones - conectores clave de la red">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.orgBridgeTip')}>
                       <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
                       <span className={styles.detailStatValue}>{orgBridgeCount}</span>
-                      <span className={styles.detailStatLabel}>Bridge Users</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.bridgeUsers')}</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Suma total de estrellas de todos los repositorios">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.orgStarsTip')}>
                       <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                       <span className={styles.detailStatValue}>{orgTotalStars}</span>
-                      <span className={styles.detailStatLabel}>Estrellas total</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.totalStars')}</span>
                     </div>
                   </div>
 
                   {/* Mini stats fila */}
                   <div className={styles.detailMiniStats}>
-                    <span data-tip="Lenguajes de programación distintos usados en los repositorios"><FiCode size={10} /> {orgLangs.length} lenguajes</span>
-                    <span data-tip="Promedio de estrellas por repositorio"><FiStar size={10} /> ~{orgAvgStars} avg ★</span>
-                    <span data-tip="Porcentaje de usuarios que son bridge (conectan múltiples orgs)"><FiPercent size={10} /> {orgBridgePct}% bridge</span>
-                    <span data-tip="Tasa de polinización cruzada: colaboradores compartidos con otras orgs"><FiShare2 size={10} /> {orgCrossPollination}% cross</span>
+                    <span data-tip={t('universe.detail.orgLangsTip')}><FiCode size={10} /> {orgLangs.length} {t('universe.detail.languages')}</span>
+                    <span data-tip={t('universe.detail.orgAvgStarsTip')}><FiStar size={10} /> ~{orgAvgStars} {t('universe.detail.avgStars')}</span>
+                    <span data-tip={t('universe.detail.orgBridgePctTip')}><FiPercent size={10} /> {orgBridgePct}% {t('universe.detail.bridge')}</span>
+                    <span data-tip={t('universe.detail.orgCrossTip')}><FiShare2 size={10} /> {orgCrossPollination}% {t('universe.detail.cross')}</span>
                   </div>
 
                   {/* Language breakdown bars */}
                   {orgLangBreakdown.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiCode size={10} /> Stack tecnológico</p>
+                      <p className={styles.detailSectionTitle}><FiCode size={10} /> {t('universe.detail.techStack')}</p>
                       <div className={styles.detailLangBars}>
                         {orgLangBreakdown.slice(0, detailExpanded ? 12 : 6).map(({ lang, count, pct }) => (
                           <div key={lang} className={styles.detailLangBarRow}>
@@ -8254,7 +8443,7 @@ export default function UniverseView() {
 
                   {orgSortedRepos.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> Repositorios <span className={styles.detailCount}>{orgSortedRepos.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> {t('universe.detail.repositories')} <span className={styles.detailCount}>{orgSortedRepos.length}</span></p>
                       <div className={styles.detailRepoList}>
                         {orgSortedRepos.slice(0, detailExpanded ? 20 : 6).map(r => {
                           const uc = (universeData?.repoUsers[r.id] || []).length
@@ -8271,7 +8460,7 @@ export default function UniverseView() {
                             </div>
                           )
                         })}
-                        {orgSortedRepos.length > (detailExpanded ? 20 : 6) && <span className={styles.detailChipMore}>+{orgSortedRepos.length - (detailExpanded ? 20 : 6)} más</span>}
+                        {orgSortedRepos.length > (detailExpanded ? 20 : 6) && <span className={styles.detailChipMore}>+{orgSortedRepos.length - (detailExpanded ? 20 : 6)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
@@ -8291,29 +8480,29 @@ export default function UniverseView() {
 
                   <div className={styles.detailStatsGrid}>
                     {selectedEntity.stars > 0 && (
-                      <div className={styles.detailStatCard} data-tip="Estrellas en GitHub - indicador de popularidad del repositorio">
+                      <div className={styles.detailStatCard} data-tip={t('universe.detail.repoStarsTip')}>
                         <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                         <span className={styles.detailStatValue}>{selectedEntity.stars}</span>
-                        <span className={styles.detailStatLabel}>Estrellas</span>
+                        <span className={styles.detailStatLabel}>{t('universe.detail.stars')}</span>
                       </div>
                     )}
-                    <div className={styles.detailStatCard} data-tip="Número de usuarios únicos que contribuyen a este repositorio">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.repoContribTip')}>
                       <FiUsers size={14} className={styles.detailStatIcon} style={{ color: '#00ff9f' }} />
                       <span className={styles.detailStatValue}>{repoUsers.length}</span>
-                      <span className={styles.detailStatLabel}>Contributors</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.contributors')}</span>
                     </div>
                     {repoBridgeUsers.length > 0 && (
-                      <div className={styles.detailStatCard} data-tip="Usuarios puente: contribuyen a múltiples organizaciones, conectando la red">
+                      <div className={styles.detailStatCard} data-tip={t('universe.detail.repoBridgeTip')}>
                         <FiZap size={14} className={styles.detailStatIcon} style={{ color: '#ffbd00' }} />
                         <span className={styles.detailStatValue}>{repoBridgeUsers.length}</span>
-                        <span className={styles.detailStatLabel}>Bridge</span>
+                        <span className={styles.detailStatLabel}>{t('universe.detail.bridgeLabel')}</span>
                       </div>
                     )}
                     {selectedEntity.language && (
-                      <div className={styles.detailStatCard} data-tip="Lenguaje de programación principal del repositorio">
+                      <div className={styles.detailStatCard} data-tip={t('universe.detail.repoLangTip')}>
                         <FiCode size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                         <span className={styles.detailStatValue} style={{ fontSize: 12 }}>{selectedEntity.language}</span>
-                        <span className={styles.detailStatLabel}>Lenguaje</span>
+                        <span className={styles.detailStatLabel}>{t('universe.detail.language')}</span>
                       </div>
                     )}
                   </div>
@@ -8321,15 +8510,15 @@ export default function UniverseView() {
                   {/* Diversidad de orgs */}
                   {repoOrgDiversity.length > 1 && (
                     <div className={styles.detailMiniStats}>
-                      <span data-tip="Organizaciones distintas cuyos miembros contribuyen a este repo"><FiGlobe size={10} /> Contributors de {repoOrgDiversity.length} orgs</span>
-                      <span data-tip="Porcentaje de contribuidores que son bridge users"><FiPercent size={10} /> {repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}% bridge</span>
-                      {repoHubScore > 1 && <span data-tip="Puntuación de hub: cuántas organizaciones conecta este repositorio"><FiAward size={10} /> Hub score: {repoHubScore}</span>}
+                      <span data-tip={t('universe.detail.repoOrgDiversityTip')}><FiGlobe size={10} /> {t('universe.detail.contributorsFrom', { count: repoOrgDiversity.length })}</span>
+                      <span data-tip={t('universe.detail.repoBridgePctTip')}><FiPercent size={10} /> {repoUsers.length > 0 ? ((repoBridgeUsers.length / repoUsers.length) * 100).toFixed(0) : 0}% {t('universe.detail.bridge')}</span>
+                      {repoHubScore > 1 && <span data-tip={t('universe.detail.repoHubTip')}><FiAward size={10} /> {t('universe.detail.hubScore')}: {repoHubScore}</span>}
                     </div>
                   )}
 
                   {repoBridgeUsers.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiZap size={10} /> Bridge Users <span className={styles.detailCount}>{repoBridgeUsers.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiZap size={10} /> {t('universe.detail.bridgeUsers')} <span className={styles.detailCount}>{repoBridgeUsers.length}</span></p>
                       <div className={styles.detailUserList}>
                         {repoBridgeUsers.slice(0, detailExpanded ? 20 : 8).map(u => (
                           <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
@@ -8338,14 +8527,14 @@ export default function UniverseView() {
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
-                        {repoBridgeUsers.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{repoBridgeUsers.length - (detailExpanded ? 20 : 8)} más</span>}
+                        {repoBridgeUsers.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{repoBridgeUsers.length - (detailExpanded ? 20 : 8)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
 
                   {repoNormalUsers.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiUser size={10} /> Contributors <span className={styles.detailCount}>{repoNormalUsers.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiUser size={10} /> {t('universe.detail.contributors')} <span className={styles.detailCount}>{repoNormalUsers.length}</span></p>
                       <div className={styles.detailUserList}>
                         {repoNormalUsers.slice(0, detailExpanded ? 30 : 10).map(u => (
                           <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
@@ -8354,7 +8543,7 @@ export default function UniverseView() {
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
-                        {repoNormalUsers.length > (detailExpanded ? 30 : 10) && <span className={styles.detailChipMore}>+{repoNormalUsers.length - (detailExpanded ? 30 : 10)} más</span>}
+                        {repoNormalUsers.length > (detailExpanded ? 30 : 10) && <span className={styles.detailChipMore}>+{repoNormalUsers.length - (detailExpanded ? 30 : 10)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
@@ -8365,38 +8554,38 @@ export default function UniverseView() {
               {selectedEntity.type === 'user' && (
                 <>
                   <div className={styles.detailStatsGrid}>
-                    <div className={styles.detailStatCard} data-tip="Repositorios en los que este usuario contribuye">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.userReposTip')}>
                       <FiGitBranch size={14} className={styles.detailStatIcon} style={{ color: '#bd00ff' }} />
                       <span className={styles.detailStatValue}>{userRepos.length}</span>
-                      <span className={styles.detailStatLabel}>Repositorios</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.repositories')}</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Organizaciones en las que participa este usuario">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.userOrgsTip')}>
                       <FiGlobe size={14} className={styles.detailStatIcon} style={{ color: '#00f7ff' }} />
                       <span className={styles.detailStatValue}>{userOrgs.length}</span>
-                      <span className={styles.detailStatLabel}>Organizaciones</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.organizations')}</span>
                     </div>
-                    <div className={styles.detailStatCard} data-tip="Total de estrellas de los repositorios a los que contribuye">
+                    <div className={styles.detailStatCard} data-tip={t('universe.detail.userStarsTip')}>
                       <FiStar size={14} className={styles.detailStatIcon} style={{ color: '#ffd166' }} />
                       <span className={styles.detailStatValue}>{userTotalStars}</span>
-                      <span className={styles.detailStatLabel}>★ en sus repos</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.starsInRepos')}</span>
                     </div>
                     {expertise > 0 && (
-                      <div className={styles.detailStatCard} data-tip="Nivel de expertise basado en diversidad de repos, orgs y lenguajes">
+                      <div className={styles.detailStatCard} data-tip={t('universe.detail.userExpertiseTip')}>
                         <FiActivity size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
                         <span className={styles.detailStatValue}>{expertise}</span>
-                        <span className={styles.detailStatLabel}>Expertise</span>
+                        <span className={styles.detailStatLabel}>{t('universe.detail.expertise')}</span>
                       </div>
                     )}
                   </div>
 
                   <div className={styles.detailMiniStats}>
-                    <span data-tip="Lenguajes de programación distintos en los que trabaja"><FiCode size={10} /> {userLangs.length} lenguajes</span>
-                    <span data-tip="Usuarios con los que comparte al menos un repositorio"><FiUsers size={10} /> {userCoContributors.length} co-contributors</span>
+                    <span data-tip={t('universe.detail.userLangsTip')}><FiCode size={10} /> {userLangs.length} {t('universe.detail.languages')}</span>
+                    <span data-tip={t('universe.detail.userCoContribTip')}><FiUsers size={10} /> {userCoContributors.length} {t('universe.detail.coContributors')}</span>
                   </div>
 
                   {userRepos.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> Contribuye a <span className={styles.detailCount}>{userRepos.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiGitBranch size={10} /> {t('universe.detail.contributesTo')} <span className={styles.detailCount}>{userRepos.length}</span></p>
                       <div className={styles.detailRepoList}>
                         {userRepos.slice(0, detailExpanded ? 20 : 8).map(r => (
                           <div key={r.id} className={styles.detailRepoItem} onClick={() => navigateToEntity(r)} style={{ cursor: 'pointer' }}>
@@ -8409,14 +8598,14 @@ export default function UniverseView() {
                             </span>
                           </div>
                         ))}
-                        {userRepos.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{userRepos.length - (detailExpanded ? 20 : 8)} más</span>}
+                        {userRepos.length > (detailExpanded ? 20 : 8) && <span className={styles.detailChipMore}>+{userRepos.length - (detailExpanded ? 20 : 8)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
 
                   {userOrgs.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Organizaciones <span className={styles.detailCount}>{userOrgs.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> {t('universe.detail.organizations')} <span className={styles.detailCount}>{userOrgs.length}</span></p>
                       <div className={styles.detailChips}>
                         {userOrgs.map(o => (
                           <span key={o.id} className={`${styles.detailChip} ${styles.detailChipClickable}`}
@@ -8434,7 +8623,7 @@ export default function UniverseView() {
               {/*  ANALYSIS SUMMARY (shared all types)  */}
               {analysisText && (
                 <div className={styles.detailAnalysis}>
-                  <p className={styles.detailSectionTitle} data-tip="Resumen generado automáticamente del perfil de colaboración"><FiAward size={10} /> Resumen de análisis</p>
+                  <p className={styles.detailSectionTitle} data-tip={t('universe.detail.analysisSummaryTip')}><FiAward size={10} /> {t('universe.detail.analysisSummary')}</p>
                   <p className={styles.detailAnalysisText}>{analysisText}</p>
                 </div>
               )}
@@ -8442,7 +8631,7 @@ export default function UniverseView() {
               {/*  HEALTH SCORE (orgs only)  */}
               {healthScore !== null && (
                 <div className={styles.detailHealthSection}>
-                  <p className={styles.detailSectionTitle} data-tip="Puntuación 0-100 que mide la salud del ecosistema colaborativo de esta organización"><FiHeart size={10} /> Salud colaborativa</p>
+                  <p className={styles.detailSectionTitle} data-tip={t('universe.detail.collabHealthTip')}><FiHeart size={10} /> {t('universe.detail.collabHealth')}</p>
                   <div className={styles.detailHealthGauge}>
                     <svg viewBox="0 0 120 68" className={styles.detailHealthSvg}>
                       {/* Arco semicircular - envuelve el número */}
@@ -8474,14 +8663,14 @@ export default function UniverseView() {
               {/*  COLLABORATION MATRIX (orgs, expanded)  */}
               {detailExpanded && !collabMatrix && !_advancedLoaded && selectedEntity.type === 'org' && orgReposList.length >= 2 && orgReposList.length <= 15 && (
                 <div className={styles.detailSection}>
-                  <p className={styles.detailSectionTitle}><FiLayers size={10} /> Matriz de colaboración</p>
+                  <p className={styles.detailSectionTitle}><FiLayers size={10} /> {t('universe.detail.collabMatrix')}</p>
                   <div className={styles.detailSkeleton} style={{ height: 120 }}><div className={styles.detailSkeletonShimmer} /></div>
                 </div>
               )}
               {collabMatrix && detailExpanded && (
                 <div className={styles.detailSection}>
-                  <p className={styles.detailSectionTitle} data-tip="Heatmap que muestra cuántos contribuidores comparten entre repos - indica transferencia de conocimiento interna"><FiLayers size={10} /> Matriz de colaboración</p>
-                  <p className={styles.detailSectionHint}>Contributors compartidos entre repos</p>
+                  <p className={styles.detailSectionTitle} data-tip={t('universe.detail.collabMatrixTip')}><FiLayers size={10} /> {t('universe.detail.collabMatrix')}</p>
+                  <p className={styles.detailSectionHint}>{t('universe.detail.sharedContributors')}</p>
                   <div className={styles.detailMatrixWrap}>
                     <div className={styles.detailMatrix} style={{ gridTemplateColumns: `48px repeat(${collabMatrix.labels.length}, 1fr)` }}>
                       {/* Header row */}
@@ -8504,7 +8693,7 @@ export default function UniverseView() {
                               <div key={`${i}-${j}`}
                                 className={`${styles.detailMatrixCell} ${isdiag ? styles.detailMatrixDiag : ''}`}
                                 style={{ '--intensity': intensity, '--cell-color': isdiag ? 'rgba(255,255,255,0.05)' : `rgba(0,247,255,${0.1 + intensity * 0.6})` }}
-                                data-tip={isdiag ? `${val} contributors` : `${val} shared entre ${collabMatrix.labels[i]} y ${collabMatrix.labels[j]}`}>
+                                data-tip={isdiag ? `${val} contributors` : `${val} ${t('universe.detail.sharedBetween', { a: collabMatrix.labels[i], b: collabMatrix.labels[j] })}`}>
                                 {val > 0 ? val : ''}
                               </div>
                             )
@@ -8525,29 +8714,29 @@ export default function UniverseView() {
                 <>
                   <div className={`${styles.detailStatsGrid} ${styles.detailStatsGridCentered}`}>
                     <div className={styles.detailStatCard} data-tip={
-                      { org: 'Puentes de colaboración con otras orgs — contributors compartidos (percentil 0-100%)',
-                        repo: 'Diversidad de orgs representadas entre sus contributors (percentil 0-100%)',
-                        user: 'Nº de orgs distintas a las que contribuye — alcance inter-org (percentil 0-100%)',
-                      }[selectedEntity.type] || 'Centralidad en la red de colaboración (0-100%)'
+                      { org: t('universe.detail.centralityTipOrg'),
+                        repo: t('universe.detail.centralityTipRepo'),
+                        user: t('universe.detail.centralityTipUser'),
+                      }[selectedEntity.type] || t('universe.detail.centralityTipDefault')
                     }>
                       <FiTarget size={14} className={styles.detailStatIcon} style={{ color: '#00b4d8' }} />
                       <span className={styles.detailStatValue}>{centrality}%</span>
-                      <span className={styles.detailStatLabel}>Centralidad</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.centrality')}</span>
                     </div>
                     <div className={styles.detailStatCard} data-tip={
-                      { org: 'Nº de organizaciones vecinas con las que comparte contributors (percentil 0-100%)',
-                        repo: 'Nº de contributors directos del repositorio (percentil 0-100%)',
-                        user: 'Nº de repositorios a los que contribuye (percentil 0-100%)',
-                      }[selectedEntity.type] || 'Conexiones directas con otras entidades (0-100%)'
+                      { org: t('universe.detail.connectivityTipOrg'),
+                        repo: t('universe.detail.connectivityTipRepo'),
+                        user: t('universe.detail.connectivityTipUser'),
+                      }[selectedEntity.type] || t('universe.detail.connectivityTipDefault')
                     }>
                       <FiShare2 size={14} className={styles.detailStatIcon} style={{ color: '#a29bfe' }} />
                       <span className={styles.detailStatValue}>{connectivity}%</span>
-                      <span className={styles.detailStatLabel}>Conectividad</span>
+                      <span className={styles.detailStatLabel}>{t('universe.detail.connectivity')}</span>
                     </div>
                   </div>
 
                   <div className={styles.detailSection}>
-                    <p className={styles.detailSectionTitle}><FiTarget size={10} /> Centralidad colaborativa</p>
+                    <p className={styles.detailSectionTitle}><FiTarget size={10} /> {t('universe.detail.collabCentrality')}</p>
                     <div className={styles.metricRow}>
                       <div className={styles.metricBarWrap}>
                         <div className={styles.metricBar} style={{ width: `${centrality}%`, background: 'linear-gradient(90deg, #0077b6, #00b4d8)' }} />
@@ -8556,15 +8745,15 @@ export default function UniverseView() {
                     </div>
                     <p className={styles.metricDetail}>
                       {{
-                        org: `${nm.collab_centrality_raw ?? 0} contributors compartidos con otras orgs`,
-                        repo: `${nm.collab_centrality_raw ?? 0} organizaciones representadas`,
-                        user: `${nm.collab_centrality_raw ?? 0} organizaciones distintas`,
+                        org: `${nm.collab_centrality_raw ?? 0} ${t('universe.detail.centralityOrg', { count: nm.collab_centrality_raw ?? 0 }).replace(/^\d+ /, '')}`,
+                        repo: `${nm.collab_centrality_raw ?? 0} ${t('universe.detail.centralityRepo', { count: nm.collab_centrality_raw ?? 0 }).replace(/^\d+ /, '')}`,
+                        user: `${nm.collab_centrality_raw ?? 0} ${t('universe.detail.centralityUser', { count: nm.collab_centrality_raw ?? 0 }).replace(/^\d+ /, '')}`,
                       }[selectedEntity.type] || ''}
                     </p>
                   </div>
 
                   <div className={styles.detailSection}>
-                    <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Conectividad</p>
+                    <p className={styles.detailSectionTitle}><FiShare2 size={10} /> {t('universe.detail.connectivitySection')}</p>
                     <div className={styles.metricRow}>
                       <div className={styles.metricBarWrap}>
                         <div className={styles.metricBar} style={{ width: `${connectivity}%`, background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)' }} />
@@ -8573,9 +8762,9 @@ export default function UniverseView() {
                     </div>
                     <p className={styles.metricDetail}>
                       {{
-                        org: `${nm.collab_connectivity_raw ?? 0} organizaciones vecinas`,
-                        repo: `${nm.collab_connectivity_raw ?? 0} contributors`,
-                        user: `${nm.collab_connectivity_raw ?? 0} repositorios`,
+                        org: `${nm.collab_connectivity_raw ?? 0} ${t('universe.detail.connectivityOrg', { count: nm.collab_connectivity_raw ?? 0 }).replace(/^\d+ /, '')}`,
+                        repo: `${nm.collab_connectivity_raw ?? 0} ${t('universe.detail.connectivityRepo', { count: nm.collab_connectivity_raw ?? 0 }).replace(/^\d+ /, '')}`,
+                        user: `${nm.collab_connectivity_raw ?? 0} ${t('universe.detail.connectivityUser', { count: nm.collab_connectivity_raw ?? 0 }).replace(/^\d+ /, '')}`,
                       }[selectedEntity.type] || ''}
                     </p>
                   </div>
@@ -8584,7 +8773,7 @@ export default function UniverseView() {
                     <div className={styles.communityBadge} style={{ '--community-color': nm.community_color }}>
                       <span className={styles.communityDot} style={{ background: nm.community_color }} />
                       <span>{community.label}</span>
-                      <span className={styles.communitySize}>{community.size} nodos</span>
+                      <span className={styles.communitySize}>{community.size} {t('universe.detail.nodes')}</span>
                     </div>
                   )}
 
@@ -8592,8 +8781,8 @@ export default function UniverseView() {
                     <div className={`${styles.busFactor} ${styles[`busFactor${nm.bus_factor_risk.charAt(0).toUpperCase() + nm.bus_factor_risk.slice(1)}`]}`}>
                       <div className={styles.busFactorHeader}>
                         <FiShield size={12} />
-                        <span>Resiliencia: {nm.bus_factor} {nm.bus_factor === 1 ? 'pilar clave' : nm.bus_factor <= 2 ? 'núcleo reducido' : nm.bus_factor <= 4 ? 'equilibrado' : 'alta resiliencia'}</span>
-                        <span className={styles.busFactorRisk}>{{ critical: 'PILAR CLAVE', high: 'NÚCLEO', medium: 'EQUILIBRADO', low: 'DISTRIBUIDO' }[nm.bus_factor_risk] || nm.bus_factor_risk.toUpperCase()}</span>
+                        <span>{t('universe.detail.resilience')}: {nm.bus_factor} {nm.bus_factor === 1 ? t('universe.detail.keyPillar') : nm.bus_factor <= 2 ? t('universe.detail.reducedCore') : nm.bus_factor <= 4 ? t('universe.detail.balanced') : t('universe.detail.highResilience')}</span>
+                        <span className={styles.busFactorRisk}>{{ critical: t('universe.detail.riskCritical'), high: t('universe.detail.riskHigh'), medium: t('universe.detail.riskMedium'), low: t('universe.detail.riskLow') }[nm.bus_factor_risk] || nm.bus_factor_risk.toUpperCase()}</span>
                       </div>
                       {nm.top_contributors && nm.top_contributors.length > 0 && (
                         <div className={styles.busFactorContribs}>
@@ -8614,8 +8803,8 @@ export default function UniverseView() {
                   {/*  KEY DEPENDENCIES - nodos críticos  */}
                   {keyDependencies.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle} data-tip="Usuarios críticos cuya marcha tendría mayor impacto en la red de colaboración"><FiAlertTriangle size={10} /> Dependencias clave <span className={styles.detailCount}>{keyDependencies.length}</span></p>
-                      <p className={styles.detailSectionHint}>Usuarios cuya marcha tendría mayor impacto</p>
+                      <p className={styles.detailSectionTitle} data-tip={t('universe.detail.keyDependenciesTip')}><FiAlertTriangle size={10} /> {t('universe.detail.keyDependencies')} <span className={styles.detailCount}>{keyDependencies.length}</span></p>
+                      <p className={styles.detailSectionHint}>{t('universe.detail.keyDependenciesHint')}</p>
                       <div className={styles.detailDepsList}>
                         {keyDependencies.map(u => (
                           <div key={u.id} className={styles.detailDepsItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
@@ -8625,7 +8814,7 @@ export default function UniverseView() {
                             </div>
                             <div className={styles.detailDepsRight}>
                               {u.soleConnections > 0 && (
-                                <span className={styles.detailDepsBadge} data-tip={`Único puente a ${u.soleConnections} org(s)`}>
+                                <span className={styles.detailDepsBadge} data-tip={t('universe.detail.soleBridge', { count: u.soleConnections })}>
                                   <FiAlertTriangle size={8} /> {u.soleConnections} sole bridge{u.soleConnections > 1 ? 's' : ''}
                                 </span>
                               )}
@@ -8643,14 +8832,14 @@ export default function UniverseView() {
                   {/*  IMPACT SIMULATION  */}
                   {detailExpanded && impactSimulations.length === 0 && !_advancedLoaded && keyDependencies.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiAlertTriangle size={10} /> ¿Qué pasaría si…?</p>
+                      <p className={styles.detailSectionTitle}><FiAlertTriangle size={10} /> {t('universe.detail.impactSimulations')}</p>
                       <div className={styles.detailSkeleton} style={{ height: 80 }}><div className={styles.detailSkeletonShimmer} /></div>
                     </div>
                   )}
                   {impactSimulations.length > 0 && detailExpanded && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle} data-tip="Simulación del impacto que tendría la pérdida de usuarios clave en la red de colaboración"><FiAlertTriangle size={10} /> ¿Qué pasaría si…?</p>
-                      <p className={styles.detailSectionHint}>Impacto simulado si un usuario clave se va</p>
+                      <p className={styles.detailSectionTitle} data-tip={t('universe.detail.impactTip')}><FiAlertTriangle size={10} /> {t('universe.detail.impactSimulations')}</p>
+                      <p className={styles.detailSectionHint}>{t('universe.detail.impactHint')}</p>
                       <div className={styles.detailImpactList}>
                         {impactSimulations.map((sim, i) => (
                           <div key={i} className={`${styles.detailImpactCard} ${styles['detailImpact' + sim.severity.charAt(0).toUpperCase() + sim.severity.slice(1)]}`}>
@@ -8660,28 +8849,28 @@ export default function UniverseView() {
                                 @{sim.user.login}
                               </span>
                               <span className={`${styles.detailImpactBadge} ${styles['detailImpactBadge' + sim.severity.charAt(0).toUpperCase() + sim.severity.slice(1)]}`}>
-                                {sim.severity === 'critical' ? '⚠ Crítico' : sim.severity === 'high' ? '⚡ Alto' : '◉ Moderado'}
+                                {sim.severity === 'critical' ? `⚠ ${t('universe.detail.impactCritical')}` : sim.severity === 'high' ? `⚡ ${t('universe.detail.impactHigh')}` : `◉ ${t('universe.detail.impactModerate')}`}
                               </span>
                             </div>
                             <div className={styles.detailImpactMetrics}>
                               {sim.orgConnectionsLost > 0 && (
                                 <div className={styles.detailImpactMetric}>
                                   <span className={styles.detailImpactVal} style={{ color: '#ff6b6b' }}>-{sim.orgConnectionsLost}</span>
-                                  <span>conexiones org</span>
+                                  <span>{t('universe.detail.impactOrgConnections')}</span>
                                 </div>
                               )}
                               <div className={styles.detailImpactMetric}>
                                 <span className={styles.detailImpactVal} style={{ color: '#ffbd00' }}>{sim.bridgeConnectionsLost}</span>
-                                <span>orgs afectadas</span>
+                                <span>{t('universe.detail.impactOrgsAffected')}</span>
                               </div>
                               <div className={styles.detailImpactMetric}>
                                 <span className={styles.detailImpactVal} style={{ color: '#bd00ff' }}>{sim.reposAffected}</span>
-                                <span>repos</span>
+                                <span>{t('universe.detail.impactRepos')}</span>
                               </div>
                               {sim.healthDelta !== 0 && (
                                 <div className={styles.detailImpactMetric}>
                                   <span className={styles.detailImpactVal} style={{ color: '#ff6b6b' }}>{sim.healthDelta}</span>
-                                  <span>health</span>
+                                  <span>{t('universe.detail.impactHealth')}</span>
                                 </div>
                               )}
                             </div>
@@ -8694,7 +8883,7 @@ export default function UniverseView() {
               ) : (
                 <div className={styles.detailEmptyState}>
                   <FiActivity size={20} style={{ opacity: 0.3 }} />
-                  <span>No hay métricas de red para esta entidad</span>
+                  <span>{t('universe.detail.noNetworkMetrics')}</span>
                 </div>
               )}
             </div>
@@ -8709,7 +8898,7 @@ export default function UniverseView() {
                   {/* Top contributors de la org */}
                   {orgTopContributors.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Top Contributors <span className={styles.detailCount}>{orgTopContributors.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> {t('universe.detail.topContributors')} <span className={styles.detailCount}>{orgTopContributors.length}</span></p>
                       <div className={styles.detailUserList}>
                         {orgTopContributors.slice(0, detailExpanded ? 25 : 10).map(u => (
                           <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
@@ -8719,7 +8908,7 @@ export default function UniverseView() {
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
-                        {orgTopContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{orgTopContributors.length - (detailExpanded ? 25 : 10)} más</span>}
+                        {orgTopContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{orgTopContributors.length - (detailExpanded ? 25 : 10)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
@@ -8727,13 +8916,13 @@ export default function UniverseView() {
                   {/* Orgs entrelazadas */}
                   {orgEntangledOrgs.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiShare2 size={10} /> Orgs conectadas <span className={styles.detailCount}>{orgEntangledOrgs.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiShare2 size={10} /> {t('universe.detail.orgsConnected')} <span className={styles.detailCount}>{orgEntangledOrgs.length}</span></p>
                       <div className={styles.detailUserList}>
                         {orgEntangledOrgs.slice(0, detailExpanded ? 20 : 8).map(o => (
                           <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
                             <FiGrid size={10} style={{ color: '#00f7ff' }} />
                             <span>{o.name || o.login || o.id}</span>
-                            <span className={styles.detailUserMeta}>{o.sharedCount} compartidos</span>
+                            <span className={styles.detailUserMeta}>{o.sharedCount} {t('universe.detail.flowShared')}</span>
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
@@ -8744,8 +8933,8 @@ export default function UniverseView() {
                   {/*  KNOWLEDGE FLOWS: flujos internos de conocimiento  */}
                   {knowledgeFlows.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle} data-tip="Pares de repositorios que comparten más contribuidores - indica transferencia de conocimiento"><FiLink size={10} /> Flujos de conocimiento <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
-                      <p className={styles.detailSectionHint}>Pares de repos que comparten más contributors</p>
+                      <p className={styles.detailSectionTitle} data-tip={t('universe.detail.flowTip')}><FiLink size={10} /> {t('universe.detail.knowledgeFlows')} <span className={styles.detailCount}>{knowledgeFlows.length}</span></p>
+                      <p className={styles.detailSectionHint}>{t('universe.detail.flowHint')}</p>
                       <div className={styles.detailFlowsList}>
                         {knowledgeFlows.map((flow, i) => {
                           const maxShared = knowledgeFlows[0]?.shared || 1
@@ -8779,7 +8968,7 @@ export default function UniverseView() {
                   {/* Orgs representadas */}
                   {repoOrgDiversity.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Organizaciones representadas <span className={styles.detailCount}>{repoOrgDiversity.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> {t('universe.detail.orgsRepresented')} <span className={styles.detailCount}>{repoOrgDiversity.length}</span></p>
                       <div className={styles.detailUserList}>
                         {repoOrgDiversity.map(o => (
                           <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
@@ -8795,17 +8984,17 @@ export default function UniverseView() {
                   {/* Todos los contributors con info */}
                   {repoUsers.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Todos los contributors <span className={styles.detailCount}>{repoUsers.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> {t('universe.detail.allContributors')} <span className={styles.detailCount}>{repoUsers.length}</span></p>
                       <div className={styles.detailUserList}>
                         {repoUsers.slice(0, detailExpanded ? 50 : 15).map(u => (
                           <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
                             {u.isBridge ? <FiZap size={10} style={{ color: '#ffbd00' }} /> : <FiUser size={10} style={{ color: '#00ff9f', opacity: 0.5 }} />}
                             <span>{u.login || u.id}</span>
-                            {u.isBridge && <span className={styles.detailBridgeMini}>bridge</span>}
+                            {u.isBridge && <span className={styles.detailBridgeMini}>{t('universe.detail.bridgeTag')}</span>}
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
-                        {repoUsers.length > (detailExpanded ? 50 : 15) && <span className={styles.detailChipMore}>+{repoUsers.length - (detailExpanded ? 50 : 15)} más</span>}
+                        {repoUsers.length > (detailExpanded ? 50 : 15) && <span className={styles.detailChipMore}>+{repoUsers.length - (detailExpanded ? 50 : 15)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
@@ -8818,7 +9007,7 @@ export default function UniverseView() {
                   {/* Lenguajes */}
                   {userLangs.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiCode size={10} /> Stack tecnológico</p>
+                      <p className={styles.detailSectionTitle}><FiCode size={10} /> {t('universe.detail.techStack')}</p>
                       <div className={styles.detailChips}>
                         {userLangs.map(lang => (
                           <span key={lang} className={styles.detailChip} style={{ borderColor: 'rgba(162,155,254,0.3)' }}>{lang}</span>
@@ -8830,7 +9019,7 @@ export default function UniverseView() {
                   {/* Co-contributors */}
                   {userCoContributors.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> Co-contributors <span className={styles.detailCount}>{userCoContributors.length}</span></p>
+                      <p className={styles.detailSectionTitle}><FiUsers size={10} /> {t('universe.detail.coContributorsTitle')} <span className={styles.detailCount}>{userCoContributors.length}</span></p>
                       <div className={styles.detailUserList}>
                         {userCoContributors.slice(0, detailExpanded ? 25 : 10).map(u => (
                           <div key={u.id} className={styles.detailUserItem} onClick={() => navigateToEntity(u)} style={{ cursor: 'pointer' }}>
@@ -8840,7 +9029,7 @@ export default function UniverseView() {
                             <FiArrowRight size={8} className={styles.detailNavArrow} />
                           </div>
                         ))}
-                        {userCoContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{userCoContributors.length - (detailExpanded ? 25 : 10)} más</span>}
+                        {userCoContributors.length > (detailExpanded ? 25 : 10) && <span className={styles.detailChipMore}>+{userCoContributors.length - (detailExpanded ? 25 : 10)} {t('universe.detail.more')}</span>}
                       </div>
                     </div>
                   )}
@@ -8848,7 +9037,7 @@ export default function UniverseView() {
                   {/* Orgs navegables */}
                   {userOrgs.length > 0 && (
                     <div className={styles.detailSection}>
-                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> Saltar a organización</p>
+                      <p className={styles.detailSectionTitle}><FiGrid size={10} /> {t('universe.detail.jumpToOrg')}</p>
                       <div className={styles.detailUserList}>
                         {userOrgs.map(o => (
                           <div key={o.id} className={styles.detailUserItem} onClick={() => navigateToEntity(o)} style={{ cursor: 'pointer' }}>
@@ -8866,14 +9055,14 @@ export default function UniverseView() {
               {/*  SIMILAR ENTITIES  */}
               {detailExpanded && similarEntities.length === 0 && !_advancedLoaded && radarAxes.length >= 3 && (
                 <div className={styles.detailSection}>
-                  <p className={styles.detailSectionTitle}><FiCrosshair size={10} /> Entidades similares</p>
+                  <p className={styles.detailSectionTitle}><FiCrosshair size={10} /> {t('universe.detail.similarEntities')}</p>
                   <div className={styles.detailSkeleton}><div className={styles.detailSkeletonShimmer} /></div>
                 </div>
               )}
               {similarEntities.length > 0 && detailExpanded && (
                 <div className={styles.detailSection}>
-                  <p className={styles.detailSectionTitle} data-tip="Entidades con perfil de colaboración similar basado en distancia euclidiana del radar"><FiCrosshair size={10} /> Entidades similares</p>
-                  <p className={styles.detailSectionHint}>Perfiles de radar parecidos al actual</p>
+                  <p className={styles.detailSectionTitle} data-tip={t('universe.detail.similarTip')}><FiCrosshair size={10} /> {t('universe.detail.similarEntities')}</p>
+                  <p className={styles.detailSectionHint}>{t('universe.detail.similarHint')}</p>
                   <div className={styles.detailSimilarList}>
                     {similarEntities.map((sim, i) => (
                       <div key={i} className={styles.detailSimilarItem}
@@ -8938,12 +9127,12 @@ export default function UniverseView() {
         {!tourActive && !tourFading && temporalRange && (
           <button className={styles.tourBtn} onClick={() => startTour()}>
             <FiPlay size={13} />
-            <span>Tour Cósmico</span>
+            <span>{t('universe.tour.cosmicTour')}</span>
           </button>
         )}
         <button className={styles.helpBtn} onClick={() => showHelp ? closeHelp() : setShowHelp(true)}>
           <FiHelpCircle size={15} />
-          <span>Guía del Universo</span>
+          <span>{t('universe.detail.helpGuide')}</span>
         </button>
       </div>
 
@@ -8954,8 +9143,8 @@ export default function UniverseView() {
             <div className={styles.helpHeaderLeft}>
               <span className={styles.helpHeaderIcon}>⚛</span>
               <div>
-                <h3>Guía del Universo Cuántico</h3>
-                <span className={styles.helpHeaderSub}>Todo lo que necesitas saber</span>
+                <h3>{t('universe.detail.helpTitle')}</h3>
+                <span className={styles.helpHeaderSub}>{t('universe.detail.helpSubtitle')}</span>
               </div>
             </div>
             <button className={styles.helpClose} onClick={closeHelp}><FiX size={14} /></button>
@@ -8964,12 +9153,12 @@ export default function UniverseView() {
           {/* Tabs de navegación */}
           <div className={styles.helpTabs}>
             {[
-              { id: 'entities', label: 'Entidades', icon: '◉' },
-              { id: 'quantum', label: 'Fenómenos', icon: '∿' },
-              { id: 'analysis', label: 'Análisis', icon: '⬡' },
-              { id: 'lenses', label: 'Lentes', icon: '◎' },
-              { id: 'tour', label: 'Tour', icon: '▶' },
-              { id: 'controls', label: 'Controles', icon: '⌘' },
+              { id: 'entities', label: t('universe.detail.helpEntities'), icon: '◉' },
+              { id: 'quantum', label: t('universe.detail.helpQuantum'), icon: '∿' },
+              { id: 'analysis', label: t('universe.detail.helpAnalysis'), icon: '⬡' },
+              { id: 'lenses', label: t('universe.detail.helpLenses'), icon: '◎' },
+              { id: 'tour', label: t('universe.detail.helpTour'), icon: '▶' },
+              { id: 'controls', label: t('universe.detail.helpControls'), icon: '⌘' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -8986,47 +9175,45 @@ export default function UniverseView() {
             {/* ===== TAB: ENTIDADES ===== */}
             {helpTab === 'entities' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  Cada elemento visual del universo es una <strong>analogía con la física cuántica</strong>. Las entidades del ecosistema de software (organizaciones, repositorios, desarrolladores) se representan como partículas y sistemas cuánticos interconectados.
-                </p>
+                <p className={styles.helpIntro} dangerouslySetInnerHTML={{ __html: t('universe.help.entities.intro') }} />
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.12)', color: '#00f7ff' }}>⊛</div>
                   <div>
-                    <h4>Organizaciones <span className={styles.helpCardTag}>Procesadores Cuánticos</span></h4>
-                    <p>Los <strong>anillos rotando</strong> representan organizaciones de GitHub. Como un procesador cuántico real, cada organización contiene y gestiona repositorios (qubits). Sus <em>torus concéntricos</em> giran a diferentes velocidades, simulando los campos magnéticos de un procesador real. El <strong>núcleo central</strong> brilla con la firma cromática de la organización.</p>
+                    <h4>{t('universe.help.entities.orgsTitle')} <span className={styles.helpCardTag}>{t('universe.help.entities.orgsTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.entities.orgsDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.12)', color: '#bd00ff' }}>◉</div>
                   <div>
-                    <h4>Repositorios <span className={styles.helpCardTag}>Qubits</span></h4>
-                    <p>Las <strong>esferas violetas</strong> son repositorios - la unidad de información del ecosistema. El qubit es la unidad de información cuántica; análogamente, cada repositorio almacena el conocimiento del proyecto. Las <em>nubes de probabilidad</em> que los rodean representan su campo de influencia, y su tamaño varía según la actividad del repositorio.</p>
+                    <h4>{t('universe.help.entities.reposTitle')} <span className={styles.helpCardTag}>{t('universe.help.entities.reposTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.entities.reposDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>•</div>
                   <div>
-                    <h4>Desarrolladores <span className={styles.helpCardTag}>Partículas Cuánticas</span></h4>
-                    <p>Los <strong>puntos verdes</strong> son desarrolladores que <em>orbitan</em> los repositorios a los que contribuyen, como electrones orbitando un átomo. Su posición orbital no es fija - vibran constantemente (principio de incertidumbre de Heisenberg). El radio orbital refleja su nivel de actividad en el repositorio.</p>
+                    <h4>{t('universe.help.entities.usersTitle')} <span className={styles.helpCardTag}>{t('universe.help.entities.usersTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.entities.usersDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⚛</div>
                   <div>
-                    <h4>Bridge Users <span className={styles.helpCardTag}>Partículas Entrelazadas</span></h4>
-                    <p>Los <strong>puntos dorados</strong> que destellan simultáneamente son <em>bridge users</em> - desarrolladores que trabajan en repositorios de <strong>múltiples organizaciones</strong>. Su destello sincronizado visualiza el entrelazamiento cuántico: correlación instantánea sin importar la distancia. Son las entidades más valiosas del ecosistema porque transfieren conocimiento entre organizaciones.</p>
+                    <h4>{t('universe.help.entities.bridgeTitle')} <span className={styles.helpCardTag}>{t('universe.help.entities.bridgeTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.entities.bridgeDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
-                  <div className={styles.helpCardIcon} style={{ background: 'rgba(0,212,228,0.12)', color: '#00d4e4' }}>∿</div>
+                  <div className={styles.helpCardIcon} style={{ background: 'rgba(187,153,255,0.12)', color: '#bb99ff' }}>∿</div>
                   <div>
-                    <h4>Canales de Entrelazamiento <span className={styles.helpCardTag}>Colaboraciones</span></h4>
-                    <p>Las <strong>ondas sinuosas</strong> entre entidades representan relaciones de colaboración directa. Como canales cuánticos que transmiten información entre organizaciones, estas líneas ondulantes visualizan cómo los desarrolladores conectan repositorios y organizaciones entre sí. La <em>intensidad del color</em> y la <em>amplitud de la onda</em> reflejan la fuerza de la conexión.</p>
+                    <h4>{t('universe.help.entities.channelsTitle')} <span className={styles.helpCardTag}>{t('universe.help.entities.channelsTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.entities.channelsDesc') }} />
                   </div>
                 </div>
               </div>
@@ -9035,103 +9222,101 @@ export default function UniverseView() {
             {/* ===== TAB: FENÓMENOS CUÁNTICOS ===== */}
             {helpTab === 'quantum' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  El universo está lleno de <strong>fenómenos cuánticos</strong> que dan vida al espacio entre las entidades. Cada efecto visual tiene un análogo en la física cuántica real.
-                </p>
+                <p className={styles.helpIntro} dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.intro') }} />
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(100,100,255,0.1)', color: '#6666ff' }}>≋</div>
                   <div>
-                    <h4>Vacío Cuántico <span className={styles.helpCardTag}>Espuma + Rejilla</span></h4>
-                    <p>El espacio entre entidades no está vacío: <strong>200 partículas</strong> de espuma cuántica parpadean con ciclos de creación/aniquilación (pares partícula-antipartícula virtuales) y un <em>jitter de Heisenberg</em> que las desplaza constantemente. Debajo, una <strong>rejilla de interferencia</strong> de 70×70 puntos ondula con 5 fuentes de onda superpuestas, creando un patrón tricolor (verde constructivo, violeta destructivo, cian nodos) que nunca se repite. Juntos simulan las fluctuaciones del vacío cuántico.</p>
+                    <h4>{t('universe.help.quantum.vacuumTitle')} <span className={styles.helpCardTag}>{t('universe.help.quantum.vacuumTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.vacuumDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,255,200,0.12)', color: '#ffffaa' }}>✦</div>
                   <div>
-                    <h4>Quantum Genesis</h4>
-                    <p>El <strong>destello blanco inicial</strong> simula el Big Bang que da origen al universo cuántico. Al entrar en la visualización, todas las entidades nacen desde un punto singular y se expanden siguiendo una animación cinética que distribuye organizaciones, repositorios y usuarios a sus posiciones finales. La opacidad y escala aumentan <em>progresivamente</em> (entanglement phase).</p>
+                    <h4>{t('universe.help.quantum.genesisTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.genesisDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(189,0,255,0.1)', color: '#dd88ff' }}>☁</div>
                   <div>
-                    <h4>Nubes de Probabilidad</h4>
-                    <p>Los <strong>halos difusos</strong> alrededor de cada repositorio (qubit) son sus <em>nubes de probabilidad</em>. En mecánica cuántica, la posición de un electrón no es un punto fijo sino una distribución de probabilidad. Las partículas de la nube orbitan con velocidades aleatorias, pulsando con un brillo tenue que refleja la superposición de estados del repositorio.</p>
+                    <h4>{t('universe.help.quantum.cloudsTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.cloudsDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.1)', color: '#00f7ff' }}>◎</div>
                   <div>
-                    <h4>Anillos de Energía</h4>
-                    <p>Los <strong>anillos brillantes</strong> alrededor de las organizaciones (procesadores) representan sus <em>niveles de energía</em>. Como un átomo con sus capas electrónicas, cada organización emite anillos que reflejan su nivel de actividad. Los colores heredan la firma cromática de la organización, y los anillos pulsan sutilmente con el ritmo del ecosistema.</p>
+                    <h4>{t('universe.help.quantum.ringsTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.ringsDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,215,0,0.1)', color: '#ffd700' }}>⊕</div>
                   <div>
-                    <h4>Efecto Túnel Cuántico</h4>
-                    <p>Las <strong>esferas doradas que viajan</strong> por los canales de entrelazamiento son <em>fotones</em> atravesando barreras de potencial. En la física real, una partícula puede "tunelizar" a través de una barrera que clásicamente sería impenetrable. Aquí, los fotones viajan entre entidades conectadas, visualizando la transferencia activa de información por los canales.</p>
+                    <h4>{t('universe.help.quantum.tunnelTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.tunnelDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,200,255,0.1)', color: '#00c8ff' }}>○</div>
                   <div>
-                    <h4>Ondas de Decoherencia</h4>
-                    <p>Los <strong>anillos expansivos</strong> que emanan periódicamente de las organizaciones simulan la <em>decoherencia cuántica</em> - el proceso por el que un sistema cuántico pierde su coherencia al interactuar con el entorno. Las ondas se expanden y desvanecen, representando cómo la información cuántica se disipa al exterior del sistema.</p>
+                    <h4>{t('universe.help.quantum.decoherenceTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.decoherenceDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,100,100,0.1)', color: '#ff8888' }}>❋</div>
                   <div>
-                    <h4>Radiación de Hawking</h4>
-                    <p>Las <strong>micropartículas</strong> que emanan constantemente de cada organización simulan la <em>radiación de Hawking</em> - la emisión térmica predicha por Stephen Hawking para los agujeros negros. Las partículas nacen cerca de la organización y se alejan lentamente, desapareciendo al salir de su campo gravitatorio. Representan la actividad constante del ecosistema.</p>
+                    <h4>{t('universe.help.quantum.hawkingTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.hawkingDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,200,50,0.1)', color: '#ffcc44' }}>↕</div>
                   <div>
-                    <h4>Incertidumbre de Heisenberg</h4>
-                    <p>La <strong>micro-vibración constante</strong> de todas las entidades refleja el <em>principio de incertidumbre de Heisenberg</em>: en el mundo cuántico no existen posiciones absolutamente fijas. No puedes conocer simultáneamente la posición y el momento de una partícula con precisión infinita. Cada nodo vibra sutilmente como recordatorio de esta ley fundamental.</p>
+                    <h4>{t('universe.help.quantum.heisenbergTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.heisenbergDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(100,150,255,0.1)', color: '#88aaff' }}>⩕</div>
                   <div>
-                    <h4>Rejilla de Interferencia</h4>
-                    <p>Una <strong>cuadrícula de 4900 puntos</strong> (70×70) en el plano horizontal forma el &quot;suelo&quot; del universo. 5 fuentes de onda (una central de alta frecuencia + 4 periféricas) generan un <em>patrón de interferencia</em> en constante cambio. Los puntos oscilan verticalmente según la amplitud combinada y se colorean en tres tonos: <span style={{color:'#00ff88'}}>verde</span> (máximos constructivos), <span style={{color:'#aa44ff'}}>violeta</span> (destructivos) y <span style={{color:'#00ccff'}}>cian</span> (nodos). Las fuentes se desplazan lentamente, generando una textura que nunca se repite — como el experimento de la doble rendija con múltiples rendijas.</p>
+                    <h4>{t('universe.help.quantum.interferenceTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.interferenceDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,200,255,0.1)', color: '#00ccff' }}>☄</div>
                   <div>
-                    <h4>Rayos Cósmicos <span className={styles.helpCardTag}>Partículas Relativistas</span></h4>
-                    <p>Hasta <strong>8 partículas relativistas</strong> simultáneas surcan el universo con estelas de cinta de 48 vértices y una paleta de 6 colores (cian, magenta, dorado, esmeralda, naranja plasma, violeta). El 55% son <em>rayos de escape</em> que viajan a 1000–1500 u/s desde el interior hacia la Esfera de Dyson — al impactar (R≥3500) generan una <strong>onda de choque</strong> y un flash del color del rayo. El 45% restante son <em>rayos normales</em> más lentos que cruzan el interior sin impactar, como radiación cósmica de fondo.</p>
+                    <h4>{t('universe.help.quantum.cosmicRaysTitle')} <span className={styles.helpCardTag}>{t('universe.help.quantum.cosmicRaysTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.cosmicRaysDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(30,60,180,0.12)', color: '#4488ff' }}>◎</div>
                   <div>
-                    <h4>Esfera de Dyson <span className={styles.helpCardTag}>Frontera del Universo</span></h4>
-                    <p>Una <strong>esfera geodésica</strong> (icosaedro subdividido 4×, ~1280 triángulos) a radio 3500 envuelve todo el universo visible. Sus aristas emiten un brillo tenue azul profundo con <strong>12 pulsos de energía</strong> viajando continuamente por la malla. Cuando un rayo cósmico impacta, se propaga una <em>onda de choque gaussiana</em> que ilumina las aristas progresivamente durante 2.5s. Al seleccionar una entidad, los impactos se atenúan un 85% para no distraer.</p>
+                    <h4>{t('universe.help.quantum.dysonTitle')} <span className={styles.helpCardTag}>{t('universe.help.quantum.dysonTag')}</span></h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.dysonDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(68,136,255,0.1)', color: '#4488ff' }}>〰</div>
                   <div>
-                    <h4>Ondas Gravitacionales</h4>
-                    <p>Hasta <strong>4 anillos concéntricos</strong> emanan de las 8 organizaciones más masivas del ecosistema. Cada onda se expande en el plano horizontal durante 4–7 segundos hasta un radio de 90–150 unidades, en azul profundo con blending aditivo. Solo aparecen en organizaciones con visibilidad &gt; 0.3 — como en la relatividad general, solo los cuerpos más masivos generan perturbaciones gravitacionales detectables.</p>
+                    <h4>{t('universe.help.quantum.gravWavesTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.quantum.gravWavesDesc') }} />
                   </div>
                 </div>
               </div>
@@ -9140,95 +9325,93 @@ export default function UniverseView() {
             {/* ===== TAB: ANÁLISIS ===== */}
             {helpTab === 'analysis' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  El universo cuántico no es solo una visualización estética - cada entidad se analiza con <strong>métricas de red avanzadas</strong> que revelan la estructura profunda de la colaboración.
-                </p>
+                <p className={styles.helpIntro} dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.intro') }} />
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#6c5ce7' }}>⬡</div>
                   <div>
-                    <h4>Radar de Colaboración</h4>
-                    <p>El <strong>pentágono interactivo</strong> del panel de detalle muestra 5 ejes de colaboración: <em>Actividad</em> (commits, PRs), <em>Diversidad</em> (repos distintos), <em>Impacto</em> (influencia en el ecosistema), <em>Consistencia</em> (regularidad temporal), y <em>Alcance</em> (organizaciones distintas). Cada eje se normaliza de 0 a 1 y se compara con la media global.</p>
+                    <h4>{t('universe.help.analysis.radarTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.radarDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,180,216,0.12)', color: '#00b4d8' }}>⊕</div>
                   <div>
-                    <h4>Centralidad de Red</h4>
-                    <p>La <strong>centralidad</strong> mide la importancia estructural de una entidad dentro del grafo. Usa algoritmos como <em>betweenness centrality</em> (cuántos caminos mínimos pasan por ella) y <em>degree centrality</em> (número de conexiones). Las entidades con alta centralidad son críticas para la conectividad: si desaparecen, el ecosistema se fragmenta.</p>
+                    <h4>{t('universe.help.analysis.centralityTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.centralityDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}>⚠</div>
                   <div>
-                    <h4>Resiliencia</h4>
-                    <p>La <strong>Resiliencia</strong> mide <em>cuántos contribuidores clave sostienen un proyecto</em>. Un valor de 1 indica un <span style={{color:'#ff6b6b'}}>pilar clave</span>: un contribuidor esencial que mantiene vivo el proyecto. Con 2 se forma un <span style={{color:'#ff8800'}}>núcleo reducido</span>, con 3-4 el conocimiento está <span style={{color:'#ffdd00'}}>equilibrado</span>, y con 5+ hay <span style={{color:'#00ff88'}}>alta resiliencia</span>. Se muestra con barras de contribución por usuario. Los pilares clave son valiosos — diversificar contribuidores aumentaría la resiliencia del proyecto.</p>
+                    <h4>{t('universe.help.analysis.resilienceTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.resilienceDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#a29bfe' }}>⬢</div>
                   <div>
-                    <h4>Comunidades</h4>
-                    <p>El algoritmo de <strong>detección de comunidades</strong> identifica clusters de entidades densamente conectadas entre sí pero escasamente conectadas con el resto. Cada comunidad recibe un <em>color único</em> y las entidades se agrupan visualmente. Las fronteras zonales (activables desde Ajustes) delimitan estas comunidades con esferas translúcidas.</p>
+                    <h4>{t('universe.help.analysis.communitiesTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.communitiesDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>◈</div>
                   <div>
-                    <h4>Roles de Red</h4>
-                    <p>Cada usuario recibe un <strong>rol de red</strong> basado en sus métricas de conectividad: <em>Hub Central</em> (muchas conexiones directas), <em>Puente</em> (conecta comunidades disjuntas), <em>Especialista</em> (contribuciones intensas en pocos repos), <em>Explorador</em> (contribuciones dispersas en muchos repos), o <em>Colaborador</em> (participación regular). El rol se muestra con un badge cromático en el panel de detalle.</p>
+                    <h4>{t('universe.help.analysis.rolesTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.rolesDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⇋</div>
                   <div>
-                    <h4>Cross-Pollination</h4>
-                    <p>La tasa de <strong>polinización cruzada</strong> mide qué porcentaje de usuarios contribuyen a repositorios de <em>múltiples organizaciones</em>, transfiriendo prácticas y conocimiento entre equipos. Una tasa alta indica un ecosistema saludable donde las ideas fluyen libremente. Se calcula como: bridge users / total users × 100.</p>
+                    <h4>{t('universe.help.analysis.crossPollinationTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.crossPollinationDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(162,155,254,0.12)', color: '#a29bfe' }}>🧬</div>
                   <div>
-                    <h4>ADN de Colaboración</h4>
-                    <p>El <strong>ADN de Colaboración</strong> es una visualización única que codifica el <em>patrón de contribución</em> de cada entidad como una cadena genética. Cada segmento de color representa un tipo de actividad (commits, issues, PRs, reviews), y la secuencia revela el estilo de trabajo del desarrollador o equipo - ¿es más revisor, más codificador, o muy equilibrado?</p>
+                    <h4>{t('universe.help.analysis.dnaTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.dnaDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,100,100,0.12)', color: '#ff6b6b' }}>💥</div>
                   <div>
-                    <h4>Simulación de Impacto</h4>
-                    <p>La <strong>simulación de impacto</strong> responde a la pregunta: <em>"¿Qué pasaría si este usuario dejara de contribuir?"</em> Calcula qué repositorios perderían mantenimiento, cuántas conexiones se romperían, y cuánto se fragmentaría la red. Se clasifica como impacto <span style={{color:'#ff6b6b'}}>crítico</span>, <span style={{color:'#ffbd00'}}>alto</span> o <span style={{color:'#a29bfe'}}>moderado</span>.</p>
+                    <h4>{t('universe.help.analysis.impactTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.impactDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,220,200,0.12)', color: '#00ddc8' }}>≈</div>
                   <div>
-                    <h4>Entidades Similares</h4>
-                    <p>El motor de <strong>similitud</strong> encuentra entidades con patrones de colaboración parecidos usando métricas como co-contribución (repos en común), distribución de lenguajes, nivel de actividad y conexiones. El porcentaje de similitud indica qué tan intercambiables son dos entidades en el grafo. Útil para encontrar candidatos de backup o colaboradores afines.</p>
+                    <h4>{t('universe.help.analysis.similarTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.similarDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,150,0.12)', color: '#00ff96' }}>♥</div>
                   <div>
-                    <h4>Salud del Proyecto</h4>
-                    <p>El <strong>gauge de salud</strong> (arco semicircular) muestra un score compuesto de 0-100 que evalúa la sostenibilidad del proyecto. Combina métricas de: <em>diversidad de contribuidores</em>, <em>actividad reciente</em>, <em>distribución de commits</em> y <em>resiliencia</em>. A mayor puntaje, más resiliente es el proyecto ante la pérdida de contribuidores clave.</p>
+                    <h4>{t('universe.help.analysis.healthTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.healthDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffd166' }}>→</div>
                   <div>
-                    <h4>Flujos de Conocimiento</h4>
-                    <p>Los <strong>flujos de conocimiento</strong> rastrean cómo los desarrolladores llevan prácticas, herramientas y patrones de un repositorio a otro. Una barra de flujo A → B indica que desarrolladores que trabajan en A también contribuyen a B, creando un canal de transferencia de conocimiento. La anchura de la barra refleja el volumen de flujo.</p>
+                    <h4>{t('universe.help.analysis.flowsTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.analysis.flowsDesc') }} />
                   </div>
                 </div>
               </div>
@@ -9237,61 +9420,55 @@ export default function UniverseView() {
             {/* ===== TAB: LENTES ===== */}
             {helpTab === 'lenses' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  Las <strong>lentes analíticas</strong> transforman la visualización del universo para revelar diferentes dimensiones de la red de colaboración. Cada lente aplica un algoritmo de coloreo y dimensionado que resalta un aspecto específico.
-                </p>
+                <p className={styles.helpIntro} dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.intro') }} />
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#6c5ce7' }}><FiLayers size={18} /></div>
                   <div>
-                    <h4>Lente de Comunidades</h4>
-                    <p>Colorea cada entidad según la <strong>comunidad</strong> a la que pertenece (algoritmo Louvain/modularity). Las entidades del mismo color forman clusters de trabajo estrecho. Permite identificar <em>silos organizacionales</em>, equipos que trabajan aislados, y los <em>bridge users</em> que los conectan. Las fronteras zonales se habilitan automáticamente para delimitar cada comunidad en el espacio 3D.</p>
-                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(108,92,231,0.08)', borderRadius: 8, borderLeft: '3px solid #6c5ce7', fontSize: '11.5px', lineHeight: 1.5 }}>
-                      <strong style={{ color: '#a29bfe' }}>✦ Transición multi-org:</strong> los usuarios que contribuyen a <strong>más de una organización</strong> transicionan suavemente entre los colores de comunidad de cada org a la que pertenecen. El ritmo de transición varía aleatoriamente por usuario para dar una sensación orgánica, observa cómo sus partículas <em>parpadean</em> entre colores revelando visualmente los puentes humanos entre comunidades.
-                    </p>
+                    <h4>{t('universe.help.lenses.communitiesTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.communitiesDesc') }} />
+                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(108,92,231,0.08)', borderRadius: 8, borderLeft: '3px solid #6c5ce7', fontSize: '11.5px', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.communitiesNote') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,180,216,0.12)', color: '#00b4d8' }}><FiActivity size={18} /></div>
                   <div>
-                    <h4>Lente de Centralidad</h4>
-                    <p>Visualiza la <strong>betweenness centrality</strong> de cada entidad - cuántos caminos mínimos de la red pasan por ella. Las entidades más centrales se ven <em>más grandes y brillantes</em>, las periféricas se oscurecen y encogen. Se aplica a <strong>todos los tipos</strong>: organizaciones, repositorios y usuarios. Usa percentil rank (distribución uniforme), así que siempre verás un gradiente claro de oscuro a brillante independientemente de la distribución de los datos.</p>
+                    <h4>{t('universe.help.lenses.centralityTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.centralityDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,107,107,0.12)', color: '#ff6b6b' }}><FiShield size={18} /></div>
                   <div>
-                    <h4>Lente de Resiliencia</h4>
-                    <p>Colorea los <strong>repositorios</strong> según su distribución de contribuidores clave. <span style={{color:'#ff3333'}}>Rojo</span> = pilar clave (1 contribuidor principal), <span style={{color:'#ff8800'}}>naranja</span> = núcleo reducido (2), <span style={{color:'#ffdd00'}}>amarillo</span> = equilibrado (3-4), <span style={{color:'#00ff88'}}>verde</span> = alta resiliencia (5+). Organizaciones y usuarios se atenúan para que los repos destaquen. Los repos más destacados tienen contribuidores esenciales que los sostienen.</p>
+                    <h4>{t('universe.help.lenses.resilienceTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.resilienceDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166' }}><FiZap size={18} /></div>
                   <div>
-                    <h4>Lente de Intensidad</h4>
-                    <p>Visualiza la <strong>degree centrality</strong> - el número de conexiones directas de cada entidad. Las entidades más conectadas se ven más grandes y con un brillo dorado cálido, las poco conectadas se oscurecen. Usa percentil rank para distribución uniforme del gradiente. Complementa la lente de Centralidad: <em>degree</em> mide conexiones directas, <em>betweenness</em> mide importancia como puente.</p>
+                    <h4>{t('universe.help.lenses.intensityTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.intensityDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}><FiUsers size={18} /></div>
                   <div>
-                    <h4>Lente de Disciplinas</h4>
-                    <p>Clasifica automáticamente cada usuario en una de <strong>5 disciplinas</strong> (Software Cuántico, Física Cuántica, Hardware Cuántico, Tooling Clásico, Educación/Investigación) analizando sus biografías, organizaciones, lenguajes de programación y temas de repositorios. El <em>índice cross-disciplina</em> mide qué porcentaje de las colaboraciones cruzan fronteras disciplinares. Los <em>puentes interdisciplinares</em> son usuarios que contribuyen a repos de ≥2 disciplinas diferentes.</p>
-                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(232,121,249,0.08)', borderRadius: 8, borderLeft: '3px solid #e879f9', fontSize: '11.5px', lineHeight: 1.5 }}>
-                      <strong style={{ color: '#e879f9' }}>✦ Usuarios Multidisciplinares:</strong> cuando un usuario tiene señales repartidas entre <strong>2 o más disciplinas</strong> sin que ninguna domine claramente, se clasifica como <em>Multidisciplinar</em>. Con la lente activa, estas partículas <em>transicionan suavemente</em> entre los colores de sus disciplinas — igual que los bridge users transicionan entre colores de comunidad. Los perfiles multidisciplinares son los más valiosos: cruzan fronteras del conocimiento.
-                    </p>
+                    <h4>{t('universe.help.lenses.disciplinesTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.disciplinesDesc') }} />
+                    <p style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(232,121,249,0.08)', borderRadius: 8, borderLeft: '3px solid #e879f9', fontSize: '11.5px', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.disciplinesNote') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,170,0.12)', color: '#00ffaa' }}><FiCrosshair size={18} /></div>
                   <div>
-                    <h4>Quantum Tunneling</h4>
-                    <p>El <strong>efecto túnel</strong> permite encontrar el <em>camino más corto</em> entre dos entidades cualesquiera del universo. Escribe el origen y destino en los campos de búsqueda y el algoritmo BFS encontrará la cadena de conexiones más corta. El resultado muestra cada salto entre entidades y su tipo (org → repo → user → repo → org). Si no hay camino, las entidades están en componentes desconectados del grafo.</p>
+                    <h4>{t('universe.help.lenses.tunnelingTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.lenses.tunnelingDesc') }} />
                   </div>
                 </div>
               </div>
@@ -9300,47 +9477,45 @@ export default function UniverseView() {
             {/* ===== TAB: TOUR CÓSMICO ===== */}
             {helpTab === 'tour' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  El <strong>Tour Cósmico</strong> es una experiencia cinematográfica guiada que narra la historia del ecosistema open-source de computación cuántica, desde el silencio inicial hasta su expansión actual.
-                </p>
+                <p className={styles.helpIntro} dangerouslySetInnerHTML={{ __html: t('universe.help.tour.intro') }} />
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,247,255,0.12)', color: '#00f7ff' }}>▶</div>
                   <div>
-                    <h4>Inicio del Tour</h4>
-                    <p>Pulsa el botón <strong>Tour Cósmico</strong> en la parte inferior para comenzar. La pantalla se fundirá a negro y se iniciará un viaje narrativo a través de la historia del ecosistema. Durante el tour, la cámara se mueve automáticamente entre waypoints mientras el slider temporal avanza cronológicamente, revelando cómo se formó el universo.</p>
+                    <h4>{t('universe.help.tour.startTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.tour.startDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(255,189,0,0.12)', color: '#ffbd00' }}>⚡</div>
                   <div>
-                    <h4>Auto-Tour</h4>
-                    <p>Desde el <strong>dashboard</strong>, el botón que abre el Universo incluye un <em>toggle de auto-tour</em>. Al activarlo y entrar al universo, el tour arranca automáticamente con una experiencia inmersiva: un efecto de <em>Big Bang</em> da paso al Génesis sin transiciones visibles, como si el universo naciera ante tus ojos.</p>
+                    <h4>{t('universe.help.tour.autoTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.tour.autoDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(108,92,231,0.12)', color: '#a29bfe' }}>◈</div>
                   <div>
-                    <h4>Waypoints Narrativos</h4>
-                    <p>El tour se compone de etapas cronológicas generadas a partir de los datos reales: <em>El Vacío</em> (silencio pre-GitHub), <em>Génesis</em> (Big Bang del ecosistema), <em>Primeros Nodos</em>, <em>Primer Gigante</em> (la primera gran corporación), <em>Aceleración</em>, <em>Epicentro</em> (la org más conectada), <em>Qubit Estelar</em> (el repo con más ★), <em>Entrelazamiento</em> (red de colaboraciones), <em>Usuarios Puente</em>, <em>Inflación Cósmica</em> (año del boom), <em>Babel Cuántica</em> (diversidad de lenguajes), <em>Consolidación</em> y la <em>Panorámica Final</em>. Cada texto es único y se genera dinámicamente con los datos del dataset.</p>
+                    <h4>{t('universe.help.tour.waypointsTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.tour.waypointsDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,255,159,0.12)', color: '#00ff9f' }}>⇋</div>
                   <div>
-                    <h4>Controles del Tour</h4>
-                    <p>Usa <strong>← →</strong> o los botones de <em>avance/retroceso</em> para navegar entre waypoints. También puedes pulsar <strong>Espacio</strong> para avanzar. El botón <em>Saltar tour ✕</em> permite salir en cualquier momento. Al finalizar, puedes <em>Reiniciar</em> toda la experiencia o <em>Salir</em> suavemente al modo exploración libre.</p>
+                    <h4>{t('universe.help.tour.controlsTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.tour.controlsDesc') }} />
                   </div>
                 </div>
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardIcon} style={{ background: 'rgba(0,180,216,0.12)', color: '#00b4d8' }}>≡</div>
                   <div>
-                    <h4>Barra Temporal</h4>
-                    <p>El <strong>slider inferior</strong> permite filtrar el universo por periodo. Arrastra el control deslizante para visualizar solo las entidades activas hasta un año concreto. Al soltar, el universo muestra u oculta nodos según su fecha de actividad. Pulsa <strong>✕</strong> junto al año para restaurar la vista completa. Durante el tour, el slider se sincroniza automáticamente con la narrativa.</p>
+                    <h4>{t('universe.help.tour.timelineTitle')}</h4>
+                    <p dangerouslySetInnerHTML={{ __html: t('universe.help.tour.timelineDesc') }} />
                   </div>
                 </div>
               </div>
@@ -9349,72 +9524,70 @@ export default function UniverseView() {
             {/* ===== TAB: CONTROLES ===== */}
             {helpTab === 'controls' && (
               <div className={styles.helpSection}>
-                <p className={styles.helpIntro}>
-                  Controles de navegación e interacción con el universo cuántico. Toda interacción sigue la metáfora cuántica.
-                </p>
+                <p className={styles.helpIntro}>{t('universe.help.controls.intro')}</p>
 
                 <div className={styles.helpControlGrid}>
                   <div className={styles.helpControlCard}>
-                    <div className={styles.helpControlKey}>Click</div>
+                    <div className={styles.helpControlKey}>{t('universe.help.controls.clickKey')}</div>
                     <div>
-                      <strong>Colapso de Función de Onda</strong>
-                      <p>Al hacer click en una entidad, "colapsa su función de onda" revelando toda su información: radar de colaboración, estadísticas, métricas de red, resiliencia, ADN, y más. La cámara se acerca suavemente a la entidad seleccionada.</p>
+                      <strong>{t('universe.help.controls.clickTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.clickDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
-                    <div className={styles.helpControlKey}>Scroll</div>
+                    <div className={styles.helpControlKey}>{t('universe.help.controls.scrollKey')}</div>
                     <div>
-                      <strong>Control de Zoom</strong>
-                      <p>La rueda del ratón controla el nivel de zoom. El sistema de <em>Level of Detail</em> (LOD) ajusta automáticamente la complejidad visual según la distancia: de lejos se ven solo puntos, de cerca se ven los detalles completos de cada entidad.</p>
+                      <strong>{t('universe.help.controls.scrollTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.scrollDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
-                    <div className={styles.helpControlKey}>Arrastrar</div>
+                    <div className={styles.helpControlKey}>{t('universe.help.controls.dragKey')}</div>
                     <div>
-                      <strong>Rotación Orbital</strong>
-                      <p>Arrastra con el ratón para orbitar alrededor del universo. La cámara sigue una órbita esférica centrada en el punto de interés seleccionado, o en el centro del universo si no hay selección.</p>
+                      <strong>{t('universe.help.controls.dragTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.dragDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
-                    <div className={styles.helpControlKey}>ESC</div>
+                    <div className={styles.helpControlKey}>{t('universe.help.controls.escKey')}</div>
                     <div>
-                      <strong>Deselección / Salir</strong>
-                      <p>Cierra el panel de detalle si hay una entidad seleccionada. Si no hay nada seleccionado, cierra la visualización completa y vuelve al dashboard principal.</p>
+                      <strong>{t('universe.help.controls.escTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.escDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
                     <div className={styles.helpControlKey}><FiSearch size={13} /></div>
                     <div>
-                      <strong>Búsqueda</strong>
-                      <p>La barra superior permite buscar cualquier entidad por nombre. Los resultados se agrupan por tipo (organizaciones, repositorios, usuarios) y los bridge users se marcan con una etiqueta dorada. Seleccionar un resultado centra la cámara en la entidad.</p>
+                      <strong>{t('universe.help.controls.searchTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.searchDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
                     <div className={styles.helpControlKey}><FiSettings size={13} /></div>
                     <div>
-                      <strong>Ajustes</strong>
-                      <p>El menú de ajustes permite: activar/desactivar <em>fronteras zonales</em>, mostrar/ocultar <em>bots</em>, <em>resaltar</em> tipos específicos de entidades con filtros de color, y activar el <strong>Modo Simple</strong> — que desactiva todos los efectos ambientales (rayos cósmicos, Dyson Shell, ondas gravitacionales, espuma cuántica, rejilla de interferencia) dejando solo los datos reales visibles, como enfriar un procesador cuántico a millikelvins.</p>
+                      <strong>{t('universe.help.controls.settingsTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.settingsDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
                     <div className={styles.helpControlKey}><FiBookmark size={13} /></div>
                     <div>
-                      <strong>Pin & Compare</strong>
-                      <p>En el panel de detalle, usa el botón <em>pin</em> para anclar una entidad y luego selecciona otra para compararlas lado a lado. Las barras muestran las métricas de ambas entidades superpuestas con un delta que indica la diferencia.</p>
+                      <strong>{t('universe.help.controls.pinTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.pinDesc') }} />
                     </div>
                   </div>
 
                   <div className={styles.helpControlCard}>
                     <div className={styles.helpControlKey}><FiMaximize2 size={13} /></div>
                     <div>
-                      <strong>Expandir Panel</strong>
-                      <p>El panel de detalle puede expandirse a vista completa con el botón de maximizar, mostrando un layout de 2 columnas con todas las métricas, matriz de colaboración, flujos de conocimiento y análisis completo de la entidad.</p>
+                      <strong>{t('universe.help.controls.expandTitle')}</strong>
+                      <p dangerouslySetInnerHTML={{ __html: t('universe.help.controls.expandDesc') }} />
                     </div>
                   </div>
                 </div>
@@ -9424,43 +9597,76 @@ export default function UniverseView() {
         </aside>
       )}
 
-      {/* === TIMELINE SLIDER - barra temporal inferior === */}
+      {/* === TIMELINE SLIDER - barra temporal inferior (dual range) === */}
       {(uiVisible || tourActive || tourFading || tourExiting) && temporalRange && (
         <div className={`${styles.timelineSlider} ${tourActive ? styles.timelineSliderTourMode : ''} ${tourUIClass}`}>
           <div className={styles.timelineTrack}>
             <span className={styles.timelineLabel}>{temporalRange.min}</span>
-            <input
-              type="range"
-              className={styles.timelineInput}
-              min={temporalRange.min}
-              max={temporalRange.max}
-              step={0.02}
-              value={localSlider ?? temporalRange.max}
-              onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
-              onMouseUp={() => { if (localSlider != null) setSliderYear(localSlider) }}
-              onTouchEnd={() => { if (localSlider != null) setSliderYear(localSlider) }}
-            />
+            <div className={styles.timelineDualRange}>
+              <input
+                type="range"
+                className={`${styles.timelineInput} ${styles.timelineInputMin}`}
+                min={temporalRange.min}
+                max={temporalRange.max}
+                step={0.02}
+                value={localSliderMin ?? temporalRange.min}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value)
+                  const maxVal = localSlider ?? temporalRange.max
+                  if (v <= maxVal) handleSliderMinChange(v)
+                }}
+                onMouseUp={() => {
+                  const minVal = localSliderMin ?? temporalRange.min
+                  const maxVal = localSlider ?? temporalRange.max
+                  if (minVal > temporalRange.min || maxVal < temporalRange.max) {
+                    setSliderYear(maxVal)
+                  }
+                }}
+                onTouchEnd={() => {
+                  const minVal = localSliderMin ?? temporalRange.min
+                  const maxVal = localSlider ?? temporalRange.max
+                  if (minVal > temporalRange.min || maxVal < temporalRange.max) {
+                    setSliderYear(maxVal)
+                  }
+                }}
+              />
+              <input
+                type="range"
+                className={`${styles.timelineInput} ${styles.timelineInputMax}`}
+                min={temporalRange.min}
+                max={temporalRange.max}
+                step={0.02}
+                value={localSlider ?? temporalRange.max}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value)
+                  const minVal = localSliderMin ?? temporalRange.min
+                  if (v >= minVal) handleSliderChange(v)
+                }}
+                onMouseUp={() => { if (localSlider != null) setSliderYear(localSlider) }}
+                onTouchEnd={() => { if (localSlider != null) setSliderYear(localSlider) }}
+              />
+            </div>
             <span className={styles.timelineLabel}>{temporalRange.max}</span>
           </div>
           <div className={styles.timelineYear}>
-            {localSlider != null && localSlider < temporalRange.max ? (
+            {((localSlider != null && localSlider < temporalRange.max) || (localSliderMin != null && localSliderMin > temporalRange.min)) ? (
               <>
-                <span className={styles.timelineYearRange}>{temporalRange.min} – {Math.floor(localSlider)}</span>
-                <button className={styles.timelineClear} onClick={() => { if (tooltipRef.current) tooltipRef.current.style.opacity = '0'; setLocalSlider(temporalRange.max); activeNodeIdsRef.current = null; setSliderYear(temporalRange.max) }} data-tip="Mostrar todo">✕</button>
+                <span className={styles.timelineYearRange}>{Math.floor(localSliderMin ?? temporalRange.min)} – {Math.floor(localSlider ?? temporalRange.max)}</span>
+                <button className={styles.timelineClear} onClick={() => { if (tooltipRef.current) tooltipRef.current.style.opacity = '0'; setLocalSlider(temporalRange.max); setLocalSliderMin(temporalRange.min); activeNodeIdsRef.current = null; setSliderYear(temporalRange.max) }} data-tip={t('universe.detail.showAllTip')}>✕</button>
               </>
             ) : (
-              <span className={styles.timelineYearAll}>Todo el rango temporal</span>
+              <span className={styles.timelineYearAll}>{t('universe.detail.timelineFullRange')}</span>
             )}
           </div>
         </div>
       )}
 
       <div className={`${styles.interactionHint} ${tourUIClass}`}>
-        <span>Click · Colapso de función de onda</span>
+        <span>{t('universe.detail.hintClick')}</span>
         <span className={styles.hintDivider}>|</span>
-        <span>Scroll · Zoom</span>
+        <span>{t('universe.detail.hintScroll')}</span>
         <span className={styles.hintDivider}>|</span>
-        <span>Arrastrar · Órbita</span>
+        <span>{t('universe.detail.hintDrag')}</span>
       </div>
 
       {/* === FADE TO BLACK — transición de entrada al tour === */}
@@ -9515,26 +9721,26 @@ export default function UniverseView() {
           {/* Controles manuales: prev / next (tour 100 % manual) */}
           {!tourEnded && (
             <div className={styles.tourControls}>
-              <button className={styles.tourControlBtn} onClick={tourGoPrev} title="Anterior (←)">
+              <button className={styles.tourControlBtn} onClick={tourGoPrev} title={`${t('universe.tour.prev')} (←)`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
-              <button className={styles.tourControlBtn} onClick={tourGoNext} title="Siguiente (→ / Espacio)">
+              <button className={styles.tourControlBtn} onClick={tourGoNext} title={`${t('universe.tour.next')} (→ / Espacio)`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           )}
           {!tourEnded && (
             <button className={styles.tourSkip} onClick={stopTour}>
-              Saltar tour ✕
+              {t('universe.tour.skip')} ✕
             </button>
           )}
           {tourEnded && (
             <div className={styles.tourEndActions}>
               <button className={styles.tourEndBtn} onClick={restartTour}>
-                ↻ Reiniciar tour
+                ↻ {t('universe.tour.restart')}
               </button>
               <button className={`${styles.tourEndBtn} ${styles.tourEndBtnExit}`} onClick={exitTourSmooth}>
-                Salir del tour
+                {t('universe.tour.exit')}
               </button>
             </div>
           )}

@@ -465,6 +465,16 @@
   filter: drop-shadow(0 0 8px rgba(0, 247, 255, 0.7));
   animation: zapPulse 2.5s ease-in-out infinite;
 }
+.headerLogo {
+  height: 28px;
+  width: auto;
+  filter: drop-shadow(0 0 6px rgba(0, 247, 255, 0.4));
+  animation: logoGlow 3s ease-in-out infinite;
+}
+@keyframes logoGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0, 247, 255, 0.25)); }
+  50% { filter: drop-shadow(0 0 8px rgba(0, 247, 255, 0.5)); }
+}
 @keyframes zapPulse {
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.15); }
@@ -844,6 +854,31 @@
   pointer-events: none;
 }
 
+.disciplineLegend {
+  position: absolute;
+  bottom: 200px;
+  left: 20px;
+  z-index: 10;
+  pointer-events: none;
+  animation: disciplineLegendAppear 0.4s ease-out both;
+}
+
+.disciplineLegendTitle {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(0, 255, 159, 0.6);
+  margin-bottom: 2px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(0, 255, 159, 0.12);
+}
+
+@keyframes disciplineLegendAppear {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .legendCard {
   display: flex;
   flex-direction: column;
@@ -887,6 +922,16 @@
   border-radius: 1px;
   display: inline-block;
   box-shadow: 0 0 6px rgba(0, 212, 228, 0.5);
+}
+
+.legendOrgIcon {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px rgba(0, 247, 255, 0.6));
+}
+
+.legendRepoIcon {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(189, 0, 255, 0.7));
 }
 
 /* ============================================================================
@@ -4150,6 +4195,57 @@
   outline: none;
   cursor: pointer;
   transition: background 0.3s;
+  pointer-events: none;
+}
+
+.timelineDualRange {
+  position: relative;
+  width: 260px;
+  height: 4px;
+}
+
+.timelineDualRange .timelineInput {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: transparent;
+  pointer-events: none;
+}
+
+.timelineDualRange .timelineInput::-webkit-slider-thumb {
+  pointer-events: auto;
+}
+
+.timelineDualRange .timelineInput::-moz-range-thumb {
+  pointer-events: auto;
+}
+
+.timelineDualRange::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg,
+    rgba(0, 247, 255, 0.12) 0%,
+    rgba(0, 247, 255, 0.25) 50%,
+    rgba(189, 0, 255, 0.2) 100%
+  );
+  border-radius: 2px;
+}
+
+.timelineInputMin::-webkit-slider-thumb {
+  background: radial-gradient(circle at 40% 35%, #00d4e4, #007788) !important;
+  border-color: rgba(0, 212, 228, 0.6) !important;
+  box-shadow: 0 0 10px rgba(0, 212, 228, 0.5), 0 0 25px rgba(0, 212, 228, 0.2) !important;
+}
+
+.timelineInputMin::-moz-range-thumb {
+  background: radial-gradient(circle at 40% 35%, #00d4e4, #007788) !important;
+  border-color: rgba(0, 212, 228, 0.6) !important;
+  box-shadow: 0 0 10px rgba(0, 212, 228, 0.5), 0 0 25px rgba(0, 212, 228, 0.2) !important;
 }
 
 .timelineInput:hover {

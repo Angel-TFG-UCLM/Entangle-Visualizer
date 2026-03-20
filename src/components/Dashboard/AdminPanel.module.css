@@ -204,6 +204,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .dashLogo {
@@ -219,10 +221,17 @@
   letter-spacing: 0.5px;
 }
 
+.dbBadgesWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 12px;
+}
+
 .dbBadges {
   display: flex;
-  gap: 8px;
-  margin-left: 12px;
+  gap: 6px;
+  align-items: center;
 }
 
 .dbBadge {
@@ -235,6 +244,7 @@
   padding: 3px 8px;
   border-radius: 6px;
   font-family: var(--font-family-mono);
+  white-space: nowrap;
 }
 
 .dashActions {

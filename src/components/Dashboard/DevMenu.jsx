@@ -8,11 +8,13 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDevStore, FEATURE_DEFINITIONS } from '../../store/devStore'
 import useAdminStore from '../../store/adminStore'
 import styles from './DevMenu.module.css'
 
 export default function DevMenu() {
+  const { t } = useTranslation()
   const {
     isDevMenuOpen,
     toggleDevMenu,
@@ -88,7 +90,7 @@ export default function DevMenu() {
       }
       setPassword('')
     } catch (err) {
-      setDevAuthError(err.response?.data?.detail || 'Contraseña incorrecta')
+      setDevAuthError(err.response?.data?.detail || t('devMenu.wrongPassword'))
     }
   }, [password, isSetup, authenticate, setupPassword])
 
@@ -122,10 +124,10 @@ export default function DevMenu() {
           <div className={styles.authGate}>
             <div className={styles.authIcon}>🔒</div>
             <p className={styles.authTitle}>
-              {isSetup ? 'Configurar contraseña de admin' : 'Acceso restringido'}
+              {isSetup ? t('devMenu.configPassword') : t('devMenu.restrictedAccess')}
             </p>
             <p className={styles.authSubtitle}>
-              {isSetup ? 'Crea una contraseña para proteger este panel' : 'Introduce la contraseña de administrador'}
+              {isSetup ? t('devMenu.createPassword') : t('devMenu.enterPassword')}
             </p>
             <form onSubmit={handleAuthSubmit} className={styles.authForm}>
               <input
@@ -133,7 +135,7 @@ export default function DevMenu() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSetup ? 'Nueva contraseña' : 'Contraseña'}
+                placeholder={isSetup ? t('admin.newPassword') : t('admin.currentPassword')}
                 className={styles.authInput}
                 autoComplete="off"
               />
@@ -142,7 +144,7 @@ export default function DevMenu() {
                 className={styles.authSubmitBtn}
                 disabled={isAuthLoading || !password.trim()}
               >
-                {isAuthLoading ? '...' : isSetup ? 'Configurar' : 'Entrar'}
+                {isAuthLoading ? '...' : isSetup ? t('devMenu.configure') : t('devMenu.enter')}
               </button>
             </form>
             {(devAuthError || authError) && (
@@ -154,10 +156,10 @@ export default function DevMenu() {
         {/* Global actions */}
         <div className={styles.globalActions}>
           <button className={styles.globalBtn} onClick={enableAll}>
-            Activar todo
+            {t('devMenu.enableAll')}
           </button>
           <button className={`${styles.globalBtn} ${styles.globalBtnDanger}`} onClick={disableAll}>
-            Desactivar todo
+            {t('devMenu.disableAll')}
           </button>
         </div>
 
@@ -204,7 +206,7 @@ export default function DevMenu() {
 
         {/* Footer */}
         <div className={styles.footer}>
-          <span className={styles.footerNote}>Ctrl+Shift+D para toggle · Esc para cerrar</span>
+          <span className={styles.footerNote}>{t('devMenu.hint')}</span>
         </div>
           </>
         )}

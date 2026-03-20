@@ -14,6 +14,7 @@
 import { useMemo } from 'react'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import { useTranslation } from 'react-i18next'
 import styles from './DetailTable.module.css'
 
 /**
@@ -44,6 +45,7 @@ function LanguageBadge({ language }) {
  */
 function TopRepositoriesTable({ repositories }) {
   const { setFilter, selectedOrg } = useDashboardStore()
+  const { t } = useTranslation()
 
   const topRepos = repositories
     .sort((a, b) => (b.stargazer_count || 0) - (a.stargazer_count || 0))
@@ -51,18 +53,18 @@ function TopRepositoriesTable({ repositories }) {
 
   return (
     <div className={styles.tableContainer}>
-      <h3 className={styles.tableTitle}>⭐ Top Repositorios</h3>
+      <h3 className={styles.tableTitle}>{t('detail.topRepos')}</h3>
       
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead className={styles.tableHead}>
             <tr>
-              <th>#</th>
-              <th>Nombre</th>
-              <th>Organización</th>
-              <th>Lenguaje</th>
-              <th>Estrellas</th>
-              <th>Forks</th>
+              <th>{t('detail.colRank')}</th>
+              <th>{t('detail.colName')}</th>
+              <th>{t('detail.colOrganization')}</th>
+              <th>{t('detail.colLanguage')}</th>
+              <th>{t('detail.colStars')}</th>
+              <th>{t('detail.colForks')}</th>
             </tr>
           </thead>
           <tbody>
@@ -111,6 +113,7 @@ function TopRepositoriesTable({ repositories }) {
  */
 function TopUsersTable({ users }) {
   const { setFilter } = useDashboardStore()
+  const { t } = useTranslation()
 
   const topUsers = users
     .sort((a, b) => (b.quantum_expertise_score || 0) - (a.quantum_expertise_score || 0))
@@ -118,17 +121,17 @@ function TopUsersTable({ users }) {
 
   return (
     <div className={styles.tableContainer}>
-      <h3 className={styles.tableTitle}>👥 Top Contribuidores</h3>
+      <h3 className={styles.tableTitle}>{t('detail.topContributors')}</h3>
       
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead className={styles.tableHead}>
             <tr>
-              <th>#</th>
-              <th>Nombre</th>
-              <th>Expertise</th>
-              <th>Contribuciones</th>
-              <th>Organizaciones</th>
+              <th>{t('detail.colRank')}</th>
+              <th>{t('detail.colName')}</th>
+              <th>{t('detail.colExpertise')}</th>
+              <th>{t('detail.colContributions')}</th>
+              <th>{t('detail.colOrganizations')}</th>
             </tr>
           </thead>
           <tbody>
@@ -140,10 +143,10 @@ function TopUsersTable({ users }) {
                 expertise >= 50 ? styles.expertiseIntermediate :
                 styles.expertiseBeginner
               const expertiseLabel =
-                expertise >= 90 ? 'Qubit Master' :
-                expertise >= 75 ? 'Entangled' :
-                expertise >= 50 ? 'Superposed' :
-                'Ground State'
+                expertise >= 90 ? t('detail.expertise.master') :
+                expertise >= 75 ? t('detail.expertise.entangled') :
+                expertise >= 50 ? t('detail.expertise.superposed') :
+                t('detail.expertise.ground')
 
               return (
                 <tr 

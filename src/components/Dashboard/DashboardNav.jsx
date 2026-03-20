@@ -17,6 +17,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart3, PieChart, Network, Gauge, ChevronUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import styles from './DashboardNav.module.css'
 
 /**
@@ -26,12 +27,13 @@ import styles from './DashboardNav.module.css'
  * 2. Poner id={id} en la sección correspondiente de App.jsx
  */
 const NAV_ITEMS = [
-  { id: 'section-kpis',    label: 'KPIs',                icon: Gauge,    scrollPadding: 200  },
-  { id: 'section-charts',  label: 'Gráficos',            icon: BarChart3, scrollPadding: -90  },
-  { id: 'section-network', label: 'Red de Colaboración',  icon: Network,  scrollPadding: -107  },
+  { id: 'section-kpis',    labelKey: 'nav.kpis',    icon: Gauge,    scrollPadding: 200  },
+  { id: 'section-charts',  labelKey: 'nav.charts',  icon: BarChart3, scrollPadding: -90  },
+  { id: 'section-network', labelKey: 'nav.network', icon: Network,  scrollPadding: -107  },
 ]
 
 export default function DashboardNav() {
+  const { t } = useTranslation()
   const [activeSection, setActiveSection] = useState(null)
   const [isVisible, setIsVisible] = useState(false)
   const [hoveredItem, setHoveredItem] = useState(null)
@@ -126,12 +128,12 @@ export default function DashboardNav() {
               onClick={() => scrollToSection(item.id)}
               onMouseEnter={() => setHoveredItem(item.id)}
               onMouseLeave={() => setHoveredItem(null)}
-              aria-label={`Ir a ${item.label}`}
+              aria-label={t('nav.goTo', { section: t(item.labelKey) })}
               title=""
             >
               <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} />
               <span className={`${styles.navTooltip} ${hoveredItem === item.id ? styles.tooltipVisible : ''}`}>
-                {item.label}
+                {t(item.labelKey)}
               </span>
               {isActive && <span className={styles.activeDot} />}
             </button>
@@ -146,12 +148,12 @@ export default function DashboardNav() {
           onClick={scrollToTop}
           onMouseEnter={() => setHoveredItem('top')}
           onMouseLeave={() => setHoveredItem(null)}
-          aria-label="Volver arriba"
+          aria-label={t('nav.backToTop')}
           title=""
         >
           <ChevronUp size={18} strokeWidth={1.8} />
           <span className={`${styles.navTooltip} ${hoveredItem === 'top' ? styles.tooltipVisible : ''}`}>
-            Volver arriba
+            {t('nav.backToTop')}
           </span>
         </button>
       </div>

@@ -35,6 +35,8 @@ import AdminPanel from './components/Dashboard/AdminPanel'
 import QuantumChat from './components/Dashboard/QuantumChat'
 import FloatingChat from './components/Dashboard/FloatingChat'
 import { useDevStore } from './store/devStore'
+import { useTranslation } from 'react-i18next'
+import LanguageSelector from './components/LanguageSelector'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
 const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
@@ -45,10 +47,12 @@ import BlochSphere from './components/BlochSphere'
 import styles from './App.module.css'
 
 function App() {
+  const { t } = useTranslation()
+
   // === ESTADO LOCAL ===
   const [apiStatus, setApiStatus] = useState({
     status: 'checking', // 'checking' | 'online' | 'offline'
-    message: 'Verificando conexión...',
+    message: t('app.status.checkingConnection'),
   })
 
   const [isLoading, setIsLoading] = useState(true)
@@ -110,12 +114,12 @@ function App() {
 
   // Frases cuánticas para la pantalla de carga
   const QUANTUM_PHRASES = [
-    'Inicializando qubits...',
-    'Entrelazando datos del ecosistema...',
-    'Aplicando puerta Hadamard...',
-    'Colapsando función de onda...',
-    'Midiendo estados cuánticos...',
-    'Decodificando superposición...',
+    t('app.loading.phrases.0'),
+    t('app.loading.phrases.1'),
+    t('app.loading.phrases.2'),
+    t('app.loading.phrases.3'),
+    t('app.loading.phrases.4'),
+    t('app.loading.phrases.5'),
   ]
 
   useEffect(() => {
@@ -213,7 +217,7 @@ function App() {
 
         setApiStatus({
           status: 'offline',
-          message: 'Error de conexión con el backend',
+          message: t('app.status.connectionError'),
         })
 
         // Reintentar si no hemos alcanzado el límite
@@ -261,7 +265,7 @@ function App() {
             alt="ENTANGLE Logo" 
             className={styles.loadingLogo}
           />
-          <p className={styles.loadingSubtitle}>Quantum Software Ecosystem Analysis</p>
+          <p className={styles.loadingSubtitle}>{t('app.subtitle')}</p>
           
           <div className={styles.loadingSpinner}>
             {/* Átomo SVG que se transforma en resultado */}
@@ -322,19 +326,19 @@ function App() {
           
           <p className={`${styles.loadingText} ${loadingResult ? styles.loadingTextResult : ''}`}>
             {loadingResult === 'success' && (
-              <span className={styles.resultText}>Coherencia cuántica establecida</span>
+              <span className={styles.resultText}>{t('app.loading.success')}</span>
             )}
             {loadingResult === 'error' && (
-              <span className={`${styles.resultText} ${styles.resultTextError}`}>Decoherencia detectada - modo simulación</span>
+              <span className={`${styles.resultText} ${styles.resultTextError}`}>{t('app.loading.error')}</span>
             )}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
-                {isRefreshing ? 'Recalculando métricas...' : QUANTUM_PHRASES[quantumPhrase]}
+                {isRefreshing ? t('app.loading.refreshing') : QUANTUM_PHRASES[quantumPhrase]}
               </span>
             )}
           </p>
           <p className={`${styles.retryText} ${retryCount > 0 && loadingResult === null ? styles.retryVisible : ''}`}>
-            Reintentando conexión... ({retryCount}/3)
+            {t('app.loading.retrying', { count: retryCount })}
           </p>
         </div>
       </div>
@@ -406,20 +410,23 @@ function App() {
               </h1>
               <div className={styles.subtitleRow}>
                 <span className={styles.orbitalDot} />
-                <p className={styles.logoSub}>Quantum Software Ecosystem Analysis</p>
+                <p className={styles.logoSub}>{t('app.subtitle')}</p>
                 <span className={styles.orbitalDot} />
               </div>
             </div>
           </div>
 
-          {/* Controles del header: favoritos + refresh + status */}
+          {/* Controles del header: idioma + favoritos + refresh + status */}
           <div className={styles.headerControls}>
+            {/* Selector de idioma */}
+            <LanguageSelector />
+
             {/* Botón de favoritos */}
             {apiStatus.status === 'online' && (
               <button 
                 className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
                 onClick={() => setShowFavoritesPanel(prev => !prev)}
-                title="Favoritos & Vistas personalizadas"
+                title={t('app.header.favorites')}
               >
                 <Star size={16} fill={favoritesCount > 0 ? '#ffd93d' : 'none'} color={favoritesCount > 0 ? '#ffd93d' : 'currentColor'} />
                 {favoritesCount > 0 && <span className={styles.favoritesCount}>{favoritesCount}</span>}
@@ -432,10 +439,10 @@ function App() {
                 className={styles.refreshButton}
                 onClick={handleRefreshMetrics}
                 disabled={isRefreshing}
-                title="Recalcular métricas del dashboard"
+                title={t('app.header.refresh')}
               >
                 <RefreshCw size={16} className={isRefreshing ? styles.spinning : ''} />
-                <span>Actualizar</span>
+                <span>{t('app.header.refreshButton')}</span>
               </button>
             )}
 
@@ -448,9 +455,9 @@ function App() {
               </span>
               <Server size={18} className={styles.statusIcon} />
               <span className={styles.statusText}>
-                {apiStatus.status === 'checking' && 'Verificando...'}
-                {apiStatus.status === 'online' && 'Backend Online'}
-                {apiStatus.status === 'offline' && 'Backend Offline'}
+                {apiStatus.status === 'checking' && t('app.status.checking')}
+                {apiStatus.status === 'online' && t('app.status.online')}
+                {apiStatus.status === 'offline' && t('app.status.offline')}
               </span>
               <div className={styles.statusIndicator}></div>
             </div>
@@ -471,7 +478,7 @@ function App() {
       {devFeatures.offlineBanner !== false && apiStatus.status === 'offline' && (
         <div className={styles.offlineBanner}>
           <span className={styles.offlinePulse} />
-          <span className={styles.decoherenceText}><FaExclamationTriangle className={styles.decoherenceIcon} /> Decoherencia detectada - Backend offline - Los datos mostrados son <strong>simulados</strong></span>
+          <span className={styles.decoherenceText}><FaExclamationTriangle className={styles.decoherenceIcon} /> {t('app.offline.banner')}</span>
         </div>
       )}
 
@@ -487,10 +494,10 @@ function App() {
               <div className={styles.heroTitleContainer}>
                 <span className={styles.heroKet}>|</span>
                 <h2 className={styles.heroTitle}>
-                  <span className={styles.heroWord}>Quantum</span>
-                  <span className={styles.heroWord}>Software</span>
-                  <span className={styles.heroWord}>Ecosystem</span>
-                  <span className={styles.heroWord}>Analytics</span>
+                  <span className={styles.heroWord}>{t('app.hero.quantum')}</span>
+                  <span className={styles.heroWord}>{t('app.hero.software')}</span>
+                  <span className={styles.heroWord}>{t('app.hero.ecosystem')}</span>
+                  <span className={styles.heroWord}>{t('app.hero.analytics')}</span>
                 </h2>
                 <span className={styles.heroKet}>⟩</span>
               </div>
@@ -547,10 +554,10 @@ function App() {
                 <FaExclamationTriangle className={styles.alertIconSvg} />
               </div>
               <div className={styles.alertContent}>
-                <h3>Decoherencia del Sistema</h3>
+                <h3>{t('app.offline.title')}</h3>
                 <p className={styles.alertError}>{apiStatus.message}</p>
                 <p className={styles.alertHint}>
-                  El backend no responde - mostrando datos simulados. Los valores mostrados son de demostración y no reflejan el estado real del ecosistema cuántico.
+                  {t('app.offline.hint')}
                 </p>
               </div>
             </div>
@@ -600,7 +607,7 @@ function App() {
               </defs>
             </svg>
             <p className={styles.blockUIText}>
-              Cargando vista personalizada...
+              {t('app.loading.customView')}
             </p>
           </div>
         </div>
@@ -678,22 +685,22 @@ function App() {
               {/* Estado final Bell */}
               <text x="570" y="32" fill="rgba(0, 212, 228, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="start" filter="url(#glow)">|Φ⁺⟩</text>
             </svg>
-            <p className={styles.circuitLabel}>Circuito de Par de Bell - Estado máximamente entrelazado</p>
+            <p className={styles.circuitLabel}>{t('app.footer.circuitLabel')}</p>
           </div>
 
           {/* Info del proyecto */}
           <div className={styles.footerInfo}>
             <div className={styles.footerBrand}>
               <span className={styles.footerLogo}>ENTANGLE</span>
-              <span className={styles.footerTagline}>Quantum Software Ecosystem Analytics</span>
+              <span className={styles.footerTagline}>{t('app.footer.tagline')}</span>
             </div>
             
             <div className={styles.footerMeta}>
-              <span className={styles.footerYear}>© 2026</span>
+              <span className={styles.footerYear}>{t('app.footer.year')}</span>
               <span className={styles.footerDivider}>·</span>
-              <span className={styles.footerProject}>Trabajo Fin de Grado</span>
+              <span className={styles.footerProject}>{t('app.footer.project')}</span>
               <span className={styles.footerDivider}>·</span>
-              <span className={styles.footerUniversity}>Universidad de Castilla-La Mancha</span>
+              <span className={styles.footerUniversity}>{t('app.footer.university')}</span>
             </div>
           </div>
         </div>

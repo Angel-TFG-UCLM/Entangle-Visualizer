@@ -26,7 +26,7 @@ console.log(`🔗 API Client configurado para: ${BASE_URL}`);
 // Instancia configurada de Axios
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000, // 30s timeout (Azure Container Apps cold start puede tardar)
+  timeout: 60000, // 60s timeout (cálculos pesados de dashboard pueden tardar ~35s)
   headers: {
     'Content-Type': 'application/json',
   },

@@ -18,6 +18,7 @@ import 'katex/dist/katex.min.css'
 import { sendChatMessageStream } from '../../services/api'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import { useTranslation } from 'react-i18next'
 import styles from './FloatingChat.module.css'
 
 /* ─── Helpers ─── */
@@ -30,9 +31,9 @@ function normalizeMathDelimiters(text) {
 }
 
 const QUICK_PROMPTS = [
-  { icon: <FiZap size={12} />,      label: 'Top Repos',    msg: '¿Cuáles son los repositorios cuánticos con más estrellas?' },
-  { icon: <FiCpu size={12} />,      label: 'Orgs Líderes', msg: '¿Cuáles son las organizaciones líderes del ecosistema cuántico?' },
-  { icon: <FiActivity size={12} />, label: 'Resumen',      msg: 'Dame un resumen general del ecosistema cuántico en GitHub' },
+  { icon: <FiZap size={12} />,      labelKey: 'chat.quantumPrompts.topReposLabel',  msgKey: 'chat.quickPrompts.topRepos' },
+  { icon: <FiCpu size={12} />,      labelKey: 'chat.quantumPrompts.topOrgsLabel',   msgKey: 'chat.quickPrompts.topOrgs' },
+  { icon: <FiActivity size={12} />, labelKey: 'chat.quantumPrompts.summaryLabel',    msgKey: 'chat.quickPrompts.summary' },
 ]
 
 /* ─── mapUserToDisplay (same as QuantumChat) ─── */
@@ -65,6 +66,7 @@ function mapUserToDisplay(raw, metric, disciplineMap, selectedUser) {
 }
 
 export default function FloatingChat() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [msgs, setMsgs] = useState([])
@@ -198,9 +200,9 @@ export default function FloatingChat() {
           }
         }
         if (matched.length === 0) return
-        const existingAuto = favStore.views.filter(v => v.name?.startsWith('Vista Autogenerada'))
+        const existingAuto = favStore.views.filter(v => v.name?.startsWith(t('chat.autoViewPrefix')))
         const nextNum = existingAuto.length + 1
-        const viewName = `Vista Autogenerada #${nextNum}`
+        const viewName = `${t('chat.autoViewName')} #${nextNum}`
         const entityIds = matched.map(m => m.id)
         const view = await favStore.createView(viewName, entityIds, data?.color || '#00ffaa')
         if (view?.id) await favStore.activateView(view.id)
@@ -220,18 +222,18 @@ export default function FloatingChat() {
     setElapsedSec(0)
     setActiveAgent(null)
     agentRef.current = null
-    setMsgs(prev => [...prev, { role: 'assistant', content: 'Razonamiento cancelado.', cancelled: true }])
+    setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.reasoningCancelled'), cancelled: true }])
   }, [])
 
   /* ─── Send ─── */
   const send = useCallback(async (text) => {
-    const t = (text ?? '').trim()
-    if (!t || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: t }])
+    const msg = (text ?? '').trim()
+    if (!msg || loading) return
+    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
     setLoading(true)
     setThinkingSteps([])
-    setStatusMsg('Clasificando tu pregunta…')
+    setStatusMsg(t('chat.classifying'))
     setElapsedSec(0)
     setActiveAgent(null)
     agentRef.current = null
@@ -245,17 +247,17 @@ export default function FloatingChat() {
     abortRef.current = controller
 
     try {
-      await sendChatMessageStream(t, history, {
+      await sendChatMessageStream(msg, history, {
         onStatus: (event) => { if (event.message) setStatusMsg(event.message) },
         onRouting: (event) => {
           const intent = event.intent || null
           setActiveAgent(intent)
           agentRef.current = intent
-          setStatusMsg(intent === 'DATA' ? 'Conectando con Analista…' : intent === 'UNIVERSE' ? 'Conectando con Universo…' : 'Conectando con Dashboard…')
+          setStatusMsg(intent === 'DATA' ? t('chat.connecting') : intent === 'UNIVERSE' ? t('chat.connectingUniverse') : t('chat.connectingDashboard'))
         },
         onThinking: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
-          setStatusMsg(`Ejecutando: ${event.description || 'herramienta'}`)
+          setStatusMsg(`${t('chat.executing')}${event.description || 'herramienta'}`)
         },
         onToolResult: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
@@ -277,7 +279,7 @@ export default function FloatingChat() {
         },
         onError: (errMsg) => {
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || 'Error de conexión.', err: true }])
+          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || t('chat.connectionError'), err: true }])
           setThinkingSteps([])
           setStatusMsg('')
           setElapsedSec(0)
@@ -287,7 +289,7 @@ export default function FloatingChat() {
       }, controller.signal)
     } catch (err) {
       if (err.name === 'AbortError') return
-      setMsgs(prev => [...prev, { role: 'assistant', content: 'Error de conexión.', err: true }])
+      setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.connectionError'), err: true }])
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
       setLoading(false)
@@ -356,15 +358,15 @@ export default function FloatingChat() {
             <img src="/logo.png" alt="Entangle" className={styles.headerLogo} />
             <div className={styles.headerInfo}>
               <div className={styles.headerTitle}>
-                ENTANGLE AI
-                <span className={styles.headerModelBadge}>GPT-4o</span>
+                {t('chat.headerTitle')}
+                <span className={styles.headerModelBadge}>{t('chat.modelBadge')}</span>
               </div>
               <div className={styles.headerSub}>
                 <span className={`${styles.headerStatusDot} ${loading ? styles.headerStatusDotLoading : ''}`} />
-                {loading ? 'Razonando…' : 'Conectado'}
+                {loading ? t('chat.reasoning') : t('chat.connected')}
               </div>
             </div>
-            <button className={styles.headerClose} onClick={closeChat} title="Cerrar">
+            <button className={styles.headerClose} onClick={closeChat} title={t('chat.close')}>
               <FiX size={14} />
             </button>
           </div>
@@ -376,14 +378,14 @@ export default function FloatingChat() {
                 <div className={styles.welcomeOrb}>
                   <span className={styles.welcomeOrbKet}>|ψ⟩</span>
                 </div>
-                <p className={styles.welcomeTitle}>Asistente Cuántico</p>
-                <p className={styles.welcomeHint}>Pregunta lo que quieras sobre el ecosistema cuántico en GitHub</p>
-                <p className={styles.disclaimer}>La IA puede cometer errores. Verifica la información.</p>
+                <p className={styles.welcomeTitle}>{t('chat.title')}</p>
+                <p className={styles.welcomeHint}>{t('chat.welcome')}</p>
+                <p className={styles.disclaimer}>{t('chat.disclaimer')}</p>
                 <div className={styles.quickPrompts}>
                   {QUICK_PROMPTS.map((p, i) => (
-                    <button key={i} className={styles.quickPrompt} onClick={() => send(p.msg)} disabled={loading}>
+                    <button key={i} className={styles.quickPrompt} onClick={() => send(t(p.msgKey))} disabled={loading}>
                       <span className={styles.quickPromptIcon}>{p.icon}</span>
-                      {p.label}
+                      {t(p.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -405,7 +407,7 @@ export default function FloatingChat() {
                   {m.role === 'assistant' && m.agent && (
                     <span className={`${styles.msgAgent} ${m.agent === 'DATA' ? styles.msgAgentData : styles.msgAgentUI}`}>
                       <span className={styles.msgAgentDot} />
-                      {m.agent === 'DATA' ? 'Analista' : m.agent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}
+                      {m.agent === 'DATA' ? t('chat.agentAnalyst') : m.agent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
                     </span>
                   )}
                 </div>
@@ -424,10 +426,10 @@ export default function FloatingChat() {
                     <>
                       <div className={styles.thinkingHeader}>
                         <span className={styles.thinkingPulse} />
-                        {statusMsg || 'Razonando…'}
+                        {statusMsg || t('chat.reasoning')}
                         {activeAgent && (
                           <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>
-                            {activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}
+                        {activeAgent === 'DATA' ? t('chat.agentAnalyst') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
                           </span>
                         )}
                         {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
@@ -447,17 +449,17 @@ export default function FloatingChat() {
                   ) : (
                     <div className={styles.thinkingHeader}>
                       <span className={styles.thinkingPulse} />
-                      {statusMsg || 'Pensando…'}
+                      {statusMsg || t('chat.thinking')}
                       {activeAgent && (
                         <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>
-                          {activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}
+                          {activeAgent === 'DATA' ? t('chat.agentAnalyst') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
                         </span>
                       )}
                       {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                     </div>
                   )}
                 </div>
-                <button className={styles.stopBtn} onClick={cancelRequest} title="Detener">
+                <button className={styles.stopBtn} onClick={cancelRequest} title={t('chat.stop')}>
                   <FiSquare size={10} />
                 </button>
               </div>
@@ -468,7 +470,7 @@ export default function FloatingChat() {
           {tools.length > 0 && (
             <div className={styles.toolsBar}>
               <FiCpu size={11} />
-              <span className={styles.toolsLabel}>Tools:</span>
+              <span className={styles.toolsLabel}>{t('chat.tools')}</span>
               {tools.map((t, i) => (
                 <span key={i} className={styles.toolChip}>{t}</span>
               ))}
@@ -482,7 +484,7 @@ export default function FloatingChat() {
               className={styles.input}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Pregunta sobre el ecosistema cuántico…"
+              placeholder={t('chat.placeholder')}
               disabled={loading}
               maxLength={2000}
             />
@@ -497,8 +499,8 @@ export default function FloatingChat() {
       <button
         className={`${styles.fab} ${open ? styles.fabOpen : ''} ${hasFloatingIndicator && !open && !isUniverse ? styles.fabShifted : ''} ${isUniverse ? styles.fabUniverse : ''} ${isUniverse && !isUniverseReady ? styles.fabUniverseHidden : ''} ${isUniverse && isTourActive ? styles.fabTourHidden : ''}`}
         onClick={toggleChat}
-        title={open ? 'Cerrar chat' : 'Chat con IA'}
-        aria-label={open ? 'Cerrar asistente IA' : 'Abrir asistente IA'}
+        title={open ? t('chat.closeChat') : t('chat.chatWithAI')}
+        aria-label={open ? t('chat.closeAssistant') : t('chat.openAssistant')}
       >
         {open ? (
           <FiX size={22} className={styles.fabCloseIcon} />
@@ -506,7 +508,7 @@ export default function FloatingChat() {
           <>
             <img src="/logo.png" alt="Entangle" className={styles.fabLogo} />
             <span className={styles.fabBadge}>
-              <span className={styles.fabBadgeText}>AI</span>
+              <span className={styles.fabBadgeText}>{t('chat.aiBadge')}</span>
             </span>
             <span className={styles.fabRing} />
             <span className={styles.fabPulse} />

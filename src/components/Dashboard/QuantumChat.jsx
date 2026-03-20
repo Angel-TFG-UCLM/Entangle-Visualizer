@@ -8,6 +8,7 @@
  * El usuario puede cancelar el razonamiento con un botón.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FiSend, FiZap, FiCpu, FiActivity, FiX, FiSquare } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -35,9 +36,9 @@ function normalizeMathDelimiters(text) {
 }
 
 const PROMPTS = [
-  { icon: <FiZap />,      label: 'Top Repos',    tag: 'Superposición',   msg: '¿Cuáles son los repositorios cuánticos con más estrellas?' },
-  { icon: <FiCpu />,      label: 'Orgs Líderes', tag: 'Entrelazamiento', msg: '¿Cuáles son las organizaciones líderes del ecosistema cuántico?' },
-  { icon: <FiActivity />, label: 'Estadísticas', tag: 'Colapso',         msg: 'Dame un resumen general del ecosistema cuántico en GitHub' },
+  { icon: <FiZap />,      labelKey: 'chat.quantumPrompts.topReposLabel',    tagKey: 'chat.quantumPrompts.topReposState',   msgKey: 'chat.quickPrompts.topRepos' },
+  { icon: <FiCpu />,      labelKey: 'chat.quantumPrompts.topOrgsLabel', tagKey: 'chat.quantumPrompts.topOrgsState', msgKey: 'chat.quickPrompts.topOrgs' },
+  { icon: <FiActivity />, labelKey: 'chat.quantumPrompts.summaryLabel',       tagKey: 'chat.quantumPrompts.summaryState',       msgKey: 'chat.quickPrompts.summary' },
 ]
 
 /* Genera un path SVG de onda cuántica con envolvente gaussiana */
@@ -55,6 +56,7 @@ function buildWavePath(w, h, freq = 5, amp = 0.38, pts = 80) {
 }
 
 export default function QuantumChat() {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
@@ -114,7 +116,7 @@ export default function QuantumChat() {
     setElapsedSec(0)
     setActiveAgent(null)
     agentRef.current = null
-    setMsgs(prev => [...prev, { role: 'assistant', content: 'Razonamiento cancelado por el usuario.', cancelled: true }])
+    setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.cancelledByUser'), cancelled: true }])
   }, [])
 
   /**
@@ -204,9 +206,9 @@ export default function QuantumChat() {
         }
 
         // Calcular nombre incremental: "Vista Autogenerada #N"
-        const existingAuto = favStore.views.filter(v => v.name?.startsWith('Vista Autogenerada'))
+        const existingAuto = favStore.views.filter(v => v.name?.startsWith(t('chat.autoViewPrefix')))
         const nextNum = existingAuto.length + 1
-        const viewName = `Vista Autogenerada #${nextNum}`
+        const viewName = `${t('chat.autoViewName')} #${nextNum}`
 
         // Crear la vista y activarla (sin tocar favoritos — son independientes)
         const entityIds = matched.map(m => m.id)
@@ -224,14 +226,14 @@ export default function QuantumChat() {
   }, [])
 
   const send = useCallback(async (text) => {
-    const t = (text ?? '').trim()
-    if (!t || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: t }])
+    const msg = (text ?? '').trim()
+    if (!msg || loading) return
+    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
     if (!expanded) setExpanded(true)
     setLoading(true)
     setThinkingSteps([])
-    setStatusMsg('Clasificando tu pregunta…')
+    setStatusMsg(t('chat.classifying'))
     setElapsedSec(0)
     setActiveAgent(null)
     agentRef.current = null
@@ -247,7 +249,7 @@ export default function QuantumChat() {
     abortRef.current = controller
 
     try {
-      await sendChatMessageStream(t, history, {
+      await sendChatMessageStream(msg, history, {
         onStatus: (event) => {
           if (event.message) setStatusMsg(event.message)
         },
@@ -256,18 +258,18 @@ export default function QuantumChat() {
           setActiveAgent(intent)
           agentRef.current = intent
           setStatusMsg(intent === 'DATA'
-            ? 'Conectando con Analista de datos…'
+            ? t('chat.connecting')
             : intent === 'UNIVERSE'
-              ? 'Conectando con Experto Universo…'
-              : 'Conectando con Experto Dashboard…')
+              ? t('chat.connectingUniverse')
+              : t('chat.connectingDashboard'))
         },
         onThinking: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
-          setStatusMsg(`Ejecutando: ${event.description || 'herramienta'}`)
+          setStatusMsg(`${t('chat.executing')}: ${event.description || t('chat.tool')}`)
         },
         onToolResult: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
-          setStatusMsg(event.summary || 'Datos recibidos')
+          setStatusMsg(event.summary || t('chat.dataReceived'))
         },
         onAction: (event) => {
           handleAction(event)
@@ -287,7 +289,7 @@ export default function QuantumChat() {
         },
         onError: (errMsg) => {
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || 'Error de conexión con el agente de IA.', err: true }])
+          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || t('chat.agentError'), err: true }])
           setThinkingSteps([])
           setStatusMsg('')
           setElapsedSec(0)
@@ -297,7 +299,7 @@ export default function QuantumChat() {
       }, controller.signal)
     } catch (err) {
       if (err.name === 'AbortError') return // cancelado por el usuario
-      setMsgs(prev => [...prev, { role: 'assistant', content: 'Error de conexión con el agente de IA.', err: true }])
+      setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.agentError'), err: true }])
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
       setLoading(false)
@@ -336,15 +338,15 @@ export default function QuantumChat() {
             <div className={styles.chatHeader}>
               <span className={styles.chatTitle}>
                 <span className={styles.chatDot} />
-                Terminal Cuántico
-                <span className={styles.modelBadge}>GPT-4o</span>
+                {t('chat.terminalTitle')}
+                <span className={styles.modelBadge}>{t('chat.modelBadge')}</span>
               </span>
               <div className={styles.headerRight}>
                 <span className={styles.headerStatus}>
                   <span className={styles.statusDot} />
-                  {loading ? 'Razonando…' : 'Conectado'}
+                  {loading ? t('chat.reasoning') : t('chat.connected')}
                 </span>
-                <button className={styles.closeBtn} onClick={close} title="Cerrar chat">
+                <button className={styles.closeBtn} onClick={close} title={t('chat.closeChat')}>
                   <FiX />
                 </button>
               </div>
@@ -362,9 +364,9 @@ export default function QuantumChat() {
                 <div className={styles.welcome}>
                   <div className={styles.welcomeOrb} />
                   <div className={styles.welcomeKet}>|ψ⟩</div>
-                  <p className={styles.welcomeTitle}>Estado en superposición</p>
-                  <p className={styles.welcomeHint}>Tu pregunta colapsará la función de onda</p>
-                  <p className={styles.disclaimer}>La IA puede cometer errores. Verifica la información importante.</p>
+                  <p className={styles.welcomeTitle}>{t('chat.superposition')}</p>
+                  <p className={styles.welcomeHint}>{t('chat.collapseHint')}</p>
+                  <p className={styles.disclaimer}>{t('chat.disclaimerFull')}</p>
                 </div>
               )}
 
@@ -381,7 +383,7 @@ export default function QuantumChat() {
                     {m.role === 'assistant' && m.agent && (
                       <span className={`${styles.msgAgent} ${m.agent === 'DATA' ? styles.msgAgentData : styles.msgAgentUI}`}>
                         <span className={styles.msgAgentDot} />
-                        {m.agent === 'DATA' ? 'Analista de datos' : m.agent === 'UNIVERSE' ? 'Experto Universo' : 'Experto Dashboard'}
+                        {m.agent === 'DATA' ? t('chat.dataAnalyst') : m.agent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
                       </span>
                     )}
                   </div>
@@ -400,8 +402,8 @@ export default function QuantumChat() {
                       <>
                         <div className={styles.thinkingHeader}>
                           <span className={styles.thinkingPulse} />
-                          {statusMsg || 'Razonando…'}
-                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}</span>}
+                          {statusMsg || t('chat.reasoning')}
+                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? t('chat.agentDataShort') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') : t('chat.agentDashboardShort')}</span>}
                           {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                         </div>
                         <div className={styles.thinkingSteps}>
@@ -425,14 +427,14 @@ export default function QuantumChat() {
                     ) : (
                       <div className={styles.thinkingHeader}>
                         <span className={styles.thinkingPulse} />
-                        {statusMsg || 'Pensando…'}
-                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? 'Analista' : activeAgent === 'UNIVERSE' ? 'Universo' : 'Dashboard'}</span>}
+                        {statusMsg || t('chat.thinking')}
+                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? t('chat.agentDataShort') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') : t('chat.agentDashboardShort')}</span>}
                         {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                       </div>
                     )}
                   </div>
                   {/* Botón stop: cuadrado rojo junto al mensaje */}
-                  <button className={styles.stopBtn} onClick={cancelRequest} title="Detener">
+                  <button className={styles.stopBtn} onClick={cancelRequest} title={t('chat.stop')}>
                     <FiSquare size={10} />
                   </button>
                 </div>
@@ -443,7 +445,7 @@ export default function QuantumChat() {
             {tools.length > 0 && (
               <div className={styles.toolsBar}>
                 <FiCpu size={11} />
-                <span className={styles.toolsLabel}>Herramientas:</span>
+                <span className={styles.toolsLabel}>{t('chat.tools')}:</span>
                 {tools.map((t, i) => (
                   <span key={i} className={styles.toolChip}>{t}</span>
                 ))}
@@ -490,14 +492,14 @@ export default function QuantumChat() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onFocus={() => { if (!expanded) setExpanded(true) }}
-            placeholder="Pregunta a la IA sobre el ecosistema cuántico…"
+            placeholder={t('chat.placeholderFull')}
             disabled={loading}
             maxLength={2000}
           />
           {input.trim() ? (
             <button type="submit" className={styles.sendBtn} disabled={loading}><FiSend /></button>
           ) : (
-            <span className={styles.barKbd}>AI</span>
+            <span className={styles.barKbd}>{t('chat.aiBadge')}</span>
           )}
         </form>
       </div>
@@ -505,10 +507,10 @@ export default function QuantumChat() {
       {/* ═══ Quick-prompt pills (colapsan al abrir el chat) ═══ */}
       <div className={`${styles.pills} ${expanded ? styles.pillsHidden : ''}`}>
         {PROMPTS.map((p, i) => (
-          <button key={i} className={styles.pill} onClick={() => send(p.msg)} disabled={loading}>
+          <button key={i} className={styles.pill} onClick={() => send(t(p.msgKey))} disabled={loading}>
             <span className={styles.pillIcon}>{p.icon}</span>
-            <span className={styles.pillLabel}>{p.label}</span>
-            <span className={styles.pillTag}>{p.tag}</span>
+            <span className={styles.pillLabel}>{t(p.labelKey)}</span>
+            <span className={styles.pillTag}>{t(p.tagKey)}</span>
           </button>
         ))}
       </div>

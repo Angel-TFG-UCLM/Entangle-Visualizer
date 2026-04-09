@@ -35,6 +35,30 @@ function normalizeMathDelimiters(text) {
   return out
 }
 
+/* ─── i18n helpers for SSE events ─── */
+function translateThinkingDesc(step, t) {
+  if (!step.tool_key) return step.description
+  const toolName = t(`chat.toolNames.${step.tool_key}`, { defaultValue: t('chat.toolNames.default') })
+  const parts = [toolName]
+  if (step.collection_key) {
+    const col = t(`chat.collectionNames.${step.collection_key}`, { defaultValue: step.collection_key })
+    const prep = step.tool_key === 'get_collection_schema' ? t('chat.toolPrepositions.of') : t('chat.toolPrepositions.in')
+    parts.push(`${prep} ${col}`)
+  }
+  if (step.has_filter) parts.push(t('chat.toolPrepositions.withFilters'))
+  return parts.join(' ')
+}
+
+function translateToolResult(step, t) {
+  if (step.count !== undefined && step.count !== null) return t('chat.resultsObtained', { count: step.count })
+  return t('chat.dataReceived')
+}
+
+function translateStatus(event, t) {
+  if (event.status_key) return t(`chat.${event.status_key}`, { defaultValue: event.message })
+  return event.message
+}
+
 const PROMPTS = [
   { icon: <FiZap />,      labelKey: 'chat.quantumPrompts.topReposLabel',    tagKey: 'chat.quantumPrompts.topReposState',   msgKey: 'chat.quickPrompts.topRepos' },
   { icon: <FiCpu />,      labelKey: 'chat.quantumPrompts.topOrgsLabel', tagKey: 'chat.quantumPrompts.topOrgsState', msgKey: 'chat.quickPrompts.topOrgs' },
@@ -208,7 +232,7 @@ export default function QuantumChat() {
         // Calcular nombre incremental: "Vista Autogenerada #N"
         const existingAuto = favStore.views.filter(v => v.name?.startsWith(t('chat.autoViewPrefix')))
         const nextNum = existingAuto.length + 1
-        const viewName = `${t('chat.autoViewName')} #${nextNum}`
+        const viewName = t('chat.autoViewName', { number: nextNum })
 
         // Crear la vista y activarla (sin tocar favoritos — son independientes)
         const entityIds = matched.map(m => m.id)
@@ -251,7 +275,7 @@ export default function QuantumChat() {
     try {
       await sendChatMessageStream(msg, history, {
         onStatus: (event) => {
-          if (event.message) setStatusMsg(event.message)
+          if (event.message) setStatusMsg(translateStatus(event, t))
         },
         onRouting: (event) => {
           const intent = event.intent || null
@@ -265,11 +289,11 @@ export default function QuantumChat() {
         },
         onThinking: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
-          setStatusMsg(`${t('chat.executing')}: ${event.description || t('chat.tool')}`)
+          setStatusMsg(`${t('chat.executing')}: ${translateThinkingDesc(event, t)}`)
         },
         onToolResult: (event) => {
           setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
-          setStatusMsg(event.summary || t('chat.dataReceived'))
+          setStatusMsg(translateToolResult(event, t))
         },
         onAction: (event) => {
           handleAction(event)
@@ -412,12 +436,12 @@ export default function QuantumChat() {
                               {step.type === 'thinking' ? (
                                 <>
                                   <FiCpu className={styles.thinkingIcon} />
-                                  <span>{step.description}</span>
+                                  <span>{translateThinkingDesc(step, t)}</span>
                                 </>
                               ) : (
                                 <>
                                   <span className={styles.thinkingCheck}>✓</span>
-                                  <span>{step.summary}</span>
+                                  <span>{translateToolResult(step, t)}</span>
                                 </>
                               )}
                             </div>

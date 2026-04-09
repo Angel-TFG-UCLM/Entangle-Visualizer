@@ -425,6 +425,27 @@
     "classifying": "Clasificando tu pregunta…",
     "executing": "Ejecutando: ",
     "dataReceived": "Datos recibidos",
+    "resultsObtained": "{{count}} resultados obtenidos",
+    "analystProcessing": "Analista procesando datos obtenidos…",
+    "analystPreparing": "Analista preparando consulta…",
+    "drafting": "Redactando respuesta…",
+    "toolNames": {
+      "query_database": "Consultando base de datos",
+      "run_aggregation": "Ejecutando análisis agregado",
+      "get_collection_schema": "Inspeccionando estructura de datos",
+      "default": "Procesando"
+    },
+    "collectionNames": {
+      "repositories": "repositorios",
+      "organizations": "organizaciones",
+      "users": "usuarios",
+      "metrics": "métricas"
+    },
+    "toolPrepositions": {
+      "in": "en",
+      "of": "de",
+      "withFilters": "con filtros"
+    },
     "reasoningCancelled": "Razonamiento cancelado.",
     "cancelledByUser": "Razonando cancelado por el usuario.",
     "connectionError": "Error de conexión.",

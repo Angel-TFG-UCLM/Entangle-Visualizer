@@ -425,6 +425,27 @@
     "classifying": "Ihre Frage wird klassifiziert…",
     "executing": "Ausführung: ",
     "dataReceived": "Daten empfangen",
+    "resultsObtained": "{{count}} Ergebnisse erhalten",
+    "analystProcessing": "Analyst verarbeitet erhaltene Daten…",
+    "analystPreparing": "Analyst bereitet Abfrage vor…",
+    "drafting": "Antwort wird verfasst…",
+    "toolNames": {
+      "query_database": "Datenbank abfragen",
+      "run_aggregation": "Aggregatanalyse ausführen",
+      "get_collection_schema": "Datenstruktur inspizieren",
+      "default": "Verarbeitung"
+    },
+    "collectionNames": {
+      "repositories": "Repositories",
+      "organizations": "Organisationen",
+      "users": "Benutzer",
+      "metrics": "Metriken"
+    },
+    "toolPrepositions": {
+      "in": "in",
+      "of": "von",
+      "withFilters": "mit Filtern"
+    },
     "reasoningCancelled": "Denkprozess abgebrochen.",
     "cancelledByUser": "Denkprozess vom Benutzer abgebrochen.",
     "connectionError": "Verbindungsfehler.",

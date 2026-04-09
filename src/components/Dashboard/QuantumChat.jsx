@@ -232,7 +232,7 @@ export default function QuantumChat() {
         // Calcular nombre incremental: "Vista Autogenerada #N"
         const existingAuto = favStore.views.filter(v => v.name?.startsWith(t('chat.autoViewPrefix')))
         const nextNum = existingAuto.length + 1
-        const viewName = `${t('chat.autoViewName')} #${nextNum}`
+        const viewName = t('chat.autoViewName', { number: nextNum })
 
         // Crear la vista y activarla (sin tocar favoritos — son independientes)
         const entityIds = matched.map(m => m.id)

@@ -120,7 +120,7 @@ export default function ContributorSankey() {
       }
     })
 
-    const orgLogins = [...orgSet].sort()
+    const orgLogins = [...orgSet].sort((a, b) => a.localeCompare(b))
 
     // 2. Inicializar stats por org
     const stats = {}
@@ -141,7 +141,7 @@ export default function ContributorSankey() {
     for (let i = 0; i < orgLogins.length; i++) {
       for (let j = i + 1; j < orgLogins.length; j++) {
         if (_areSiblingOrgs(orgLogins[i], orgLogins[j])) continue
-        const [a, b] = [orgLogins[i], orgLogins[j]].sort()
+        const [a, b] = [orgLogins[i], orgLogins[j]].sort((a, b) => a.localeCompare(b))
         const key = `${a}-${b}`
         flowMap[key] = { source: a, target: b, users: [], totalContributions: 0 }
       }
@@ -155,7 +155,7 @@ export default function ContributorSankey() {
 
       for (let i = 0; i < orgArr.length; i++) {
         for (let j = i + 1; j < orgArr.length; j++) {
-          const [a, b] = [orgArr[i], orgArr[j]].sort()
+          const [a, b] = [orgArr[i], orgArr[j]].sort((a, b) => a.localeCompare(b))
           const key = `${a}-${b}`
           if (flowMap[key]) {
             flowMap[key].users.push({
@@ -181,7 +181,7 @@ export default function ContributorSankey() {
     // 5. Solo orgs con flujos
     const involved = new Set()
     flowList.forEach(f => { involved.add(f.source); involved.add(f.target) })
-    const display = [...involved].sort()
+    const display = [...involved].sort((a, b) => a.localeCompare(b))
 
     // 6. Colores dinámicos
     const colors = {}
@@ -507,13 +507,16 @@ export default function ContributorSankey() {
           )}
 
           {/* Legend */}
-          <div className={styles.legend}>
+          <div className={styles.legend} role="list">
             {flows.slice(0, 10).map(flow => (
               <div
                 key={`${flow.source}-${flow.target}`}
                 className={`${styles.legendItem} ${hoveredFlow === `${flow.source}-${flow.target}` ? styles.legendActive : ''}`}
+                role="listitem"
                 onMouseEnter={() => setHoveredFlow(`${flow.source}-${flow.target}`)}
                 onMouseLeave={() => setHoveredFlow(null)}
+                onFocus={() => setHoveredFlow(`${flow.source}-${flow.target}`)}
+                onBlur={() => setHoveredFlow(null)}
               >
                 <div className={styles.legendColors}>
                   <span className={styles.legendDot} style={{ background: orgColorMap[flow.source]?.color }} />
@@ -553,7 +556,7 @@ function computeFromMockData(data) {
   const flowMap = {}
   for (let i = 0; i < orgLogins.length; i++) {
     for (let j = i + 1; j < orgLogins.length; j++) {
-      const [a, b] = [orgLogins[i], orgLogins[j]].sort()
+      const [a, b] = [orgLogins[i], orgLogins[j]].sort((a, b) => a.localeCompare(b))
       flowMap[`${a}-${b}`] = { source: a, target: b, users: [], totalContributions: 0 }
     }
   }
@@ -584,7 +587,7 @@ function computeFromMockData(data) {
       const score = user.contributions_to_quantum || user.quantum_expertise_score || 0
       for (let i = 0; i < allOrgs.length; i++) {
         for (let j = i + 1; j < allOrgs.length; j++) {
-          const [a, b] = [allOrgs[i], allOrgs[j]].sort()
+          const [a, b] = [allOrgs[i], allOrgs[j]].sort((a, b) => a.localeCompare(b))
           const key = `${a}-${b}`
           if (flowMap[key]) {
             flowMap[key].users.push({
@@ -609,7 +612,7 @@ function computeFromMockData(data) {
 
   const involved = new Set()
   flowList.forEach(f => { involved.add(f.source); involved.add(f.target) })
-  const display = [...involved].sort()
+  const display = [...involved].sort((a, b) => a.localeCompare(b))
 
   const colors = {}
   display.forEach((login, i) => {

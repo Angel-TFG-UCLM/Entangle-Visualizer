@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
    UniverseView - Overlay 3D fullscreen
    ============================================================================ */
 
@@ -27,11 +27,11 @@
 }
 .universeUIVisible {
   opacity: 1;
-  /* pointer-events se mantiene none aquí para no bloquear el Canvas;
+  /* pointer-events se mantiene none aquÃ­ para no bloquear el Canvas;
      cada hijo interactivo activa pointer-events individualmente */
 }
 
-/* ── Tour: ocultar UI gradualmente (excepto timeline y overlay) ── */
+/* â”€â”€ Tour: ocultar UI gradualmente (excepto timeline y overlay) â”€â”€ */
 @keyframes tourUIFadeOut {
   from { opacity: 1; filter: blur(0); }
   to   { opacity: 0; filter: blur(4px); }
@@ -42,7 +42,7 @@
   pointer-events: none !important;
 }
 
-/* ── Tour: revelar UI gradualmente al salir del tour ── */
+/* â”€â”€ Tour: revelar UI gradualmente al salir del tour â”€â”€ */
 @keyframes tourUIFadeIn {
   from { opacity: 0; filter: blur(3px); }
   to   { opacity: 1; filter: blur(0); }
@@ -191,7 +191,7 @@
   }
 }
 
-/* Subtítulo */
+/* SubtÃ­tulo */
 .loaderSub {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.68rem;
@@ -206,7 +206,7 @@
   margin-bottom: 18px;
 }
 
-/* === ÁTOMO SVG REALISTA - órbitas elípticas con electrones brillantes === */
+/* === ÃTOMO SVG REALISTA - Ã³rbitas elÃ­pticas con electrones brillantes === */
 .loaderAtomSVG {
   width: 120px;
   height: 120px;
@@ -214,7 +214,7 @@
   margin: 0 auto;
 }
 
-/* Órbitas con glow sutil */
+/* Ã“rbitas con glow sutil */
 .svgOrbit1, .svgOrbit2, .svgOrbit3 {
   animation: svgOrbitPulse 4s ease-in-out infinite;
 }
@@ -236,7 +236,7 @@
   to   { transform: rotate(360deg); }
 }
 
-/* Núcleo: pulso suave */
+/* NÃºcleo: pulso suave */
 .svgNucleus {
   animation: svgNucleusPulse 2.5s ease-in-out infinite;
   transform-origin: center;
@@ -246,7 +246,7 @@
   50%      { transform: scale(1.15); opacity: 1; }
 }
 
-/* Mensajes cíclicos - puro CSS, sin JS setInterval */
+/* Mensajes cÃ­clicos - puro CSS, sin JS setInterval */
 .loaderMessages {
   position: relative;
   min-height: 1.4em;
@@ -294,7 +294,7 @@
   to { transform: translate(40px, 40px); }
 }
 
-/* Partículas de fondo flotantes */
+/* PartÃ­culas de fondo flotantes */
 .quantumLoader::after {
   content: '';
   position: absolute;
@@ -316,7 +316,7 @@
 }
 
 /* ============================================================================
-   LENS TRANSITION OVERLAY - animación de cambio de lente (atom spinner)
+   LENS TRANSITION OVERLAY - animaciÃ³n de cambio de lente (atom spinner)
    ============================================================================ */
 
 .lensTransitionOverlay {
@@ -1055,7 +1055,7 @@
   to   { opacity: 1; transform: translate(50%, -50%) scale(1); filter: blur(0px); }
 }
 
-/* ─── Layout system: compact = column, expanded = 2-col row ─── */
+/* â”€â”€â”€ Layout system: compact = column, expanded = 2-col row â”€â”€â”€ */
 .detailLayout {
   display: contents; /* invisible in compact - children flow into parent */
 }
@@ -1447,7 +1447,7 @@
   gap: 10px;
 }
 
-/* Owner badge (repo → org) */
+/* Owner badge (repo â†’ org) */
 .detailOwnerBadge {
   display: inline-flex;
   align-items: center;
@@ -1772,13 +1772,13 @@
   white-space: nowrap;
 }
 
-/* ─── Pin / Compare ─── */
+/* â”€â”€â”€ Pin / Compare â”€â”€â”€ */
 .detailToolBtnActive {
   color: #ffd166 !important;
   background: rgba(255, 209, 102, 0.15) !important;
 }
 
-/* Botón de favorito en toolbar */
+/* BotÃ³n de favorito en toolbar */
 .detailFavBtn svg {
   transition: all 0.25s ease;
 }
@@ -1861,7 +1861,7 @@
   width: 32px;
 }
 
-/* ─── Network Role Badge ─── */
+/* â”€â”€â”€ Network Role Badge â”€â”€â”€ */
 .detailRoleBadge {
   margin: 0 12px 8px;
   padding: 8px 10px;
@@ -1910,7 +1910,7 @@
   letter-spacing: 0.2px;
 }
 
-/* ─── Language Breakdown Bars ─── */
+/* â”€â”€â”€ Language Breakdown Bars â”€â”€â”€ */
 .detailLangBars {
   display: flex;
   flex-direction: column;
@@ -1952,7 +1952,7 @@
   flex-shrink: 0;
 }
 
-/* ─── Analysis Summary ─── */
+/* â”€â”€â”€ Analysis Summary â”€â”€â”€ */
 .detailAnalysis {
   margin: 8px 0 4px;
   padding: 8px 10px;
@@ -1965,7 +1965,7 @@
   margin: 4px 0 0;
 }
 
-/* ─── COLLABORATION RADAR ─── */
+/* â”€â”€â”€ COLLABORATION RADAR â”€â”€â”€ */
 .detailRadar {
   padding: 4px 10px 8px;
   display: flex;
@@ -1979,7 +1979,7 @@
   overflow: visible;
 }
 
-/* ─── HEALTH SCORE ─── */
+/* â”€â”€â”€ HEALTH SCORE â”€â”€â”€ */
 .detailHealthSection {
   padding: 8px 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -2031,7 +2031,7 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* ─── KEY DEPENDENCIES ─── */
+/* â”€â”€â”€ KEY DEPENDENCIES â”€â”€â”€ */
 .detailSectionHint {
   font-size: 9px;
   color: rgba(255, 255, 255, 0.3);
@@ -2092,7 +2092,7 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* ─── KNOWLEDGE FLOWS ─── */
+/* â”€â”€â”€ KNOWLEDGE FLOWS â”€â”€â”€ */
 .detailFlowsList {
   display: flex;
   flex-direction: column;
@@ -2150,7 +2150,7 @@
   flex-shrink: 0;
 }
 
-/* ─── COLLABORATION DNA ─── */
+/* â”€â”€â”€ COLLABORATION DNA â”€â”€â”€ */
 .detailDNA {
   margin-top: 8px;
   padding: 8px;
@@ -2185,7 +2185,7 @@
   flex-shrink: 0;
 }
 
-/* ─── COLLABORATION MATRIX ─── */
+/* â”€â”€â”€ COLLABORATION MATRIX â”€â”€â”€ */
 .detailMatrixWrap {
   overflow-x: auto;
   padding-bottom: 4px;
@@ -2250,7 +2250,7 @@
   opacity: 0.5;
 }
 
-/* ─── IMPACT SIMULATION ─── */
+/* â”€â”€â”€ IMPACT SIMULATION â”€â”€â”€ */
 .detailImpactList {
   display: flex;
   flex-direction: column;
@@ -2332,7 +2332,7 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* ─── SIMILAR ENTITIES ─── */
+/* â”€â”€â”€ SIMILAR ENTITIES â”€â”€â”€ */
 .detailSimilarList {
   display: flex;
   flex-direction: column;
@@ -2389,7 +2389,7 @@
   text-align: right;
 }
 
-/* ─── SKELETON SHIMMER (progressive loading) ─── */
+/* â”€â”€â”€ SKELETON SHIMMER (progressive loading) â”€â”€â”€ */
 .detailSkeleton {
   height: 48px;
   border-radius: 8px;
@@ -2419,7 +2419,7 @@
    3D Label (estilo dei Html component)
    ============================================================================ */
 
-/* ── Auto-labels de viewport (visibles al rotar con entidad centrada) ── */
+/* â”€â”€ Auto-labels de viewport (visibles al rotar con entidad centrada) â”€â”€ */
 .autoLabel {
   background: rgba(6, 8, 22, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2552,7 +2552,7 @@
 }
 
 /* ============================================================================
-   Help Button + Panel ("¿Qué estoy viendo?")
+   Help Button + Panel ("Â¿QuÃ© estoy viendo?")
    ============================================================================ */
 
 .bottomActions {
@@ -2911,95 +2911,11 @@
 }
 
 /* ============================================================================
-   Responsive
-   ============================================================================ */
-
-@media (max-width: 768px) {
-  .detailPanel {
-    top: auto;
-    bottom: 0;
-    right: 0;
-    left: 0;
-    width: 100%;
-    max-height: 40vh;
-    border-radius: 14px 14px 0 0;
-  }  
-  .detailPanelExpanded {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    transform: none;
-    width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-    animation: none;
-  }
-  .detailPanelExpanded .detailLayout {
-    flex-direction: column;
-  }
-  .detailPanelExpanded .detailSidebar {
-    width: 100%;
-    max-height: 200px;
-    overflow-y: auto;
-    padding-right: 0;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-  .detailPanelExpanded .detailMain {
-    border-left: none;
-    padding-left: 0;
-  }
-
-  .metricsFloat {
-    right: 12px;
-    bottom: 50px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: 200px;
-  }
-
-  .legend {
-    left: 12px;
-    bottom: 50px;
-  }
-
-  .helpBtn {
-    font-size: 10px;
-    padding: 5px 10px;
-  }
-
-  .tourBtn {
-    font-size: 10px;
-    padding: 5px 10px;
-  }
-
-  .bottomActions {
-    bottom: 44px;
-  }
-
-  .helpPanel {
-    width: calc(100vw - 24px);
-    bottom: 76px;
-    max-height: 55vh;
-  }
-
-  .helpTabs {
-    padding: 6px 8px 0;
-  }
-
-  .helpTabBtn span:last-child {
-    font-size: 8px;
-  }
-
-  .headerSub, .headerTag, .headerDividerV {
-    display: none;
-  }
-}
 
 /* ============================================================================
-   LENTES ANALÍTICAS - Toolbar
+   LENTES ANALÃTICAS - Toolbar
    ============================================================================ */
+
 
 .lensToolbar {
   position: absolute;
@@ -3310,7 +3226,7 @@
   color: rgba(255, 100, 100, 0.9);
 }
 
-/* --- Campos de búsqueda --- */
+/* --- Campos de bÃºsqueda --- */
 .tunnelingFields {
   display: flex;
   flex-direction: column;
@@ -3420,7 +3336,7 @@
 .tunnelingOptionType[data-type="repo"] { color: #bd00ff; }
 .tunnelingOptionType[data-type="user"] { color: #00ff9f; }
 
-/* --- Botón de búsqueda --- */
+/* --- BotÃ³n de bÃºsqueda --- */
 .tunnelingSearchBtn {
   display: flex;
   align-items: center;
@@ -3638,7 +3554,7 @@
 }
 
 /* ============================================================================
-   PANEL DE DETALLE - Métricas de Red Enriquecidas
+   PANEL DE DETALLE - MÃ©tricas de Red Enriquecidas
    ============================================================================ */
 
 .detailNetworkMetrics {
@@ -3854,7 +3770,7 @@
 }
 
 /* ============================================================================
-   SEARCH BAR - Búsqueda con autocomplete
+   SEARCH BAR - BÃºsqueda con autocomplete
    ============================================================================ */
 
 .searchBar {
@@ -4066,7 +3982,7 @@
   }
 }
 
-/* ─── FLOATING TOOLTIP ─── */
+/* â”€â”€â”€ FLOATING TOOLTIP â”€â”€â”€ */
 .floatingTooltip {
   position: fixed;
   z-index: 9999;
@@ -4111,14 +4027,14 @@
 
 /* Estado de salida del contenedor principal */
 .universeExiting {
-  /* No opacity/filter animation — BlackHoleExit canvas overlay handles everything */
+  /* No opacity/filter animation â€” BlackHoleExit canvas overlay handles everything */
 }
 
-/* Canvas wrapper — gravitational collapse driven by BlackHoleExit.jsx (inline JS styles)
+/* Canvas wrapper â€” gravitational collapse driven by BlackHoleExit.jsx (inline JS styles)
    CSS animations removed: clip-path, rotate, scale, and filters are applied per-frame in JS
    for perfect synchronization with the transparent Canvas2D overlay effects. */
 
-/* UI fade-out rápido al iniciar la salida */
+/* UI fade-out rÃ¡pido al iniciar la salida */
 .universeExiting .universeUI,
 .universeExiting .universeUIVisible {
   animation: uiExitFade 0.5s ease-out forwards !important;
@@ -4256,7 +4172,7 @@
   );
 }
 
-/* Thumb — WebKit (Chrome, Safari, Edge) */
+/* Thumb â€” WebKit (Chrome, Safari, Edge) */
 .timelineInput::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -4281,7 +4197,7 @@
   transform: scale(1.25);
 }
 
-/* Thumb — Firefox */
+/* Thumb â€” Firefox */
 .timelineInput::-moz-range-thumb {
   width: 16px;
   height: 16px;
@@ -4348,7 +4264,7 @@
    CINEMATIC TOUR - Guided Journey Overlay
    ============================================================================ */
 
-/* ── Fade to black: transición de entrada al tour ────────────────────────── */
+/* â”€â”€ Fade to black: transiciÃ³n de entrada al tour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourFadeToBlack {
   position: absolute;
   inset: 0;
@@ -4484,7 +4400,7 @@
   transform: scale(1.3);
 }
 
-/* ── Tour Manual Controls ──────────────────────────────────── */
+/* â”€â”€ Tour Manual Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourControls {
   position: absolute;
   bottom: 156px;
@@ -4548,7 +4464,7 @@
   box-shadow: 0 0 16px rgba(0, 247, 255, 0.08);
 }
 
-/* ── Tour End Actions ─────────────────────────────────────── */
+/* â”€â”€ Tour End Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourEndActions {
   position: absolute;
   bottom: 120px;
@@ -4608,22 +4524,22 @@
 
 
 /* ============================================================================
-   CINEMATIC TOUR — VOID / PRELUDIO / GENESIS PHASES
+   CINEMATIC TOUR â€” VOID / PRELUDIO / GENESIS PHASES
    ============================================================================ */
 
-/* ── Void: total blackness background ───────────────────────────────────── */
+/* â”€â”€ Void: total blackness background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourOverlayVoid {
   background-color: #000000;
-  transition: background-color 0s; /* negro instantáneo al entrar en void */
+  transition: background-color 0s; /* negro instantÃ¡neo al entrar en void */
 }
 
-/* ── Génesis: desvelado rápido para que el Big Bang 3D sea visible ──────── */
+/* â”€â”€ GÃ©nesis: desvelado rÃ¡pido para que el Big Bang 3D sea visible â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourOverlayGenesis {
   background-color: transparent;
-  transition: background-color 0.5s ease-out; /* rápido: muestra el genesis flash 3D */
+  transition: background-color 0.5s ease-out; /* rÃ¡pido: muestra el genesis flash 3D */
 }
 
-/* ── Void Narrative: centered poetic lines, staggered fade-in ──────────── */
+/* â”€â”€ Void Narrative: centered poetic lines, staggered fade-in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourVoidNarrative {
   position: absolute;
   inset: 0;
@@ -4658,7 +4574,7 @@
   100% { opacity: 0.9; filter: blur(0); }
 }
 
-/* ── Preludio: dramatic centered revelation ────────────────────────────── */
+/* â”€â”€ Preludio: dramatic centered revelation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourPreludioNarrative {
   position: absolute;
   inset: 0;
@@ -4692,7 +4608,7 @@
          text-shadow: 0 0 60px rgba(255, 255, 255, 0.3), 0 0 120px rgba(0, 247, 255, 0.2); }
 }
 
-/* ── Génesis: post-BigBang narrative with radiant glow ─────────────────── */
+/* â”€â”€ GÃ©nesis: post-BigBang narrative with radiant glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tourGenesisNarrative {
   position: absolute;
   bottom: 200px;
@@ -4745,4 +4661,353 @@
   font-weight: 300;
   letter-spacing: 0.4px;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.95);
+}
+
+/* ============================================================================
+   RESPONSIVE OVERRIDES
+   Estos bloques @media se mantienen al final del archivo para que las reglas
+   adaptativas ganen sobre las reglas base definidas más abajo (cascade order).
+   ============================================================================ */
+
+/* ----------------------------------------------------------------------------
+   TABLETS Y MOVIL (<=768px)
+   ReorganizaciÃ³n vertical de los carriles HUD para evitar solapamientos.
+   DistribuciÃ³n de arriba abajo:
+     Â· header (compactado)
+     Â· lensToolbar (scroll horizontal)
+     Â· searchBar (full width)
+     Â· canvas 3D
+     Â· metricsFloat (chips compactos arriba del slider)
+     Â· timelineSlider (full width)
+     Â· bottomActions (Tour / GuÃ­a)
+     Â· legend (full width inferior, oculta en mÃ³vil pequeÃ±o)
+   ---------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  /* --- HEADER: compactar y permitir wrap -------------------------------- */
+  .header {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .headerLeft {
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .headerTitleGroup h2 {
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+  .headerRight {
+    gap: 4px;
+    flex: 0 0 auto;
+  }
+  .headerSub,
+  .headerTag,
+  .headerDividerV {
+    display: none;
+  }
+  .resetBtn span,
+  .closeBtn span {
+    display: none; /* dejar solo iconos */
+  }
+  .resetBtn,
+  .closeBtn {
+    padding: 6px 8px;
+  }
+
+  /* --- SETTINGS: dropdown que no se sale por la derecha ----------------- */
+  .settingsDropdown {
+    right: 0;
+    min-width: 220px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  /* --- LENS TOOLBAR: barra horizontal scrollable bajo el header --------- */
+  .lensToolbar {
+    top: 56px;
+    left: 8px;
+    right: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 4px 6px;
+    gap: 4px;
+    border-radius: 8px;
+  }
+  .lensToolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .lensLabel {
+    display: none;
+  }
+  .lensBtn {
+    padding: 5px 10px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  /* --- SEARCH BAR: pasa a una segunda fila bajo las lentes -------------- */
+  .searchBar {
+    top: 102px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  /* --- DETAIL PANEL: bottom sheet --------------------------------------- */
+  .detailPanel {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 50vh;
+    border-radius: 14px 14px 0 0;
+  }
+  .detailPanelExpanded {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    animation: none;
+  }
+  .detailPanelExpanded .detailLayout {
+    flex-direction: column;
+  }
+  .detailPanelExpanded .detailSidebar {
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .detailPanelExpanded .detailMain {
+    border-left: none;
+    padding-left: 0;
+  }
+
+  /* --- TIMELINE SLIDER: full width, sin solaparse con bottomActions -----
+     Layout vertical desde el borde inferior:
+       bottomActions  : bottom 16px  (alto ~32px â†’ top ~48px)
+       timelineSlider : bottom 64px  (alto ~70px â†’ top ~134px)
+       metrics+legend : bottom 150px (alto ~28px â†’ top ~178px)
+  */
+  .timelineSlider {
+    bottom: 64px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    animation: none; /* el keyframe desktop usa translateX(-50%) que rompe el layout */
+  }
+  .timelineSliderTourMode {
+    transform: none;
+  }
+  .timelineTrack {
+    width: 100%;
+    padding: 5px 12px;
+    gap: 6px;
+  }
+  .timelineLabel {
+    font-size: 10px;
+  }
+
+  /* --- BOTTOM ACTIONS (Tour / GuÃ­a): pegados al borde inferior --------- */
+  .bottomActions {
+    bottom: 16px;
+    gap: 8px;
+  }
+  .tourBtn,
+  .helpBtn {
+    font-size: 10px;
+    padding: 5px 12px;
+  }
+
+  /* --- METRICS: chips compactos a la derecha, encima del slider -------- */
+  .metricsFloat {
+    right: 8px;
+    bottom: 150px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    max-width: calc(60vw - 16px);
+  }
+  .metricPill {
+    padding: 3px 7px;
+    font-size: 9px;
+  }
+  .metricValue2 {
+    font-size: 10px;
+  }
+
+  /* --- LEGEND: a la izquierda, misma franja que metricsFloat ----------- */
+  .legend {
+    left: 8px;
+    bottom: 150px;
+    max-width: calc(40vw - 16px);
+  }
+  .disciplineLegend {
+    left: 8px;
+    bottom: 210px;
+  }
+  .legendCard {
+    padding: 7px 10px;
+    gap: 4px;
+  }
+  .legendItem {
+    font-size: 9px;
+  }
+  .legendType {
+    display: none;
+  }
+
+  /* --- HELP PANEL: ocupa la pantalla casi entera ------------------------ */
+  .helpPanel {
+    width: calc(100vw - 16px);
+    left: 8px;
+    right: 8px;
+    transform: none;
+    bottom: 56px;
+    max-height: 65vh;
+    animation: none; /* el keyframe desktop usa translateX(-50%) que rompe el layout */
+  }
+  .helpTabs {
+    padding: 6px 8px 0;
+  }
+  .helpTabBtn span:last-child {
+    font-size: 8px;
+  }
+
+  /* --- INTERACTION HINT: ocupa demasiado en mÃ³vil ----------------------- */
+  .interactionHint {
+    display: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   MÃ“VIL PEQUEÃ‘O (â‰¤480px)
+   Esconde elementos no esenciales para que la pantalla respire.
+   ---------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .header {
+    padding: 6px 10px;
+  }
+  .headerTitleGroup h2 {
+    font-size: 12px;
+    letter-spacing: 1.5px;
+  }
+  .headerLogo {
+    height: 22px;
+  }
+
+  /* La leyenda ocupa demasiado: ocultarla por defecto en mÃ³vil pequeÃ±o.
+     Sigue accesible desde la guÃ­a (Help). */
+  .legend,
+  .disciplineLegend {
+    display: none;
+  }
+
+  /* Sin la leyenda, los chips ocupan el ancho completo de la franja */
+  .metricsFloat {
+    bottom: 150px;
+    max-width: calc(100vw - 16px);
+  }
+
+  .timelineSlider {
+    bottom: 60px;
+  }
+  .bottomActions {
+    bottom: 14px;
+  }
+  .helpPanel {
+    bottom: 56px;
+    max-height: 70vh;
+  }
+
+  /* Botones de detail toolbar mÃ¡s compactos */
+  .detailToolBtn {
+    padding: 5px;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Laptops compactos (~1440px y menos): la searchBar centrada y la lensToolbar
+   izquierda comparten la misma franja horizontal en pantallas grandes. En
+   portÃ¡tiles tÃ­picos (1366x768, 1440x900) terminan solapÃ¡ndose. Compactamos
+   la lensToolbar y estrechamos la searchBar para que quepan en la misma fila.
+   ---------------------------------------------------------------------------- */
+@media (max-width: 1599px) and (min-width: 769px) {
+  /* --- LENS TOOLBAR: compactada (sin label, botones mas estrechos) ----- */
+  .lensToolbar {
+    padding: 4px 6px;
+    gap: 3px;
+  }
+  .lensLabel {
+    display: none;
+  }
+  .lensBtn {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+  /* --- SEARCH BAR: baja a una segunda fila debajo de la lensToolbar --- */
+  .searchBar {
+    top: 102px;
+    width: 320px;
+  }
+  /* --- FRANJA INFERIOR: stack vertical para no solapar
+     Layout (de abajo arriba) en el centro/bordes:
+       interactionHint : bottom 16  (alto ~16) -> 16-32  (centro, hint)
+       bottomActions   : bottom 48  (alto 29)  -> 48-77  (centro, Tour/Guia)
+       timelineSlider  : bottom 92  (alto ~80) -> 92-172 (centro, slider de anios)
+       metricsFloat    : bottom 188 (alto ~28) -> 188-216 (derecha)
+       legend          : bottom 188 (alto ~120) -> 188-308 (izquierda)
+       helpPanel       : bottom 88  (popup que cubre timeline al abrirse)
+  ---------------------------------------------------------------------- */
+  .interactionHint {
+    bottom: 16px;
+  }
+  .bottomActions {
+    bottom: 48px;
+  }
+  .timelineSlider {
+    bottom: 92px;
+  }
+  .metricsFloat {
+    bottom: 188px;
+    gap: 4px;
+  }
+  .metricPill {
+    padding: 4px 8px;
+  }
+  .legend {
+    bottom: 188px;
+  }
+  .disciplineLegend {
+    bottom: 240px;
+  }
+  .helpPanel {
+    bottom: 88px;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Pantallas mas estrechas (<=1280px, portatil 1366x768 con barra lateral,
+   o 1280x800): la searchBar se estrecha aun mas y se sigue manteniendo en
+   la segunda fila.
+   ---------------------------------------------------------------------------- */
+@media (max-width: 1280px) and (min-width: 769px) {
+  .searchBar {
+    width: 300px;
+  }
 }

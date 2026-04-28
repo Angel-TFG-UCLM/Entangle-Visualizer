@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Entangle Visualizer: interactive dashboard for the open-source quantum computing ecosystem"
+abstract: >-
+  Entangle Visualizer is the front-end of the Entangle project: an interactive,
+  multi-language web dashboard that explores organizations, repositories,
+  developers and collaboration networks of the global open-source quantum
+  computing ecosystem on GitHub.
+type: software
+authors:
+  - family-names: "Lara Martín"
+    given-names: "Ángel Luis"
+    affiliation: "University of Castilla-La Mancha (UCLM)"
+repository-code: "https://github.com/Angel-TFG-UCLM/Entangle-Visualizer"
+url: "https://github.com/Angel-TFG-UCLM/Entangle-Visualizer"
+license: MIT
+keywords:
+  - quantum-computing
+  - data-visualization
+  - dashboard
+  - react
+  - vite
+  - d3js
+  - network-visualization
+  - open-source-analytics
+  - research
+year: 2026

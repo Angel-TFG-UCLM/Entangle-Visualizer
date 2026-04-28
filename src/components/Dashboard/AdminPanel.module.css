@@ -1335,3 +1335,12 @@
 .logError { color: #f5564a; }
 .logDebug { color: rgba(255, 255, 255, 0.35); }
 .logProgress { color: #00d4e4; }
+
+/* ============================================================================
+   RESPONSIVE: ocultar en mÃ³vil/tablet pequeÃ±o (uso solo desde escritorio).
+   ============================================================================ */
+@media (max-width: 900px) {
+  .overlay {
+    display: none !important;
+  }
+}

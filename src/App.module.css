@@ -1564,4 +1564,30 @@
   .statValue {
     font-size: 2.5rem;
   }
+
+  /* Header controls: permitir wrap y compactar para pantallas estrechas */
+  .headerControls {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .refreshButton {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  /* Status badge: ocultar texto, dejar solo el qubit */
+  .statusText {
+    display: none;
+  }
+  .statusBadge {
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* En pantallas muy estrechas, esconder badge de estado completamente */
+  .statusBadge {
+    display: none;
+  }
 }

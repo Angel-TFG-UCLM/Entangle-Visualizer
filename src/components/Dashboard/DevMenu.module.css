@@ -337,3 +337,12 @@
   font-size: 11px;
   margin: 10px 0 0;
 }
+
+/* ============================================================================
+   RESPONSIVE: ocultar en mÃ³vil/tablet pequeÃ±o (uso solo desde escritorio).
+   ============================================================================ */
+@media (max-width: 900px) {
+  .overlay {
+    display: none !important;
+  }
+}

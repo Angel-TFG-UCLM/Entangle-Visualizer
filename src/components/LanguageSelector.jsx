@@ -84,15 +84,16 @@ export default function LanguageSelector() {
       </button>
 
       {open && createPortal(
-        <ul
+        <div
           ref={menuRef}
           className={styles.menu}
           role="listbox"
           style={{ top: menuPos.top, left: menuPos.left }}
         >
           {LANGUAGES.map(({ code, label }, i) => (
-            <li key={code}
+            <div key={code}
               role="option"
+              tabIndex={0}
               aria-selected={code === current.code}
               className={`${styles.item} ${code === current.code ? styles.active : ''}`}
               style={{ animationDelay: `${i * 30}ms` }}
@@ -107,9 +108,9 @@ export default function LanguageSelector() {
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
-            </li>
+            </div>
           ))}
-        </ul>,
+        </div>,
         document.body
       )}
     </div>

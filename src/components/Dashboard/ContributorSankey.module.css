@@ -262,3 +262,19 @@
   color: var(--color-text-muted);
   font-family: var(--font-family-mono);
 }
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-md);
+  }
+  .title {
+    font-size: var(--font-size-lg);
+  }
+  .titleRow {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+}

@@ -527,6 +527,86 @@
   .chartTitle {
     font-size: var(--font-size-lg);
   }
+
+  /* Dropdown de métricas: alinear a la derecha para evitar desbordar */
+  .metricDropdownMenu {
+    left: auto;
+    right: 0;
+    min-width: 160px;
+    max-width: calc(100vw - 32px);
+  }
+  .metricDropdownTrigger {
+    padding: 0.3rem 0.6rem;
+    font-size: var(--font-size-xs);
+  }
+
+  /* Subtitle row con dropdown: permitir wrap para que no salga del card */
+  .subtitleRow {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Recharts: en movil reducir tamaño de etiquetas y aliviar amontonamiento */
+  .chartCard :global(.recharts-cartesian-axis-tick text),
+  .chartCard :global(.recharts-cartesian-axis-tick-label text) {
+    font-size: 9px !important;
+  }
+  .chartCard :global(.recharts-legend-item) {
+    font-size: 11px !important;
+  }
+  /* Pie chart label collisions */
+  .chartCard :global(.recharts-pie-label-text) {
+    font-size: 10px;
+  }
+
+  /* Rotar etiquetas del eje X para evitar solapamiento (CSS-only).
+     Recharts usa StaggeredTick custom: text con style inline font-size 12px
+     y text-anchor="middle". Sobrescribimos con !important. Con 10 etiquetas
+     en ~200px no caben todas: ocultamos las pares y rotamos -45° las visibles. */
+  .chartCard :global(.recharts-xAxis-tick-labels text),
+  .chartCard :global(.xAxis .recharts-cartesian-axis-tick-label text) {
+    transform: rotate(-45deg) translate(-3px, 0);
+    transform-box: fill-box;
+    transform-origin: 100% 50%;
+    text-anchor: end !important;
+    font-size: 9px !important;
+  }
+  /* Ocultar 1 de cada 2 etiquetas (las que llevan offset +18 del StaggeredTick).
+     Mantiene legibilidad sin colisiones, las hidden estan accesibles via tooltip. */
+  .chartCard :global(.recharts-xAxis-tick-labels g.recharts-cartesian-axis-tick-label:nth-child(even) text),
+  .chartCard :global(.xAxis g.recharts-cartesian-axis-tick-label:nth-child(even) text) {
+    display: none;
+  }
+  .chartCard :global(.recharts-wrapper),
+  .chartCard :global(.recharts-surface) {
+    overflow: visible !important;
+  }
+
+  /* === Pie de Disciplinas: escalar para que las etiquetas (radio fijo en JSX)
+     no se salgan del card en movil. Solo afecta a la tarjeta de disciplinas
+     porque el pie en otras tarjetas no usa esta estructura. === */
+  .disciplineLayout > .chartContainer {
+    overflow: visible;
+  }
+  .disciplineLayout > .chartContainer :global(.recharts-pie-label-text) {
+    font-size: 8.5px !important;
+    font-weight: 500;
+  }
+  .disciplineLayout > .chartContainer :global(.recharts-wrapper) {
+    transform: scale(0.7);
+    transform-origin: top center;
+    margin-bottom: -130px;
+  }
+}
+
+@media (max-width: 480px) {
+  .disciplineLayout > .chartContainer :global(.recharts-wrapper) {
+    transform: scale(0.62);
+    margin-bottom: -160px;
+  }
+  .disciplineLayout > .chartContainer :global(.recharts-pie-label-text) {
+    font-size: 8px !important;
+  }
 }
 
 /* === PANEL "OTROS" LENGUAJES === */
@@ -1141,6 +1221,11 @@
 @media (max-width: 900px) {
   .disciplineLayout {
     flex-direction: column;
+  }
+  /* En column-flex el container colapsa a width:0 sin un ancho explicito */
+  .disciplineLayout > .chartContainer {
+    width: 100%;
+    flex: 0 0 auto;
   }
   .bridgePanel {
     flex: none;

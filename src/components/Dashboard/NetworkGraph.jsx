@@ -72,7 +72,7 @@ const ORG_SECTOR_COLORS = [
 // Simple seeded hash for deterministic jitter
 function seededRand(str) {
   let h = 0
-  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0
+  for (let i = 0; i < str.length; i++) h = Math.trunc((h << 5) - h + str.charCodeAt(i))
   return ((h & 0x7fffffff) % 1000) / 1000  // 0..1
 }
 

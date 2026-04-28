@@ -184,10 +184,13 @@ function TopUsersTable({ users }) {
                           <span 
                             key={orgName}
                             className={styles.orgTag}
+                            role="button"
+                            tabIndex={0}
                             onClick={(e) => {
                               e.stopPropagation()
                               setFilter('org', orgName)
                             }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setFilter('org', orgName) } }}
                           >
                             {orgName}
                           </span>

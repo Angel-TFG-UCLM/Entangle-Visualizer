@@ -107,7 +107,7 @@ export default function DevMenu() {
   const totalCount = Object.keys(features).length
 
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick}>
+    <div className={styles.overlay} role="button" tabIndex={0} onClick={handleOverlayClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOverlayClick(e) }}>
       <div ref={panelRef} className={styles.panel}>
         {/* Header */}
         <div className={styles.header}>

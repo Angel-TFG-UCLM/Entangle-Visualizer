@@ -74,7 +74,7 @@ export default function BridgeUsersTable() {
         })
         .filter(u => u.orgs.length >= 2)
 
-      const allOrgs = [...orgSet].sort()
+      const allOrgs = [...orgSet].sort((a, b) => a.localeCompare(b))
       const colors = {}
       allOrgs.forEach((o, i) => {
         colors[o] = COLOR_PALETTE[i % COLOR_PALETTE.length]
@@ -357,7 +357,7 @@ function computeFromEnriched(enriched) {
     })
   }
 
-  const sortedOrgs = [...allOrgs].sort()
+  const sortedOrgs = [...allOrgs].sort((a, b) => a.localeCompare(b))
   const colors = {}
   sortedOrgs.forEach((o, i) => { colors[o] = COLOR_PALETTE[i % COLOR_PALETTE.length] })
 

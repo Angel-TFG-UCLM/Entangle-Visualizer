@@ -128,7 +128,7 @@ export default function CollaborationBanner() {
       </div>
       
       {/* Toggle Tour Cósmico */}
-      <div className={styles.tourToggle} onClick={handleToggle} title={t('collaboration.tourHint')}>
+      <div className={styles.tourToggle} role="button" tabIndex={0} onClick={handleToggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleToggle() }} title={t('collaboration.tourHint')}>
         <div className={`${styles.toggleTrack} ${autoTour ? styles.toggleTrackOn : ''}`}>
           <div className={`${styles.toggleThumb} ${autoTour ? styles.toggleThumbOn : ''}`} />
         </div>

@@ -28,12 +28,22 @@
       "checkingConnection": "Vérification de la connexion...",
       "online": "Backend en ligne",
       "offline": "Backend hors ligne",
-      "connectionError": "Erreur de connexion avec le backend"
+      "connectionError": "Erreur de connexion avec le backend",
+      "latency": "Latence",
+      "region": "Région",
+      "lastSync": "Dernière synchro",
+      "never": "jamais",
+      "justNow": "à l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}}h",
+      "daysAgo": "il y a {{count}}j",
+      "clickToRefresh": "Cliquer pour vérifier la connexion"
     },
     "header": {
       "favorites": "Favoris & Vues personnalisées",
       "refresh": "Recalculer les métriques du tableau de bord",
-      "refreshButton": "Actualiser"
+      "refreshButton": "Actualiser",
+      "lastUpdated": "Données de"
     },
     "offline": {
       "banner": "Décohérence détectée - Backend hors ligne - Les données affichées sont simulées",
@@ -42,10 +52,33 @@
     },
     "footer": {
       "circuitLabel": "Circuit de Paire de Bell - État maximalement intriqué",
+      "circuitHint": "Survolez les portes pour découvrir leur fonction",
+      "gates": {
+        "hadamard": "Porte Hadamard - crée une superposition: |0⟩ → (|0⟩+|1⟩)/√2",
+        "cnot": "Porte CNOT - intrique deux qubits: le contrôle inverse la cible",
+        "pauliZ": "Porte Pauli-Z - applique une phase: |1⟩ → -|1⟩, |0⟩ inchangé",
+        "hadamard2": "Hadamard sur le second qubit - complète la base de Bell",
+        "measure": "Mesure - effondre la superposition vers une valeur classique",
+        "bellState": "État de Bell |Φ⁺⟩ = (|00⟩+|11⟩)/√2: intrication maximale"
+      },
       "tagline": "Quantum Software Ecosystem Analytics",
       "year": "© 2026",
       "project": "Projet de Fin d'Études",
-      "university": "Université de Castilla-La Mancha"
+      "university": "Université de Castilla-La Mancha",
+      "madeBy": "Ángel Luis Lara Martín",
+      "version": "v",
+      "links": {
+        "github": "Code source sur GitHub",
+        "linkedin": "LinkedIn de l'auteur",
+        "memoria": "Mémoire de TFG (PDF)",
+        "api": "Documentation de l'API"
+      },
+      "stats": {
+        "label": "Écosystème quantique cartographié",
+        "repos": "dépôts",
+        "users": "développeurs",
+        "orgs": "organisations"
+      }
     }
   },
   "nav": {

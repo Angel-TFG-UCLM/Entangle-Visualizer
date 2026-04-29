@@ -151,7 +151,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick}>
+    <div className={styles.overlay} role="button" tabIndex={0} onClick={handleOverlayClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOverlayClick(e) }}>
       <div ref={panelRef} className={styles.panel}>
         {!store.isAuthenticated ? (
           <AuthScreen passwordInputRef={passwordInputRef} />

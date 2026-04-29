@@ -453,8 +453,8 @@ export default function FavoritesPanel({ isOpen, onClose }) {
   const userFavs = favorites.filter(f => f.type === 'user')
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.panel} onClick={e => e.stopPropagation()}>
+    <div className={styles.overlay} role="button" tabIndex={0} onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}>
+      <div className={styles.panel} role="presentation" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerTitle}>
@@ -549,7 +549,10 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                           <div key={entity.id} className={styles.searchResultItem}>
                             <div 
                               className={styles.searchResultClickable}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => handleOpenDetail(entity)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOpenDetail(entity) }}
                               title={t('favorites.viewDetails')}
                             >
                               <span className={styles.searchResultIcon}>{getTypeIcon(entity.type)}</span>
@@ -1050,7 +1053,10 @@ export default function FavoritesPanel({ isOpen, onClose }) {
                       />
                       <div 
                         className={styles.viewInfo}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handleActivateView(view.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleActivateView(view.id) }}
                       >
                         <span className={styles.viewName}>{view.name}</span>
                         <span className={styles.viewMeta}>

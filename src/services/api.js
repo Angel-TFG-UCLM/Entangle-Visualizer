@@ -70,24 +70,29 @@ apiClient.interceptors.response.use(
 // === FUNCIONES DE API ===
 
 /**
- * Health Check: Verifica que el backend esté Online
- * @returns {Promise<{status: string, message: string}>}
+ * Health Check: Verifica que el backend esté Online y mide latencia
+ * @returns {Promise<{status: string, message: string, latencyMs: number, timestamp: string, data: object}>}
  */
 export async function checkHealth() {
+  const startedAt = performance.now();
   try {
     // FastAPI genera automáticamente /docs (Swagger UI)
     // El endpoint raíz "/" debería retornar info básica o redirigir
     const response = await apiClient.get('/');
-    
+    const latencyMs = Math.round(performance.now() - startedAt);
     return {
       status: 'online',
       message: 'Backend conectado correctamente',
+      latencyMs,
+      timestamp: new Date().toISOString(),
       data: response.data,
     };
   } catch (error) {
     return {
       status: 'offline',
       message: error.message || 'No se pudo conectar con el backend',
+      latencyMs: Math.round(performance.now() - startedAt),
+      timestamp: new Date().toISOString(),
       error: error,
     };
   }

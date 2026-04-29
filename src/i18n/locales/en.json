@@ -28,12 +28,22 @@
       "checkingConnection": "Checking connection...",
       "online": "Backend Online",
       "offline": "Backend Offline",
-      "connectionError": "Connection error with backend"
+      "connectionError": "Connection error with backend",
+      "latency": "Latency",
+      "region": "Region",
+      "lastSync": "Last sync",
+      "never": "never",
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago",
+      "clickToRefresh": "Click to recheck connection"
     },
     "header": {
       "favorites": "Favorites & Custom views",
       "refresh": "Recalculate dashboard metrics",
-      "refreshButton": "Refresh"
+      "refreshButton": "Refresh",
+      "lastUpdated": "Data from"
     },
     "offline": {
       "banner": "Decoherence detected - Backend offline - Displayed data is simulated",
@@ -42,10 +52,33 @@
     },
     "footer": {
       "circuitLabel": "Bell Pair Circuit - Maximally entangled state",
+      "circuitHint": "Hover the gates to discover their function",
+      "gates": {
+        "hadamard": "Hadamard gate - creates superposition: |0⟩ → (|0⟩+|1⟩)/√2",
+        "cnot": "CNOT gate - entangles two qubits: control flips the target",
+        "pauliZ": "Pauli-Z gate - applies a phase: |1⟩ → -|1⟩, leaves |0⟩ unchanged",
+        "hadamard2": "Hadamard on the second qubit - completes the Bell basis",
+        "measure": "Measurement - collapses the superposition to a classical value",
+        "bellState": "Bell state |Φ⁺⟩ = (|00⟩+|11⟩)/√2: maximally entangled"
+      },
       "tagline": "Quantum Software Ecosystem Analytics",
       "year": "© 2026",
       "project": "Bachelor's Thesis",
-      "university": "University of Castilla-La Mancha"
+      "university": "University of Castilla-La Mancha",
+      "madeBy": "Ángel Luis Lara Martín",
+      "version": "v",
+      "links": {
+        "github": "Source code on GitHub",
+        "linkedin": "Author's LinkedIn",
+        "memoria": "Bachelor's Thesis (PDF)",
+        "api": "API documentation"
+      },
+      "stats": {
+        "label": "Mapped quantum ecosystem",
+        "repos": "repositories",
+        "users": "developers",
+        "orgs": "organizations"
+      }
     }
   },
   "nav": {

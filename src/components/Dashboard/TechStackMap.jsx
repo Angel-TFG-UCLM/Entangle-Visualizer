@@ -199,7 +199,7 @@ export default function TechStackMap() {
       </div>
 
       {/* Language grid */}
-      <div className={styles.langGrid}>
+      <div className={styles.langGrid} role="list">
         {langCards.map((card, i) => (
           <div
             key={card.language}
@@ -208,9 +208,12 @@ export default function TechStackMap() {
               ${hoveredLang === card.language ? styles.langHovered : ''}
               ${card.isUniversal ? styles.langUniversal : ''}
             `}
+            role="listitem"
             style={{ animationDelay: `${i * 40}ms` }}
             onMouseEnter={() => setHoveredLang(card.language)}
             onMouseLeave={() => setHoveredLang(null)}
+            onFocus={() => setHoveredLang(card.language)}
+            onBlur={() => setHoveredLang(null)}
           >
             <div className={styles.langHeader}>
               <span

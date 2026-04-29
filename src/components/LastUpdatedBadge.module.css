@@ -1,0 +1,41 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(15, 20, 25, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-full);
+  font-family: var(--font-family-mono);
+  font-size: 0.65rem;
+  color: var(--color-text-secondary);
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: opacity 0.2s ease;
+}
+
+.badge:hover { opacity: 0.85; }
+
+.icon {
+  color: rgba(0, 212, 228, 0.6);
+  flex-shrink: 0;
+}
+
+.label {
+  opacity: 0.7;
+}
+
+.value {
+  color: var(--color-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* Reservar ancho mínimo solo lo necesario para los formatos de tiempo cortos */
+  min-width: 3rem;
+  display: inline-block;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .badge .label { display: none; }
+}

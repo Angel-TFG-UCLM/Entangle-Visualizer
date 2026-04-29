@@ -1214,7 +1214,7 @@ export default function ChartsSection({ data }) {
     if (!dateStr) return null
     try {
       const d = new Date(dateStr)
-      if (isNaN(d.getTime())) return null
+      if (Number.isNaN(d.getTime())) return null
       return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })
     } catch { return null }
   }, [])
@@ -1224,7 +1224,7 @@ export default function ChartsSection({ data }) {
     if (!dateStr) return null
     try {
       const d = new Date(dateStr)
-      if (isNaN(d.getTime())) return null
+      if (Number.isNaN(d.getTime())) return null
       const diffMs = Date.now() - d.getTime()
       const days = Math.floor(diffMs / 86400000)
       if (days < 1) return 'hoy'
@@ -1644,12 +1644,12 @@ export default function ChartsSection({ data }) {
           <Zap size={14} className={styles.comparisonFloatingIcon} />
           <div className={styles.comparisonFloatingChips}>
             {selectedOrgs.map(org => (
-              <span key={org} className={styles.comparisonFloatingChip} onClick={() => toggleOrgSelection(org)}>
+              <span key={org} className={styles.comparisonFloatingChip} role="button" tabIndex={0} onClick={() => toggleOrgSelection(org)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleOrgSelection(org) }}>
                 {org} <X size={10} />
               </span>
             ))}
             {selectedRepos.map(repo => (
-              <span key={repo} className={styles.comparisonFloatingChip} onClick={() => toggleRepoSelection(repo)}>
+              <span key={repo} className={styles.comparisonFloatingChip} role="button" tabIndex={0} onClick={() => toggleRepoSelection(repo)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleRepoSelection(repo) }}>
                 {repo.split('/')[1] || repo} <X size={10} />
               </span>
             ))}
@@ -1676,7 +1676,10 @@ export default function ChartsSection({ data }) {
       {(showComparisonResults && !comparisonClosing) || comparisonClosing ? (
         <div
           className={`${styles.comparisonOverlay} ${comparisonClosing ? styles.comparisonOverlayClosing : ''}`}
+          role="button"
+          tabIndex={0}
           onClick={(e) => { if (e.target === e.currentTarget) closeComparison() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeComparison() }}
         >
           <div className={`${styles.comparisonPanel} ${comparisonClosing ? styles.comparisonPanelClosing : ''}`}>
             {isAnalyzing ? (
@@ -1720,18 +1723,18 @@ export default function ChartsSection({ data }) {
                 <div className={styles.comparisonToolbar}>
                   <div className={styles.comparisonChips}>
                     {collaborationData.mode === 'user_focus' ? (
-                      <span className={`${styles.comparisonChip} ${styles.comparisonChipUser}`} onClick={closeComparison}>
+                      <span className={`${styles.comparisonChip} ${styles.comparisonChipUser}`} role="button" tabIndex={0} onClick={closeComparison} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeComparison() }}>
                         <User size={11} /> @{collaborationData.selections?.[0] || selectedUser} <X size={11} />
                       </span>
                     ) : (
                       <>
                         {selectedOrgs.map(org => (
-                          <span key={org} className={styles.comparisonChip} onClick={() => toggleOrgSelection(org)}>
+                          <span key={org} className={styles.comparisonChip} role="button" tabIndex={0} onClick={() => toggleOrgSelection(org)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleOrgSelection(org) }}>
                             <Building2 size={11} /> {org} <X size={11} />
                           </span>
                         ))}
                         {selectedRepos.map(repo => (
-                          <span key={repo} className={styles.comparisonChip} onClick={() => toggleRepoSelection(repo)}>
+                          <span key={repo} className={styles.comparisonChip} role="button" tabIndex={0} onClick={() => toggleRepoSelection(repo)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleRepoSelection(repo) }}>
                             <BookOpen size={11} /> {repo.split('/')[1] || repo} <X size={11} />
                           </span>
                         ))}
@@ -1832,8 +1835,11 @@ export default function ChartsSection({ data }) {
                         <div
                           key={user.login}
                           className={`${styles.comparisonUserCard} ${collaborationData.mode === 'user_focus' ? styles.comparisonUserCardFocus : ''}`}
+                          role="button"
+                          tabIndex={0}
                           style={{ animationDelay: `${i * 40}ms` }}
                           onClick={() => { closeComparison(); setTimeout(() => selectUserForAnalysis(user.login), 280) }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { closeComparison(); setTimeout(() => selectUserForAnalysis(user.login), 280) } }}
                           title={t('charts.viewCollabNetwork', { user: user.login })}
                         >
                           {user.avatar_url ? (
@@ -2599,6 +2605,7 @@ export default function ChartsSection({ data }) {
                       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                       backdropFilter: 'blur(12px)',
                     }}
+                    role="presentation"
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                   >
@@ -2608,7 +2615,10 @@ export default function ChartsSection({ data }) {
                     {otrosPopover.items.map((item, i) => (
                       <div
                         key={i}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => { setOtrosPopover(null); setFilter('discipline', item.key) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setOtrosPopover(null); setFilter('discipline', item.key) } }}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 8,
                           padding: '6px 8px', margin: '2px 0', borderRadius: 6,
@@ -2658,6 +2668,9 @@ export default function ChartsSection({ data }) {
                       <div
                         key={i}
                         className={styles.bridgeProfileRow}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
                         onClick={() => {
                           const userMatch = userData.find(u => u.login === bp.login)
                           if (userMatch) {
@@ -2774,10 +2787,14 @@ export default function ChartsSection({ data }) {
         return (
           <div 
             className={`${styles.entityDetailOverlay} ${detailClosing ? styles.entityDetailOverlayClosing : ''}`}
+            role="button"
+            tabIndex={0}
             onClick={closeEntityDetail}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeEntityDetail() }}
           >
             <aside 
               className={`${styles.entityDetailCard} ${detailClosing ? styles.entityDetailCardClosing : ''}`}
+              role="presentation"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}

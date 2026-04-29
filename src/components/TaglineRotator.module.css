@@ -1,0 +1,12 @@
+.tagline {
+  display: inline-block;
+  animation: taglineCycle 0.7s ease-out;
+  font-variant-numeric: tabular-nums;
+  /* Evita saltos al cambiar entre mensajes de distinta longitud */
+  min-height: 1.4em;
+}
+
+@keyframes taglineCycle {
+  0%   { opacity: 0; transform: translateY(4px); filter: blur(2px); }
+  100% { opacity: 1; transform: translateY(0);  filter: blur(0); }
+}

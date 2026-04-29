@@ -1,0 +1,179 @@
+/* === Bell Circuit Interactive === */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  width: 100%;
+  position: relative;
+}
+
+.svgScroller {
+  width: 100%;
+  max-width: 620px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 228, 0.3) transparent;
+}
+
+.svgScroller::-webkit-scrollbar { height: 4px; }
+.svgScroller::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 228, 0.3);
+  border-radius: 2px;
+}
+
+.circuitSvg {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 600px;
+  height: auto;
+}
+
+/* Cada compuerta es un grupo hoverable */
+.gate {
+  cursor: help;
+  outline: none;
+  transition: filter 0.2s ease;
+}
+
+.gate:focus {
+  outline: none;
+}
+
+.gate:focus-visible .hitArea {
+  stroke: rgba(0, 212, 228, 0.8);
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+  fill: rgba(0, 212, 228, 0.04);
+}
+
+.hitArea {
+  cursor: help;
+  pointer-events: all;
+}
+
+.gate:hover,
+.gateActive {
+  filter: drop-shadow(0 0 6px rgba(0, 212, 228, 0.7));
+}
+
+/* Animaciones pulsantes continuas (siempre activas, no solo en hover) */
+.gateH       { animation: gatePulseCyan 3s ease-in-out infinite; transform-origin: 125px 20px; transform-box: fill-box; }
+.gateCNOT    { animation: gatePulseMix 3s ease-in-out infinite 0.4s; transform-origin: 200px 30px; transform-box: fill-box; }
+.gateZ       { animation: gatePulseGreen 3s ease-in-out infinite 0.8s; transform-origin: 290px 20px; transform-box: fill-box; }
+.gateH2      { animation: gatePulsePurple 3s ease-in-out infinite 1.2s; transform-origin: 365px 40px; transform-box: fill-box; }
+.gateMeasure { animation: gatePulseCyan 3s ease-in-out infinite 1.6s; }
+
+@keyframes gatePulseCyan {
+  0%, 100% { opacity: 0.85; filter: none; }
+  50%      { opacity: 1; filter: drop-shadow(0 0 4px rgba(0, 212, 228, 0.5)); }
+}
+
+@keyframes gatePulseGreen {
+  0%, 100% { opacity: 0.85; filter: none; }
+  50%      { opacity: 1; filter: drop-shadow(0 0 4px rgba(0, 255, 159, 0.5)); }
+}
+
+@keyframes gatePulsePurple {
+  0%, 100% { opacity: 0.85; filter: none; }
+  50%      { opacity: 1; filter: drop-shadow(0 0 4px rgba(157, 111, 219, 0.55)); }
+}
+
+@keyframes gatePulseMix {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; filter: drop-shadow(0 0 4px rgba(0, 212, 228, 0.4)); }
+}
+
+/* Tooltip flotante (sigue al cursor) */
+.floatingTooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(20, 26, 32, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 212, 228, 0.35);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  z-index: 50;
+  white-space: nowrap;
+  max-width: min(90vw, 480px);
+  animation: tooltipIn 0.18s ease-out;
+}
+
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translate(-50%, calc(-100% - 4px)); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+.tooltipText {
+  font-family: var(--font-family-base);
+  font-size: 0.78rem;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.formula {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  background: rgba(0, 212, 228, 0.08);
+  border: 1px solid rgba(0, 212, 228, 0.25);
+  border-radius: var(--radius-sm);
+  color: rgba(0, 212, 228, 0.95);
+  font-size: 0.8em;
+}
+
+/* Etiqueta + hint debajo del circuito (siempre visible) */
+.circuitLabel {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem 0.7rem;
+  margin: 0.25rem 0 0;
+  font-family: var(--font-family-base);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.hintInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--color-accent);
+  opacity: 0.75;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: rgba(0, 212, 228, 0.05);
+  border: 1px solid rgba(0, 212, 228, 0.15);
+}
+
+.hintDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 212, 228, 0.7);
+  animation: hintPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.4); }
+}

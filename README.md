@@ -2,6 +2,8 @@
 
 <sub>🇬🇧 <b>English</b>  ·  <a href="./README.es.md">🇪🇸 Español</a></sub>
 
+<img src="docs/assets/logo.png" alt="Entangle logo" width="160" />
+
 # Entangle&nbsp;Visualizer
 
 **Interactive dashboard for the open-source quantum computing ecosystem.**
@@ -34,6 +36,11 @@ Explore organizations, repositories, developers and their collaboration networks
 It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core) API and turns its data into KPIs, interactive charts, an explorable collaboration graph, a 3D "quantum universe" view and a built-in AI assistant, with a quantum-inspired visual language and full multi-language support.
 
 > Built as the front-end component of a Bachelor's Final Project (TFG) at the **University of Castilla-La Mancha (UCLM)**.
+
+<p align="center">
+  <img src="docs/assets/dashboard-hero.png" alt="Entangle Visualizer dashboard" width="900" />
+  <br/><sub><i>Placeholder: hero screenshot of the dashboard.</i></sub>
+</p>
 
 ---
 
@@ -75,7 +82,17 @@ It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core)
 
 ## Screenshots
 
-Screenshots of the dashboard views (KPIs, collaboration network, quantum universe, AI chat) are available in the deployed application at [blue-rock-0771cc403.1.azurestaticapps.net](https://blue-rock-0771cc403.1.azurestaticapps.net).
+<p align="center">
+  <img src="docs/assets/screenshot-kpis.png" alt="KPIs and charts" width="430" />
+  <img src="docs/assets/screenshot-network.png" alt="Collaboration network" width="430" />
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-universe.png" alt="3D quantum universe" width="430" />
+  <img src="docs/assets/screenshot-chat.png" alt="AI assistant" width="430" />
+</p>
+<p align="center">
+  <sub><i>Placeholders: replace with final captures of each major view.</i></sub>
+</p>
 
 ---
 

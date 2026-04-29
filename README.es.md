@@ -2,6 +2,8 @@
 
 <sub><a href="./README.md">🇬🇧 English</a>  ·  🇪🇸 <b>Español</b></sub>
 
+<img src="docs/assets/logo.png" alt="Logo de Entangle" width="160" />
+
 # Entangle&nbsp;Visualizer
 
 **Dashboard interactivo del ecosistema de computación cuántica de código abierto.**
@@ -34,6 +36,11 @@ Explora organizaciones, repositorios, desarrolladores y sus redes de colaboraci�
 Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core) y convierte sus datos en KPIs, gráficos interactivos, un grafo de colaboración explorable, una vista 3D del "universo cuántico" y un asistente IA integrado, con un lenguaje visual cuántico y soporte multi-idioma completo.
 
 > Desarrollado como componente frontend de un Trabajo Fin de Grado en la **Universidad de Castilla-La Mancha (UCLM)**.
+
+<p align="center">
+  <img src="docs/assets/dashboard-hero.png" alt="Dashboard de Entangle Visualizer" width="900" />
+  <br/><sub><i>Placeholder: captura principal del dashboard.</i></sub>
+</p>
 
 ---
 
@@ -75,7 +82,17 @@ Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Cor
 
 ## Capturas
 
-Las capturas de las vistas del dashboard (KPIs, red de colaboración, universo cuántico, chat con IA) están disponibles en la aplicación desplegada en [blue-rock-0771cc403.1.azurestaticapps.net](https://blue-rock-0771cc403.1.azurestaticapps.net).
+<p align="center">
+  <img src="docs/assets/screenshot-kpis.png" alt="KPIs y gráficos" width="430" />
+  <img src="docs/assets/screenshot-network.png" alt="Red de colaboración" width="430" />
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-universe.png" alt="Universo cuántico 3D" width="430" />
+  <img src="docs/assets/screenshot-chat.png" alt="Asistente IA" width="430" />
+</p>
+<p align="center">
+  <sub><i>Placeholders: sustitúyelos por capturas finales de cada vista.</i></sub>
+</p>
 
 ---
 

@@ -7,95 +7,11 @@
  *   Phase 3: entidades similares (pesado - itera todos los nodos del tipo)
  */
 
-// ============================================================================
-// SIBLING ORG DETECTION — duplicate for worker (no shared scope)
-// ============================================================================
-function _areSiblingOrgs(loginA, loginB) {
-  if (!loginA || !loginB) return false
-  const la = loginA.toLowerCase(), lb = loginB.toLowerCase()
-  if (la === lb) return true
-  // PRONG 1 — Token-based: first token match (≥4 chars), one must be single-token
-  const ta = la.split(/[-_.\s]+/).filter(Boolean)
-  const tb = lb.split(/[-_.\s]+/).filter(Boolean)
-  if (ta.length && tb.length && ta[0].length >= 4 && ta[0] === tb[0]) {
-    if (ta.length === 1 || tb.length === 1) return true
-  }
-  // PRONG 2 — Prefix-based: shorter normalised prefix of longer, ratio ≤ 3
-  const a = la.replace(/[-_\s.]+/g, ''), b = lb.replace(/[-_\s.]+/g, '')
-  if (!a || !b) return false
-  const [s, l] = a.length <= b.length ? [a, b] : [b, a]
-  if (s.length >= 4 && l.startsWith(s) && l.length / s.length <= 3.0) return true
-  return false
-}
-
-// ============================================================================
-// JENKS NATURAL BREAKS - clasificación data-driven (Fisher 1958)
-// ============================================================================
-// Misma implementación que computeLayout.worker.js.
-// Encuentra k fronteras naturales minimizando la varianza intra-clase (SDCM).
-function jenksNaturalBreaks(data, nClasses) {
-  const sorted = [...data].sort((a, b) => a - b)
-  const n = sorted.length
-  if (n <= nClasses) {
-    const step = n > 1 ? (sorted[n - 1] - sorted[0]) / nClasses : sorted[0]
-    return {
-      boundaries: Array.from({length: nClasses - 1}, (_, i) => sorted[0] + step * (i + 1)),
-      sorted
-    }
-  }
-  const lower = Array.from({length: n + 1}, () => new Int32Array(nClasses + 1))
-  const vari = Array.from({length: n + 1}, () => {
-    const r = new Float64Array(nClasses + 1); r.fill(Infinity); return r
-  })
-  for (let j = 1; j <= nClasses; j++) { lower[1][j] = 1; vari[1][j] = 0 }
-  for (let l = 2; l <= n; l++) {
-    let sum = 0, sumSq = 0, w = 0
-    for (let m = 1; m <= l; m++) {
-      const i3 = l - m + 1
-      const val = sorted[i3 - 1]
-      w++; sum += val; sumSq += val * val
-      const v = sumSq - (sum * sum) / w
-      if (i3 > 1) {
-        for (let j = 2; j <= nClasses; j++) {
-          const cost = v + vari[i3 - 1][j - 1]
-          if (cost < vari[l][j]) { lower[l][j] = i3; vari[l][j] = cost }
-        }
-      }
-    }
-    lower[l][1] = 1
-    vari[l][1] = sumSq - (sum * sum) / w
-  }
-  const classStarts = new Array(nClasses)
-  classStarts[0] = 0
-  let k = n
-  for (let j = nClasses; j >= 2; j--) {
-    classStarts[j - 1] = lower[k][j] - 1
-    k = lower[k][j] - 1
-  }
-  const boundaries = []
-  for (let c = 1; c < nClasses; c++) {
-    boundaries.push((sorted[classStarts[c] - 1] + sorted[classStarts[c]]) / 2)
-  }
-  return { boundaries, sorted }
-}
-
-// ============================================================================
-// PERCENTILE RANK - posición relativa en la distribución (0-1)
-// ============================================================================
-// Binary search: fracción de la población con valor inferior al dado.
-// Incluye medio punto por empates (CDF mid-rank).
-function percentileRank(sorted, value) {
-  if (!sorted || sorted.length === 0) return 0
-  const n = sorted.length
-  // bisectLeft: primer índice donde sorted[i] >= value
-  let lo = 0, hi = n
-  while (lo < hi) { const m = (lo + hi) >> 1; sorted[m] < value ? lo = m + 1 : hi = m }
-  // bisectRight: primer índice donde sorted[i] > value
-  let lo2 = lo, hi2 = n
-  while (lo2 < hi2) { const m = (lo2 + hi2) >> 1; sorted[m] <= value ? lo2 = m + 1 : hi2 = m }
-  // lo = count below, lo2-lo = count equal
-  return (lo + 0.5 * (lo2 - lo)) / n
-}
+import {
+  areSiblingOrgs as _areSiblingOrgs,
+  jenksNaturalBreaks,
+  percentileRank,
+} from './_shared.js'
 
 // ============================================================================
 // POPULATION STATS - distribuciones por tipo para normalización data-driven

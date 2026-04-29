@@ -1,0 +1,179 @@
+/* === Halo atómico (modelo de Bohr) alrededor del logo === */
+
+.atom {
+  position: absolute;
+  /* Centrado explícito sobre el logo, sin depender de inset */
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  display: block;
+  opacity: 0;
+  animation: atomFadeIn 1.4s ease-out 0.4s forwards;
+  perspective: 240px;
+  perspective-origin: 50% 50%;
+}
+
+@keyframes atomFadeIn {
+  to { opacity: 1; }
+}
+
+/* Órbitas: ancladas al centro (0,0) del .atom mediante position:absolute */
+.shell {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+.shell1 {
+  /* Plana, ligeramente aplastada vertical, rotación horaria */
+  animation: shell1Spin 9s linear infinite;
+}
+
+.shell2 {
+  /* Inclinada hacia el observador (eje X), opuesta */
+  transform: rotateX(60deg) rotateZ(35deg);
+  animation: shell2Spin 11s linear infinite reverse;
+}
+
+.shell3 {
+  /* Inclinada al otro lado, periodo distinto */
+  transform: rotateX(-55deg) rotateZ(-20deg);
+  animation: shell3Spin 13s linear infinite;
+}
+
+@keyframes shell1Spin {
+  to { transform: rotateZ(360deg); }
+}
+
+@keyframes shell2Spin {
+  from { transform: rotateX(60deg) rotateZ(0deg); }
+  to   { transform: rotateX(60deg) rotateZ(360deg); }
+}
+
+@keyframes shell3Spin {
+  from { transform: rotateX(-55deg) rotateZ(0deg); }
+  to   { transform: rotateX(-55deg) rotateZ(360deg); }
+}
+
+/* Electrones: pequeños puntos brillantes anclados al borde de cada órbita */
+.electron {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  margin: -2px 0 0 -2px;
+}
+
+/* Forma elíptica: cada electrón orbita siguiendo una elipse animada */
+.shell1 .electron {
+  animation: orbit1 9s linear infinite, twinkle 4s ease-in-out infinite;
+}
+
+.shell2 .electron {
+  animation: orbit2 11s linear infinite, twinkle 4s ease-in-out infinite 1s;
+}
+
+.shell3 .electron {
+  animation: orbit3 13s linear infinite, twinkle 4s ease-in-out infinite 2s;
+}
+
+/* Las elipses se logran combinando rotación del shell con translateX a un radio */
+@keyframes orbit1 {
+  0%   { transform: translateX(44px) translateY(0); }
+  25%  { transform: translateX(0) translateY(18px); }
+  50%  { transform: translateX(-44px) translateY(0); }
+  75%  { transform: translateX(0) translateY(-18px); }
+  100% { transform: translateX(44px) translateY(0); }
+}
+
+@keyframes orbit2 {
+  0%   { transform: translateX(42px) translateY(0); }
+  25%  { transform: translateX(0) translateY(20px); }
+  50%  { transform: translateX(-42px) translateY(0); }
+  75%  { transform: translateX(0) translateY(-20px); }
+  100% { transform: translateX(42px) translateY(0); }
+}
+
+@keyframes orbit3 {
+  0%   { transform: translateX(40px) translateY(0); }
+  25%  { transform: translateX(0) translateY(16px); }
+  50%  { transform: translateX(-40px) translateY(0); }
+  75%  { transform: translateX(0) translateY(-16px); }
+  100% { transform: translateX(40px) translateY(0); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.45; filter: blur(0); }
+  50%      { opacity: 0.95; filter: blur(0.4px); }
+}
+
+/* Colores de los electrones */
+.cyan {
+  background: rgba(0, 212, 228, 0.7);
+  box-shadow: 0 0 5px rgba(0, 212, 228, 0.5);
+}
+
+.purple {
+  background: rgba(157, 111, 219, 0.7);
+  box-shadow: 0 0 5px rgba(157, 111, 219, 0.5);
+}
+
+/* Trazas tenues de las elipses (svg) - centrado en el mismo punto que .atom */
+.shellTraces {
+  position: absolute;
+  top: -50px;
+  left: -50px;
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.shellPath {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+  transform-origin: center;
+}
+
+.shell1Path { animation: pathSpin1 9s linear infinite; }
+
+.shell2Path {
+  transform: rotateX(60deg) rotateZ(35deg);
+  animation: pathSpin2 11s linear infinite reverse;
+}
+
+.shell3Path {
+  transform: rotateX(-55deg) rotateZ(-20deg);
+  animation: pathSpin3 13s linear infinite;
+}
+
+@keyframes pathSpin1 {
+  to { transform: rotateZ(360deg); }
+}
+
+@keyframes pathSpin2 {
+  from { transform: rotateX(60deg) rotateZ(0deg); }
+  to   { transform: rotateX(60deg) rotateZ(360deg); }
+}
+
+@keyframes pathSpin3 {
+  from { transform: rotateX(-55deg) rotateZ(0deg); }
+  to   { transform: rotateX(-55deg) rotateZ(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell1, .shell2, .shell3,
+  .shell1 .electron, .shell2 .electron, .shell3 .electron,
+  .shell1Path, .shell2Path, .shell3Path {
+    animation: none !important;
+  }
+}

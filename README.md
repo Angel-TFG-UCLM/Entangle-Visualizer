@@ -16,6 +16,9 @@ Explore organizations, repositories, developers and their collaboration networks
 [![Recharts](https://img.shields.io/badge/Recharts-3-FF6384)](https://recharts.org/)
 [![i18n](https://img.shields.io/badge/i18n-5%20languages-4DB6AC)](./src/i18n/locales)
 [![Azure Static Web Apps](https://img.shields.io/badge/Azure-Static%20Web%20Apps-0078D4?logo=microsoftazure&logoColor=white)](https://azure.microsoft.com/products/app-service/static)
+[![Tests](https://img.shields.io/badge/tests-vitest-FCC72B?logo=vitest&logoColor=black)](./src/test)
+[![Coverage](https://img.shields.io/badge/coverage-62%25-brightgreen?logo=codecov&logoColor=white)](#testing)
+[![Quality Gate](https://img.shields.io/badge/quality%20gate-passed-brightgreen?logo=sonarqube&logoColor=white)](#quality--code-analysis)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 [**Open app**](https://blue-rock-0771cc403.1.azurestaticapps.net) ·
@@ -52,6 +55,8 @@ It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core)
 - [Available scripts](#available-scripts)
 - [Internationalisation](#internationalisation)
 - [Performance](#performance)
+- [Testing](#testing)
+- [Quality & Code Analysis](#quality--code-analysis)
 - [Deployment](#deployment)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -226,6 +231,67 @@ A few of the techniques used to keep the dashboard snappy on real datasets:
 - **GZip compression** end-to-end (FastAPI middleware + Azure SWA).
 - **CSS Modules** for scoped, dead-code-friendly styling.
 - **Skeletons & graceful fallbacks** while data is loading or the backend is unreachable.
+
+---
+
+## Testing
+
+Unit tests run with **Vitest** + **@testing-library/react**:
+
+```bash
+# Run the full suite
+npm test
+
+# With coverage (writes to coverage/lcov.info)
+npm run test:coverage
+```
+
+The suite covers Zustand stores, the HTTP service layer, custom hooks and the
+`ErrorBoundary` component. 3D scenes and visual-only components are excluded
+from coverage by design (they are validated visually).
+
+---
+
+## Quality & Code Analysis
+
+Code is analysed with **SonarQube Community Edition** (self-hosted in Docker) against a custom Quality Gate called **«Entangle»**, defined in the project's Bachelor's Thesis report. The gate enforces nine conditions:
+
+| Metric | Operator | Threshold |
+|---|---|---|
+| Reliability Rating | ≤ | C |
+| Security Rating | ≤ | A |
+| Maintainability Rating | ≤ | B |
+| Coverage | ≥ | 60 % |
+| Duplicated Lines Density | ≤ | 5 % |
+| Duplication on New Code | ≤ | 3 % |
+| New Issues | ≤ | 0 |
+| Security Hotspots Reviewed | ≥ | 80 % |
+| Vulnerabilities | ≤ | 0 |
+
+**Latest results for `entangle-frontend`**:
+
+| Metric | Value |
+|---|---|
+| Lines of code | 14 040 |
+| Files | 34 |
+| **Quality Gate** | ✅ **PASSED** |
+| Coverage | **62.6 %** |
+| Duplicated lines | **4.5 %** |
+| Bugs | 0 (low severity, accepted) |
+| Vulnerabilities | 0 |
+| Security Hotspots reviewed | 100 % |
+| Reliability / Security / Maintainability | **A / A / A** |
+
+A second analysis runs automatically on every push via SonarQube Cloud (free plan) at <https://sonarcloud.io/project/overview?id=Angel-TFG-UCLM_Entangle-Visualizer>. The cloud free plan applies the built-in *Sonar way* gate; the custom **«Entangle»** gate is enforced locally.
+
+To reproduce the local analysis:
+
+```powershell
+$env:SONAR_LOCAL_TOKEN = "squ_xxxxxxxxxxxx"
+./scripts/Run-LocalSonar.ps1
+```
+
+See [`LOCAL_SONAR.md`](../LOCAL_SONAR.md) for full setup instructions.
 
 ---
 

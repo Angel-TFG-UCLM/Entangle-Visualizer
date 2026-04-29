@@ -28,12 +28,22 @@
       "checkingConnection": "Verificando conexão...",
       "online": "Backend Online",
       "offline": "Backend Offline",
-      "connectionError": "Erro de conexão com o backend"
+      "connectionError": "Erro de conexão com o backend",
+      "latency": "Latência",
+      "region": "Região",
+      "lastSync": "Última sincronia",
+      "never": "nunca",
+      "justNow": "agora mesmo",
+      "minutesAgo": "há {{count}} min",
+      "hoursAgo": "há {{count}}h",
+      "daysAgo": "há {{count}}d",
+      "clickToRefresh": "Clica para verificar a conexão"
     },
     "header": {
       "favorites": "Favoritos & Vistas Personalizadas",
       "refresh": "Recalcular métricas do dashboard",
-      "refreshButton": "Atualizar"
+      "refreshButton": "Atualizar",
+      "lastUpdated": "Dados de"
     },
     "offline": {
       "banner": "Decoerência detetada - Backend offline - Dados exibidos são simulados",
@@ -42,10 +52,33 @@
     },
     "footer": {
       "circuitLabel": "Circuito Par de Bell - Estado maximamente entrelaçado",
+      "circuitHint": "Passe o cursor sobre as portas para descobrir a sua função",
+      "gates": {
+        "hadamard": "Porta Hadamard - cria sobreposição: |0⟩ → (|0⟩+|1⟩)/√2",
+        "cnot": "Porta CNOT - entrelaça dois qubits: o controlo inverte o alvo",
+        "pauliZ": "Porta Pauli-Z - aplica fase: |1⟩ → -|1⟩, |0⟩ inalterado",
+        "hadamard2": "Hadamard sobre o segundo qubit - completa a base de Bell",
+        "measure": "Medição - colapsa a sobreposição num valor clássico",
+        "bellState": "Estado de Bell |Φ⁺⟩ = (|00⟩+|11⟩)/√2: máximo entrelaçamento"
+      },
       "tagline": "Quantum Software Ecosystem Analytics",
       "year": "© 2026",
       "project": "Trabalho de Fim de Curso",
-      "university": "Universidade de Castilla-La Mancha"
+      "university": "Universidade de Castilla-La Mancha",
+      "madeBy": "Ángel Luis Lara Martín",
+      "version": "v",
+      "links": {
+        "github": "Código no GitHub",
+        "linkedin": "LinkedIn do autor",
+        "memoria": "Memória do TFG (PDF)",
+        "api": "Documentação da API"
+      },
+      "stats": {
+        "label": "Ecossistema quântico mapeado",
+        "repos": "repositórios",
+        "users": "programadores",
+        "orgs": "organizações"
+      }
     }
   },
   "nav": {

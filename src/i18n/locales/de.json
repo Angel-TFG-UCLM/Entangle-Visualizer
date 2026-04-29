@@ -28,12 +28,22 @@
       "checkingConnection": "Verbindung wird überprüft...",
       "online": "Backend Online",
       "offline": "Backend Offline",
-      "connectionError": "Verbindungsfehler mit dem Backend"
+      "connectionError": "Verbindungsfehler mit dem Backend",
+      "latency": "Latenz",
+      "region": "Region",
+      "lastSync": "Letzte Synchronisierung",
+      "never": "nie",
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {{count}}min",
+      "hoursAgo": "vor {{count}}h",
+      "daysAgo": "vor {{count}}T",
+      "clickToRefresh": "Klicken zum erneuten Verbinden"
     },
     "header": {
       "favorites": "Favoriten & Benutzerdefinierte Ansichten",
       "refresh": "Dashboard-Metriken neu berechnen",
-      "refreshButton": "Aktualisieren"
+      "refreshButton": "Aktualisieren",
+      "lastUpdated": "Daten vom"
     },
     "offline": {
       "banner": "Dekohärenz erkannt - Backend offline - Angezeigte Daten sind simuliert",
@@ -42,10 +52,33 @@
     },
     "footer": {
       "circuitLabel": "Bell-Paar-Schaltung - Maximal verschränkter Zustand",
+      "circuitHint": "Bewegen Sie die Maus über die Gatter, um ihre Funktion zu entdecken",
+      "gates": {
+        "hadamard": "Hadamard-Gatter - erzeugt Überlagerung: |0⟩ → (|0⟩+|1⟩)/√2",
+        "cnot": "CNOT-Gatter - verschränkt zwei Qubits: Kontrollqubit invertiert das Zielqubit",
+        "pauliZ": "Pauli-Z-Gatter - wendet Phase an: |1⟩ → -|1⟩, |0⟩ bleibt unverändert",
+        "hadamard2": "Hadamard auf zweitem Qubit - vervollständigt die Bell-Basis",
+        "measure": "Messung - kollabiert die Überlagerung zu einem klassischen Wert",
+        "bellState": "Bell-Zustand |Φ⁺⟩ = (|00⟩+|11⟩)/√2: maximale Verschränkung"
+      },
       "tagline": "Quantum Software Ecosystem Analytics",
       "year": "© 2026",
       "project": "Abschlussarbeit",
-      "university": "Universität Castilla-La Mancha"
+      "university": "Universität Castilla-La Mancha",
+      "madeBy": "Ángel Luis Lara Martín",
+      "version": "v",
+      "links": {
+        "github": "Quellcode auf GitHub",
+        "linkedin": "LinkedIn des Autors",
+        "memoria": "Bachelorarbeit (PDF)",
+        "api": "API-Dokumentation"
+      },
+      "stats": {
+        "label": "Kartiertes Quanten-Ökosystem",
+        "repos": "Repositories",
+        "users": "Entwickler",
+        "orgs": "Organisationen"
+      }
     }
   },
   "nav": {

@@ -14,7 +14,7 @@
 
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
-import { Server, RefreshCw, Star } from 'lucide-react'
+import { RefreshCw, Star } from 'lucide-react'
 import { FaExclamationTriangle } from 'react-icons/fa'
 import { useDashboardStore } from './store/dashboardStore'
 import useFavoritesStore from './store/favoritesStore'
@@ -33,6 +33,13 @@ import ViewBar from './components/Dashboard/ViewBar'
 import DevMenu from './components/Dashboard/DevMenu'
 import AdminPanel from './components/Dashboard/AdminPanel'
 import QuantumChat from './components/Dashboard/QuantumChat'
+import BackendStatusBadge from './components/BackendStatusBadge'
+import LastUpdatedBadge from './components/LastUpdatedBadge'
+import BellCircuit from './components/BellCircuit'
+import FooterExtra from './components/FooterExtra'
+import TaglineRotator from './components/TaglineRotator'
+import LogoQuantumParticles from './components/LogoQuantumParticles'
+import Tooltip from './components/Tooltip'
 import FloatingChat from './components/Dashboard/FloatingChat'
 import { useDevStore } from './store/devStore'
 import { useTranslation } from 'react-i18next'
@@ -53,6 +60,8 @@ function App() {
   const [apiStatus, setApiStatus] = useState({
     status: 'checking', // 'checking' | 'online' | 'offline'
     message: t('app.status.checkingConnection'),
+    latencyMs: null,
+    lastCheckedAt: null,
   })
 
   const [isLoading, setIsLoading] = useState(true)
@@ -153,6 +162,8 @@ function App() {
         setApiStatus({
           status: healthResult.status,
           message: healthResult.message,
+          latencyMs: healthResult.latencyMs ?? null,
+          lastCheckedAt: healthResult.timestamp || new Date().toISOString(),
         })
 
         // Backend online → Cargar métricas pre-calculadas del backend
@@ -218,6 +229,8 @@ function App() {
         setApiStatus({
           status: 'offline',
           message: t('app.status.connectionError'),
+          latencyMs: null,
+          lastCheckedAt: new Date().toISOString(),
         })
 
         // Reintentar si no hemos alcanzado el límite
@@ -386,7 +399,36 @@ function App() {
       }, 2500)
     }
   }
-  
+
+  /**
+   * Re-comprueba el health del backend bajo demanda.
+   * `silent=true` (polling automático) → no cambia status a 'checking'
+   * `silent=false` (click manual) → muestra el estado 'checking' brevemente
+   */
+  async function handleHealthRecheck(silent = false) {
+    if (!silent) {
+      setApiStatus(prev => ({ ...prev, status: 'checking' }))
+    }
+    try {
+      const result = await checkHealth()
+      setApiStatus(prev => ({
+        ...prev,
+        status: result.status,
+        message: result.message,
+        latencyMs: result.latencyMs ?? null,
+        lastCheckedAt: result.timestamp || new Date().toISOString(),
+      }))
+    } catch {
+      setApiStatus(prev => ({
+        ...prev,
+        status: 'offline',
+        message: t('app.status.connectionError'),
+        latencyMs: null,
+        lastCheckedAt: new Date().toISOString(),
+      }))
+    }
+  }
+
   console.log('[App] Rendering main app - isLoading:', isLoading, 'apiStatus:', apiStatus.status)
   console.log('[App] Data disponible:', data ? 'SÍ' : 'NO')
 
@@ -399,18 +441,21 @@ function App() {
       {devFeatures.header !== false && <header className={`${styles.header} ${styles.fadeInStagger1}`}>
         <div className={styles.headerContent}>
           <div className={styles.branding}>
-            <img 
-              src="/logo.png" 
-              alt="ENTANGLE Logo" 
-              className={styles.headerLogo}
-            />
+            <span className={styles.headerLogoWrap}>
+              <img
+                src="/logo.png"
+                alt="ENTANGLE Logo"
+                className={styles.headerLogo}
+              />
+              <LogoQuantumParticles />
+            </span>
             <div className={styles.brandingText}>
               <h1 className={styles.logo}>
                 <span className={styles.logoAccent} data-text="ENTANGLE">ENTANGLE</span>
               </h1>
               <div className={styles.subtitleRow}>
                 <span className={styles.orbitalDot} />
-                <p className={styles.logoSub}>{t('app.subtitle')}</p>
+                <p className={styles.logoSub}><TaglineRotator /></p>
                 <span className={styles.orbitalDot} />
               </div>
             </div>
@@ -423,44 +468,43 @@ function App() {
 
             {/* Botón de favoritos */}
             {apiStatus.status === 'online' && (
-              <button 
-                className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
-                onClick={() => setShowFavoritesPanel(prev => !prev)}
-                title={t('app.header.favorites')}
-              >
-                <Star size={16} fill={favoritesCount > 0 ? '#ffd93d' : 'none'} color={favoritesCount > 0 ? '#ffd93d' : 'currentColor'} />
-                {favoritesCount > 0 && <span className={styles.favoritesCount}>{favoritesCount}</span>}
-              </button>
+              <Tooltip label={t('app.header.favorites')}>
+                <button
+                  className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
+                  onClick={() => setShowFavoritesPanel(prev => !prev)}
+                  aria-label={t('app.header.favorites')}
+                >
+                  <Star size={16} fill={favoritesCount > 0 ? '#ffd93d' : 'none'} color={favoritesCount > 0 ? '#ffd93d' : 'currentColor'} />
+                  {favoritesCount > 0 && <span className={styles.favoritesCount}>{favoritesCount}</span>}
+                </button>
+              </Tooltip>
             )}
 
             {/* Botón de refresh métricas */}
             {apiStatus.status === 'online' && (
-              <button 
-                className={styles.refreshButton}
-                onClick={handleRefreshMetrics}
-                disabled={isRefreshing}
-                title={t('app.header.refresh')}
-              >
-                <RefreshCw size={16} className={isRefreshing ? styles.spinning : ''} />
-                <span>{t('app.header.refreshButton')}</span>
-              </button>
+              <Tooltip label={t('app.header.refresh')}>
+                <button
+                  className={styles.refreshButton}
+                  onClick={handleRefreshMetrics}
+                  disabled={isRefreshing}
+                  aria-label={t('app.header.refresh')}
+                >
+                  <RefreshCw size={16} className={isRefreshing ? styles.spinning : ''} />
+                  <span>{t('app.header.refreshButton')}</span>
+                </button>
+              </Tooltip>
             )}
 
-            {/* Indicador de estado del backend - notación cuántica */}
-            <div className={styles.statusBadge} data-status={apiStatus.status}>
-              <span className={styles.statusQubit}>
-                {apiStatus.status === 'online' && '|1⟩'}
-                {apiStatus.status === 'offline' && '|0⟩'}
-                {apiStatus.status === 'checking' && 'α|0⟩+β|1⟩'}
-              </span>
-              <Server size={18} className={styles.statusIcon} />
-              <span className={styles.statusText}>
-                {apiStatus.status === 'checking' && t('app.status.checking')}
-                {apiStatus.status === 'online' && t('app.status.online')}
-                {apiStatus.status === 'offline' && t('app.status.offline')}
-              </span>
-              <div className={styles.statusIndicator}></div>
-            </div>
+            {/* Indicador "datos de hace X" */}
+            {apiStatus.status === 'online' && <LastUpdatedBadge />}
+
+            {/* Indicador del estado del backend con tooltip rico */}
+            <BackendStatusBadge
+              status={apiStatus.status}
+              latencyMs={apiStatus.latencyMs}
+              lastCheckedAt={apiStatus.lastCheckedAt}
+              onRecheck={handleHealthRecheck}
+            />
           </div>
         </div>
       </header>}
@@ -637,55 +681,7 @@ function App() {
         <div className={styles.footerContent}>
           {/* Circuito cuántico decorativo */}
           <div className={styles.footerCircuit}>
-            <svg viewBox="0 0 600 60" className={styles.circuitSvg} preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <linearGradient id="circuitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="rgba(0, 212, 228, 0.05)" />
-                  <stop offset="15%" stopColor="rgba(0, 212, 228, 0.6)" />
-                  <stop offset="50%" stopColor="rgba(157, 111, 219, 0.6)" />
-                  <stop offset="85%" stopColor="rgba(0, 212, 228, 0.6)" />
-                  <stop offset="100%" stopColor="rgba(0, 212, 228, 0.05)" />
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              {/* Líneas de qubit */}
-              <line x1="50" y1="20" x2="550" y2="20" stroke="url(#circuitGrad)" strokeWidth="1.5" />
-              <line x1="50" y1="40" x2="550" y2="40" stroke="url(#circuitGrad)" strokeWidth="1.5" />
-              {/* Etiquetas de qubit */}
-              <text x="30" y="24" fill="rgba(0, 212, 228, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
-              <text x="30" y="44" fill="rgba(157, 111, 219, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="end">|0⟩</text>
-              {/* Puerta Hadamard */}
-              <rect x="115" y="10" width="20" height="20" rx="3" fill="rgba(0, 212, 228, 0.06)" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" className={styles.gateH} />
-              <text x="125" y="24" fill="rgba(0, 212, 228, 0.9)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
-              {/* CNOT */}
-              <circle cx="200" cy="20" r="6" fill="none" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" className={styles.gateCNOT} />
-              <line x1="200" y1="14" x2="200" y2="26" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
-              <line x1="194" y1="20" x2="206" y2="20" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
-              <line x1="200" y1="26" x2="200" y2="40" stroke="rgba(157, 111, 219, 0.6)" strokeWidth="1.5" strokeDasharray="3 2" />
-              <circle cx="200" cy="40" r="4" fill="rgba(157, 111, 219, 0.6)" className={styles.gateCNOT} />
-              {/* Puerta Z */}
-              <rect x="280" y="10" width="20" height="20" rx="3" fill="rgba(0, 255, 159, 0.06)" stroke="rgba(0, 255, 159, 0.6)" strokeWidth="1.5" className={styles.gateZ} />
-              <text x="290" y="24" fill="rgba(0, 255, 159, 0.8)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">Z</text>
-              {/* Segundo Hadamard */}
-              <rect x="355" y="30" width="20" height="20" rx="3" fill="rgba(157, 111, 219, 0.06)" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" className={styles.gateH2} />
-              <text x="365" y="44" fill="rgba(157, 111, 219, 0.9)" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="var(--font-family-mono)">H</text>
-              {/* Medición */}
-              <rect x="440" y="10" width="24" height="20" rx="3" fill="rgba(0, 212, 228, 0.06)" stroke="rgba(0, 212, 228, 0.6)" strokeWidth="1.5" className={styles.gateMeasure} />
-              <path d="M 446,26 Q 452,16 458,26" fill="none" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
-              <line x1="452" y1="20" x2="456" y2="14" stroke="rgba(0, 212, 228, 0.7)" strokeWidth="1.5" />
-              <rect x="440" y="30" width="24" height="20" rx="3" fill="rgba(157, 111, 219, 0.06)" stroke="rgba(157, 111, 219, 0.6)" strokeWidth="1.5" className={styles.gateMeasure} />
-              <path d="M 446,46 Q 452,36 458,46" fill="none" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" />
-              <line x1="452" y1="40" x2="456" y2="34" stroke="rgba(157, 111, 219, 0.7)" strokeWidth="1.5" />
-              {/* Estado final Bell */}
-              <text x="570" y="32" fill="rgba(0, 212, 228, 0.7)" fontSize="10" fontFamily="var(--font-family-mono)" textAnchor="start" filter="url(#glow)">|Φ⁺⟩</text>
-            </svg>
-            <p className={styles.circuitLabel}>{t('app.footer.circuitLabel')}</p>
+            <BellCircuit />
           </div>
 
           {/* Info del proyecto */}
@@ -694,7 +690,7 @@ function App() {
               <span className={styles.footerLogo}>ENTANGLE</span>
               <span className={styles.footerTagline}>{t('app.footer.tagline')}</span>
             </div>
-            
+
             <div className={styles.footerMeta}>
               <span className={styles.footerYear}>{t('app.footer.year')}</span>
               <span className={styles.footerDivider}>·</span>
@@ -702,6 +698,9 @@ function App() {
               <span className={styles.footerDivider}>·</span>
               <span className={styles.footerUniversity}>{t('app.footer.university')}</span>
             </div>
+
+            {/* Stats live + redes sociales + version */}
+            <FooterExtra />
           </div>
         </div>
       </footer>}

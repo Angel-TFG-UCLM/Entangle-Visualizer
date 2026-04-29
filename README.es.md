@@ -37,11 +37,6 @@ Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Cor
 
 > Desarrollado como componente frontend de un Trabajo Fin de Grado en la **Universidad de Castilla-La Mancha (UCLM)**.
 
-<p align="center">
-  <img src="docs/assets/dashboard-hero.png" alt="Dashboard de Entangle Visualizer" width="900" />
-  <br/><sub><i>Placeholder: captura principal del dashboard.</i></sub>
-</p>
-
 ---
 
 ## Tabla de contenidos
@@ -83,15 +78,29 @@ Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Cor
 ## Capturas
 
 <p align="center">
-  <img src="docs/assets/screenshot-kpis.png" alt="KPIs y gráficos" width="430" />
-  <img src="docs/assets/screenshot-network.png" alt="Red de colaboración" width="430" />
+  <img src="docs/assets/graphsES.png" alt="Dashboard analítico de Entangle Visualizer" width="900" />
+  <br/>
+  <sub><i><b>Dashboard analítico.</b> Top organizaciones, repositorios y usuarios, distribución de lenguajes y clasificación por disciplina con detección de puentes interdisciplinares.</i></sub>
 </p>
 <p align="center">
-  <img src="docs/assets/screenshot-universe.png" alt="Universo cuántico 3D" width="430" />
-  <img src="docs/assets/screenshot-chat.png" alt="Asistente IA" width="430" />
+  <img src="docs/assets/kpi-headerES.png" alt="Cabecera del dashboard con KPIs" width="900" />
+  <br/>
+  <sub><i><b>Cabecera del dashboard.</b> KPIs globales del ecosistema (repositorios, colaboradores y organizaciones), barra de búsqueda con IA y pestañas de exploración.</i></sub>
 </p>
 <p align="center">
-  <sub><i>Placeholders: sustitúyelos por capturas finales de cada vista.</i></sub>
+  <img src="docs/assets/2DES.png" alt="Red de colaboración" width="900" />
+  <br/>
+  <sub><i><b>Red de colaboración.</b> Grafo 2D force-directed con organizaciones, repositorios, bridge users y usuarios; filtros y métricas globales (bridge users, colaboradores, repositorios y centralidad media).</i></sub>
+</p>
+<p align="center">
+  <img src="docs/assets/UniverseES.png" alt="Universo cuántico 3D" width="900" />
+  <br/>
+  <sub><i><b>Universo cuántico 3D.</b> Vista inmersiva del ecosistema con lentes analíticas (comunidades, centralidad, resiliencia, intensidad, disciplinas, túnel) y filtrado por rango temporal.</i></sub>
+</p>
+<p align="center">
+  <img src="docs/assets/AIES.png" alt="Terminal Cuántico (chat IA)" width="900" />
+  <br/>
+  <sub><i><b>Terminal Cuántico.</b> Chat con IA (GPT-4o vía Azure AI Foundry) que responde mediante tool-calling sobre el dataset en vivo, devolviendo tablas y descripciones.</i></sub>
 </p>
 
 ---
@@ -341,7 +350,6 @@ Publicado bajo la [Licencia MIT](./LICENSE).
 
 - A la **Universidad de Castilla-La Mancha (UCLM)** y al tutor académico de este TFG, **Ricardo Pérez del Castillo** ([@ricpdc](https://github.com/ricpdc)).
 - A los mantenedores de **React**, **Vite**, **Three.js**, **Recharts**, **Zustand**, **i18next** y al ecosistema JavaScript en general.
-- Inspiración en los dashboards públicos de las comunidades de **Qiskit**, **Cirq** y **PennyLane**.
 
 <div align="center">
 

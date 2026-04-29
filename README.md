@@ -37,11 +37,6 @@ It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core)
 
 > Built as the front-end component of a Bachelor's Final Project (TFG) at the **University of Castilla-La Mancha (UCLM)**.
 
-<p align="center">
-  <img src="docs/assets/dashboard-hero.png" alt="Entangle Visualizer dashboard" width="900" />
-  <br/><sub><i>Placeholder: hero screenshot of the dashboard.</i></sub>
-</p>
-
 ---
 
 ## Table of contents
@@ -83,15 +78,29 @@ It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core)
 ## Screenshots
 
 <p align="center">
-  <img src="docs/assets/screenshot-kpis.png" alt="KPIs and charts" width="430" />
-  <img src="docs/assets/screenshot-network.png" alt="Collaboration network" width="430" />
+  <img src="docs/assets/dashboard-hero.png" alt="Entangle Visualizer analytics dashboard" width="900" />
+  <br/>
+  <sub><i><b>Analytics dashboard.</b> Top organizations, repositories and users, language distribution and discipline classification with interdisciplinary bridge detection.</i></sub>
 </p>
 <p align="center">
-  <img src="docs/assets/screenshot-universe.png" alt="3D quantum universe" width="430" />
-  <img src="docs/assets/screenshot-chat.png" alt="AI assistant" width="430" />
+  <img src="docs/assets/screenshot-kpis.png" alt="Dashboard header with KPIs" width="900" />
+  <br/>
+  <sub><i><b>Dashboard header.</b> Global ecosystem KPIs (repositories, collaborators and organizations), AI search bar and exploration tabs.</i></sub>
 </p>
 <p align="center">
-  <sub><i>Placeholders: replace with final captures of each major view.</i></sub>
+  <img src="docs/assets/screenshot-network.png" alt="Collaboration network" width="900" />
+  <br/>
+  <sub><i><b>Collaboration network.</b> Force-directed 2D graph with organizations, repositories, bridge users and users; filters and global metrics (bridge users, collaborators, repositories and average centrality).</i></sub>
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-universe.png" alt="3D quantum universe" width="900" />
+  <br/>
+  <sub><i><b>3D quantum universe.</b> Immersive view of the ecosystem with analytical lenses (communities, centrality, resilience, intensity, disciplines, tunnel) and time-range filtering.</i></sub>
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-chat.png" alt="Quantum Terminal (AI chat)" width="900" />
+  <br/>
+  <sub><i><b>Quantum Terminal.</b> AI chat (GPT-4o via Azure AI Foundry) answering via tool-calling over the live dataset, returning tables and descriptions.</i></sub>
 </p>
 
 ---
@@ -341,7 +350,6 @@ Released under the [MIT License](./LICENSE).
 
 - **University of Castilla-La Mancha (UCLM)** and the academic tutor of this TFG, **Ricardo Pérez del Castillo** ([@ricpdc](https://github.com/ricpdc)).
 - The maintainers of **React**, **Vite**, **Three.js**, **Recharts**, **Zustand**, **i18next** and the wider JavaScript ecosystem.
-- Inspiration from the public dashboards of the **Qiskit**, **Cirq** and **PennyLane** communities.
 
 <div align="center">
 

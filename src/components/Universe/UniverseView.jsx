@@ -32,6 +32,7 @@ import { FiX, FiUsers, FiGitBranch, FiGrid, FiZap, FiUser, FiMaximize2, FiMinimi
 import { useTranslation } from 'react-i18next'
 import BlackHoleExit from './BlackHoleExit'
 import BigBangEntry from './BigBangEntry'
+import { seededRandom, jenksNaturalBreaks } from './_shared.js'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -57,62 +58,6 @@ function isBotNode(n) {
   if (n.isBot) return true
   const login = (n.login || n.name || n.id?.replace('user_', '') || '').toLowerCase()
   return KNOWN_BOT_LOGINS.has(login) || login.endsWith('[bot]') || login.endsWith('-bot')
-}
-
-// Generador pseudo-aleatorio con semilla (para reproducibilidad visual)
-function seededRandom(seed) {
-  let s = seed
-  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646 }
-}
-
-// Algoritmo de Jenks Natural Breaks (Fisher-Jenks)
-// Clasifica datos 1D en k grupos minimizando la varianza intra-grupo.
-// Ref: Fisher, W.D. (1958) "On Grouping for Maximum Homogeneity"
-function jenksNaturalBreaks(data, nClasses) {
-  const sorted = [...data].sort((a, b) => a - b)
-  const n = sorted.length
-  if (n <= nClasses) {
-    const step = n > 1 ? (sorted[n - 1] - sorted[0]) / nClasses : sorted[0]
-    return {
-      boundaries: Array.from({length: nClasses - 1}, (_, i) => sorted[0] + step * (i + 1)),
-      classStarts: Array.from({length: nClasses}, (_, i) => Math.min(i, n - 1)),
-      sorted
-    }
-  }
-  const lower = Array.from({length: n + 1}, () => new Int32Array(nClasses + 1))
-  const vari = Array.from({length: n + 1}, () => {
-    const r = new Float64Array(nClasses + 1); r.fill(Infinity); return r
-  })
-  for (let j = 1; j <= nClasses; j++) { lower[1][j] = 1; vari[1][j] = 0 }
-  for (let l = 2; l <= n; l++) {
-    let sum = 0, sumSq = 0, w = 0
-    for (let m = 1; m <= l; m++) {
-      const i3 = l - m + 1
-      const val = sorted[i3 - 1]
-      w++; sum += val; sumSq += val * val
-      const v = sumSq - (sum * sum) / w
-      if (i3 > 1) {
-        for (let j = 2; j <= nClasses; j++) {
-          const cost = v + vari[i3 - 1][j - 1]
-          if (cost < vari[l][j]) { lower[l][j] = i3; vari[l][j] = cost }
-        }
-      }
-    }
-    lower[l][1] = 1
-    vari[l][1] = sumSq - (sum * sum) / w
-  }
-  const classStarts = new Array(nClasses)
-  classStarts[0] = 0
-  let k = n
-  for (let j = nClasses; j >= 2; j--) {
-    classStarts[j - 1] = lower[k][j] - 1
-    k = lower[k][j] - 1
-  }
-  const boundaries = []
-  for (let c = 1; c < nClasses; c++) {
-    boundaries.push((sorted[classStarts[c] - 1] + sorted[classStarts[c]]) / 2)
-  }
-  return { boundaries, classStarts, sorted }
 }
 
 // ============================================================================
@@ -6806,7 +6751,8 @@ export default function UniverseView() {
   const detailRequestIdRef = useRef(0)
   useEffect(() => {
     const w = new Worker(
-      new URL('./computeDetailData.worker.js', import.meta.url)
+      new URL('./computeDetailData.worker.js', import.meta.url),
+      { type: 'module' }
     )
     w.onmessage = (e) => {
       const { phase, data, requestId } = e.data

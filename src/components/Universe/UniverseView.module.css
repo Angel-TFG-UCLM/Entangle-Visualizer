@@ -31,6 +31,15 @@
      cada hijo interactivo activa pointer-events individualmente */
 }
 
+/* Cinematic Mode: tras 20s sin actividad, la HUD se desvanece para permitir
+   capturas limpias y una experiencia inmersiva. Reaparece (fade-in) al volver
+   a interactuar. Se aplica encima de .universeUIVisible: la opacidad final
+   gana, y la transiciÃ³n cubre tanto la entrada como la salida. */
+.universeUICinematic {
+  opacity: 0 !important;
+  transition: opacity 0.6s ease-in-out;
+}
+
 /* â”€â”€ Tour: ocultar UI gradualmente (excepto timeline y overlay) â”€â”€ */
 @keyframes tourUIFadeOut {
   from { opacity: 1; filter: blur(0); }

@@ -79,6 +79,15 @@
   transition: opacity 0.35s ease, transform 0.35s ease !important;
 }
 
+/* Cinematic Mode (Universo): el FAB se desvanece junto con el resto de la HUD
+   tras 20 s de inactividad, para permitir capturas limpias. Reaparece con
+   fade-in al detectar actividad del usuario. */
+.fabCinematicHidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.6s ease-in-out !important;
+}
+
 /* ─── Logo inside FAB ─── */
 .fabLogo {
   width: 30px;

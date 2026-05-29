@@ -24,6 +24,15 @@
   transform: translateY(-50%) translateX(0);
 }
 
+/* Cinematic Mode (Dashboard): tras 20 s de inactividad, el dock lateral se
+   desvanece para permitir capturas limpias y una experiencia mÃ¡s inmersiva.
+   Reaparece (fade-in) al detectar actividad del usuario. */
+.navCinematicHidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.6s ease-in-out !important;
+}
+
 /* === TRACK (contenedor de items) === */
 .navTrack {
   display: flex;

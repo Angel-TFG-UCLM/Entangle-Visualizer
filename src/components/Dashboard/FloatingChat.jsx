@@ -350,6 +350,7 @@ export default function FloatingChat() {
   const [isTourActive, setIsTourActive] = useState(false)
   const [isUniverseReady, setIsUniverseReady] = useState(false)
   const [isCinematic, setIsCinematic] = useState(false)
+  const [isDashboardCinematic, setIsDashboardCinematic] = useState(false)
   useEffect(() => {
     const check = () => {
       // Comparison floating indicator detection
@@ -362,13 +363,15 @@ export default function FloatingChat() {
       // Universe UI readiness — universeUIVisible class means loader finished
       const uiEl = document.querySelector('[class*="universeUIVisible"]')
       setIsUniverseReady(!!uiEl)
-      // Cinematic Mode — universeUICinematic class means user is idle
+      // Cinematic Mode (Universe) — universeUICinematic class means user is idle
       const cineEl = document.querySelector('[class*="universeUICinematic"]')
       setIsCinematic(!!cineEl)
+      // Cinematic Mode (Dashboard) — data attribute set by DashboardNav
+      setIsDashboardCinematic(document.body.dataset.dashboardCinematic === 'true')
     }
     check()
     const observer = new MutationObserver(check)
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-dashboard-cinematic'] })
     return () => observer.disconnect()
   }, [])
 
@@ -525,7 +528,7 @@ export default function FloatingChat() {
 
       {/* ═══ FAB Button ═══ */}
       <button
-        className={`${styles.fab} ${open ? styles.fabOpen : ''} ${hasFloatingIndicator && !open && !isUniverse ? styles.fabShifted : ''} ${isUniverse ? styles.fabUniverse : ''} ${isUniverse && !isUniverseReady ? styles.fabUniverseHidden : ''} ${isUniverse && isTourActive ? styles.fabTourHidden : ''} ${isUniverse && isCinematic && !open ? styles.fabCinematicHidden : ''}`}
+        className={`${styles.fab} ${open ? styles.fabOpen : ''} ${hasFloatingIndicator && !open && !isUniverse ? styles.fabShifted : ''} ${isUniverse ? styles.fabUniverse : ''} ${isUniverse && !isUniverseReady ? styles.fabUniverseHidden : ''} ${isUniverse && isTourActive ? styles.fabTourHidden : ''} ${isUniverse && isCinematic && !open ? styles.fabCinematicHidden : ''} ${!isUniverse && isDashboardCinematic && !open ? styles.fabCinematicHidden : ''}`}
         onClick={toggleChat}
         title={open ? t('chat.closeChat') : t('chat.chatWithAI')}
         aria-label={open ? t('chat.closeAssistant') : t('chat.openAssistant')}

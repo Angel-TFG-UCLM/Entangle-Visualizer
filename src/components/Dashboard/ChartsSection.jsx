@@ -13,7 +13,7 @@
  * @module ChartsSection
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { 
   FiUsers, FiCode, FiEye, FiPackage, FiStar, FiGitBranch, FiUserCheck, FiTarget 
@@ -82,7 +82,10 @@ function StaggeredTick({ x, y, payload, index, fill }) {
  * Hook para animaciones de scroll con Intersection Observer
  * Devuelve [ref, isVisible] - cuando el elemento entra en el viewport, isVisible se vuelve true
  */
-function useScrollAnimation(threshold = 0.3) {
+// Charts: threshold 0.5 para que cualquier chart anime solo cuando ya estÃ¡
+// la mitad dentro del viewport (asÃ­ el usuario lo estÃ¡ mirando directamente,
+// no procesando otros elementos de la pÃ¡gina).
+function useScrollAnimation(threshold = 0.5, rootMargin = '0px') {
   const [isVisible, setIsVisible] = useState(false)
   const observerRef = useRef(null)
 
@@ -102,11 +105,11 @@ function useScrollAnimation(threshold = 0.3) {
           observer.disconnect()
         }
       },
-      { threshold, rootMargin: '0px' }
+      { threshold, rootMargin }
     )
     observer.observe(node)
     observerRef.current = observer
-  }, [threshold, isVisible])
+  }, [threshold, rootMargin, isVisible])
 
   return [ref, isVisible]
 }
@@ -211,7 +214,7 @@ function FilterBadge({ value, onClear, label }) {
 /**
  * Componente principal de gráficos
  */
-export default function ChartsSection({ data }) {
+function ChartsSection({ data }) {
   const { t } = useTranslation()
   const { 
     selectedOrg, 
@@ -261,11 +264,11 @@ export default function ChartsSection({ data }) {
   const [detailClosing, setDetailClosing] = useState(false)
   
   // Animaciones de scroll
-  const [orgChartRef, orgChartVisible] = useScrollAnimation(0.3)
-  const [repoChartRef, repoChartVisible] = useScrollAnimation(0.3)
-  const [userChartRef, userChartVisible] = useScrollAnimation(0.3)
-  const [pieChartRef, pieChartVisible] = useScrollAnimation(0.3)
-  const [disciplineChartRef, disciplineChartVisible] = useScrollAnimation(0.3)
+  const [orgChartRef, orgChartVisible] = useScrollAnimation()
+  const [repoChartRef, repoChartVisible] = useScrollAnimation()
+  const [userChartRef, userChartVisible] = useScrollAnimation()
+  const [pieChartRef, pieChartVisible] = useScrollAnimation()
+  const [disciplineChartRef, disciplineChartVisible] = useScrollAnimation()
 
   // Refs para aplicar transiciones CSS inline a las barras SVG
   const orgBarContainerRef = useRef(null)
@@ -2555,7 +2558,7 @@ export default function ChartsSection({ data }) {
                       dataKey="value"
                       isAnimationActive={!hasAnimatedDisciplinePie}
                       animationBegin={0}
-                      animationDuration={800}
+                      animationDuration={1000}
                       animationEasing="ease-out"
                       style={{ cursor: 'pointer' }}
                       onClick={handleDisciplineSliceClick}
@@ -3480,3 +3483,10 @@ export default function ChartsSection({ data }) {
     </section>
   )
 }
+
+// Wrap in memo: ChartsSection es un componente muy pesado (3000+ líneas con Recharts).
+// Sin memo, cada re-render de App (p.ej. polling cada 15 s del backend status)
+// reconcilia todo el subtree y puede interrumpir las animaciones de Recharts,
+// haciendo que los pie charts se vean `a trompicones`.
+export default memo(ChartsSection)
+

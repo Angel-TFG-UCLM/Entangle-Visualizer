@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import styles from './BackendStatusBadge.module.css'
 
 const REGION_LABEL = 'Spain Central'
-const POLLING_INTERVAL_MS = 3_000  // refresco casi en tiempo real (3s)
+const POLLING_INTERVAL_MS = 15_000  // refresco razonable (15s) sin sobrecargar re-renders del padre
 
 function formatRelativeTime(t, isoString) {
   if (!isoString) return t('app.status.never')

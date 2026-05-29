@@ -6855,15 +6855,40 @@ export default function UniverseView() {
   // 4-bis. Cinematic Mode: tras 20s sin actividad, oculta toda la HUD del Universo
   //         para permitir capturas limpias y una experiencia inmersiva. La HUD
   //         reaparece (fade-in CSS) en cuanto el usuario interactúa con la pantalla.
-  //         Se desactiva durante el Tour (que tiene su propia narrativa visual),
-  //         cuando hay overlays modales abiertos (settings, ayuda) o cuando hay
-  //         una entidad focalizada (el panel lateral debe seguir visible).
+  //         Sólo debe activarse cuando el usuario está literalmente "mirando" el
+  //         universo en reposo: cualquier panel/modal/dropdown abierto se entiende
+  //         como interacción activa y desactiva la detección.
+  //         Detectamos vía DOM (MutationObserver) la ventana del chat IA y los
+  //         desplegables propios para evitar acoplar refs/stores cruzados.
+  const [interactivePanelsOpen, setInteractivePanelsOpen] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      // FloatingChat ventana abierta (cualquier clase que contenga "chatWindow"
+      // y NO "chatWindowClosing" — el cierre tiene su propia animación)
+      const chatEl = document.querySelector('[class*="chatWindow"]:not([class*="chatWindowClosing"])')
+      // Settings/help dropdown abierto en cualquier parte del Universo
+      const settingsEl = document.querySelector('[class*="settingsDropdown"]:not([class*="settingsDropdownClosing"])')
+      const helpEl = document.querySelector('[class*="helpDropdown"]:not([class*="helpDropdownClosing"])')
+      setInteractivePanelsOpen(!!(chatEl || settingsEl || helpEl))
+    }
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
+
   const cinematicEnabled =
     uiVisible &&
     !tourActive &&
     !showSettings &&
     !showHelp &&
-    !focusTarget
+    !focusTarget &&
+    !interactivePanelsOpen
   const { isIdle: cinematicMode } = useIdleTimer({
     timeoutMs: 20000,
     enabled: cinematicEnabled,

@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import BlackHoleExit from './BlackHoleExit'
 import BigBangEntry from './BigBangEntry'
 import { seededRandom, jenksNaturalBreaks } from './_shared.js'
+import { useIdleTimer } from '../../hooks/useIdleTimer'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -6851,6 +6852,23 @@ export default function UniverseView() {
     }
   }, [animationStarted, tourActive])
 
+  // 4-bis. Cinematic Mode: tras 20s sin actividad, oculta toda la HUD del Universo
+  //         para permitir capturas limpias y una experiencia inmersiva. La HUD
+  //         reaparece (fade-in CSS) en cuanto el usuario interactúa con la pantalla.
+  //         Se desactiva durante el Tour (que tiene su propia narrativa visual),
+  //         cuando hay overlays modales abiertos (settings, ayuda) o cuando hay
+  //         una entidad focalizada (el panel lateral debe seguir visible).
+  const cinematicEnabled =
+    uiVisible &&
+    !tourActive &&
+    !showSettings &&
+    !showHelp &&
+    !focusTarget
+  const { isIdle: cinematicMode } = useIdleTimer({
+    timeoutMs: 20000,
+    enabled: cinematicEnabled,
+  })
+
   // 5. Auto-tour: el loader se deja visible (z-10) detrás del overlay del tour (z-200)
   //    durante void/preludio. Cuando se dispara el Big Bang (preludio→génesis), el overlay
   //    transiciona de negro a transparente (2.5s) y las 3D deben verse → quitar loader.
@@ -7445,7 +7463,7 @@ export default function UniverseView() {
       )}
 
       {/* Header */}
-      <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''}`}>
+      <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''} ${cinematicMode ? styles.universeUICinematic : ''}`}>
       <header className={`${styles.header} ${tourUIClass}`}>
         <div className={styles.headerLeft}>
           <div className={styles.headerBrand}>

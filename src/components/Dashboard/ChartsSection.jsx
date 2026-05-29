@@ -275,6 +275,7 @@ export default function ChartsSection({ data }) {
   // Control para animación de Recharts (solo animar la primera vez en scroll)
   const [hasAnimatedOrgBars, setHasAnimatedOrgBars] = useState(false)
   const [hasAnimatedPie, setHasAnimatedPie] = useState(false)
+  const [hasAnimatedDisciplinePie, setHasAnimatedDisciplinePie] = useState(false)
   
   useEffect(() => {
     if (orgChartVisible && !hasAnimatedOrgBars) {
@@ -289,6 +290,17 @@ export default function ChartsSection({ data }) {
       return () => clearTimeout(timer)
     }
   }, [pieChartVisible, hasAnimatedPie])
+
+  // Discipline pie: same one-shot animation guard as the language pie above.
+  // Sin esto, los re-renders globales (p.ej. polling del badge de backend) re-
+  // disparaban la animaciÃ³n de Recharts cada pocos segundos y los labels de
+  // las disciplinas parpadeaban.
+  useEffect(() => {
+    if (disciplineChartVisible && !hasAnimatedDisciplinePie) {
+      const timer = setTimeout(() => setHasAnimatedDisciplinePie(true), 1200)
+      return () => clearTimeout(timer)
+    }
+  }, [disciplineChartVisible, hasAnimatedDisciplinePie])
 
   // Cerrar popover de "Otros" al hacer click fuera o pulsar Escape
   useEffect(() => {
@@ -2541,7 +2553,7 @@ export default function ChartsSection({ data }) {
                       outerRadius={140}
                       innerRadius={50}
                       dataKey="value"
-                      isAnimationActive={true}
+                      isAnimationActive={!hasAnimatedDisciplinePie}
                       animationBegin={0}
                       animationDuration={800}
                       animationEasing="ease-out"

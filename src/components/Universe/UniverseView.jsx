@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import BlackHoleExit from './BlackHoleExit'
 import BigBangEntry from './BigBangEntry'
 import { seededRandom, jenksNaturalBreaks } from './_shared.js'
+import { useIdleTimer } from '../../hooks/useIdleTimer'
 import styles from './UniverseView.module.css'
 
 // ============================================================================
@@ -6851,6 +6852,48 @@ export default function UniverseView() {
     }
   }, [animationStarted, tourActive])
 
+  // 4-bis. Cinematic Mode: tras 20s sin actividad, oculta toda la HUD del Universo
+  //         para permitir capturas limpias y una experiencia inmersiva. La HUD
+  //         reaparece (fade-in CSS) en cuanto el usuario interactúa con la pantalla.
+  //         Sólo debe activarse cuando el usuario está literalmente "mirando" el
+  //         universo en reposo: cualquier panel/modal/dropdown abierto se entiende
+  //         como interacción activa y desactiva la detección.
+  //         Detectamos vía DOM (MutationObserver) la ventana del chat IA y los
+  //         desplegables propios para evitar acoplar refs/stores cruzados.
+  const [interactivePanelsOpen, setInteractivePanelsOpen] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      // FloatingChat ventana abierta (cualquier clase que contenga "chatWindow"
+      // y NO "chatWindowClosing" — el cierre tiene su propia animación)
+      const chatEl = document.querySelector('[class*="chatWindow"]:not([class*="chatWindowClosing"])')
+      // Settings/help dropdown abierto en cualquier parte del Universo
+      const settingsEl = document.querySelector('[class*="settingsDropdown"]:not([class*="settingsDropdownClosing"])')
+      const helpEl = document.querySelector('[class*="helpDropdown"]:not([class*="helpDropdownClosing"])')
+      setInteractivePanelsOpen(!!(chatEl || settingsEl || helpEl))
+    }
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
+
+  const cinematicEnabled =
+    uiVisible &&
+    !tourActive &&
+    !showSettings &&
+    !showHelp &&
+    !focusTarget &&
+    !interactivePanelsOpen
+  const { isIdle: cinematicMode } = useIdleTimer({
+    timeoutMs: 20000,
+    enabled: cinematicEnabled,
+  })
+
   // 5. Auto-tour: el loader se deja visible (z-10) detrás del overlay del tour (z-200)
   //    durante void/preludio. Cuando se dispara el Big Bang (preludio→génesis), el overlay
   //    transiciona de negro a transparente (2.5s) y las 3D deben verse → quitar loader.
@@ -7445,7 +7488,7 @@ export default function UniverseView() {
       )}
 
       {/* Header */}
-      <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''}`}>
+      <div className={`${styles.universeUI} ${uiVisible ? styles.universeUIVisible : ''} ${cinematicMode ? styles.universeUICinematic : ''}`}>
       <header className={`${styles.header} ${tourUIClass}`}>
         <div className={styles.headerLeft}>
           <div className={styles.headerBrand}>

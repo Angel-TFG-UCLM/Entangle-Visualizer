@@ -39,8 +39,19 @@ It consumes the [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Core)
 
 ---
 
+## Architecture
+
+<p align="center">
+  <img src="docs/assets/architecture-overview.png" alt="Entangle system architecture" width="900" />
+  <br/>
+  <sub><i><b>Entangle system architecture.</b> Ingestion + enrichment pipeline (Entangle-Core, Container App Job) feeds Azure Cosmos DB for MongoDB vCore. The FastAPI service exposes 56 REST endpoints with SSE streaming to the Entangle-Visualizer frontend (2D Dashboard, 3D Universe, AI Chat). The Network Analysis engine runs on-demand from the API. The conversational agent on Azure AI Foundry uses GPT-4o with read-only tool-calling on MongoDB. IaC with Bicep, CI/CD via GitHub Actions, quality governed by SonarQube Cloud.</i></sub>
+</p>
+
+---
+
 ## Table of contents
 
+- [Architecture](#architecture)
 - [Highlights](#highlights)
 - [Screenshots](#screenshots)
 - [Tech stack](#tech-stack)

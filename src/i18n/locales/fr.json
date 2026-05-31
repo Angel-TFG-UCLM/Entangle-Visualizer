@@ -180,6 +180,8 @@
     "inNofTotal": "dans {{count}} sur {{total}} {{type}}",
     "noCoCollaborators": "Aucun co-collaborateur trouvé",
     "noSharedUsers": "Aucun utilisateur partagé trouvé",
+    "userNotFound": "Cet utilisateur n'est pas dans la base de données locale. Chargez d'abord son profil complet.",
+    "analysisError": "Impossible de terminer l'analyse. Veuillez réessayer.",
     "sharedUsersBetweenOrgs": "Utilisateurs partagés entre organisations",
     "sharedUsersBetweenRepos": "Utilisateurs partagés entre dépôts",
     "compRepos": "Dépôts",
@@ -559,7 +561,9 @@
     "colExpertise": "Expertise",
     "noCollaborators": "Aucun collaborateur",
     "moreRepos": "dépôts de plus…",
-    "moreOrgs": "+{{count}}"
+    "moreOrgs": "+{{count}}",
+    "loadingMore": "Chargement d'autres ponts… ({{shown}} sur {{total}})",
+    "endOfList": "✓ Affichage des {{total}} ponts interdisciplinaires"
   },
   "sankey": {
     "title": "Flux de Contributeurs",

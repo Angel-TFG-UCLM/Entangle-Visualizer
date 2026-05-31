@@ -6,14 +6,14 @@
  * con un gradiente cian→púrpura que refuerza la identidad visual de ENTANGLE.
  */
 
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, memo } from 'react'
 
 const PARTICLE_COUNT = 60
 const CONNECTION_DISTANCE = 140
 const PARTICLE_SPEED = 0.25
 const ENTANGLE_FLASH_INTERVAL = 4000 // ms entre flashes de entrelazamiento
 
-export default function QuantumBackground() {
+function QuantumBackground() {
   const canvasRef = useRef(null)
   const particlesRef = useRef([])
   const animFrameRef = useRef(null)
@@ -219,3 +219,9 @@ export default function QuantumBackground() {
     />
   )
 }
+
+// Wrap in memo: el componente no recibe props ni depende de estado externo,
+// así que NUNCA necesita re-renderizarse cuando su padre (App) re-render por
+// otros motivos (p.ej. polling de status del backend cada 15 s). Sin este
+// memo, cada update de App provocaba un micro-freeze visible en el canvas.
+export default memo(QuantumBackground)

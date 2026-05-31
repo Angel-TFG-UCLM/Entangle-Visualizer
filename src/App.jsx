@@ -16,6 +16,7 @@ import { useEffect, useState, lazy, Suspense } from 'react'
 import { checkHealth } from './services/api'
 import { RefreshCw, Star } from 'lucide-react'
 import { FaExclamationTriangle } from 'react-icons/fa'
+import { FiCpu, FiActivity, FiZap, FiTarget, FiLayers, FiAlertTriangle, FiWifi } from 'react-icons/fi'
 import { useDashboardStore } from './store/dashboardStore'
 import useFavoritesStore from './store/favoritesStore'
 import KPISection from './components/Dashboard/KPISection'
@@ -122,13 +123,14 @@ function App() {
   console.log('[App] Store data:', data)
 
   // Frases cuánticas para la pantalla de carga
+  // Cada fase lleva un icono semántico que refuerza visualmente lo que ocurre
   const QUANTUM_PHRASES = [
-    t('app.loading.phrases.0'),
-    t('app.loading.phrases.1'),
-    t('app.loading.phrases.2'),
-    t('app.loading.phrases.3'),
-    t('app.loading.phrases.4'),
-    t('app.loading.phrases.5'),
+    { icon: FiCpu,      text: t('app.loading.phrases.0') },  // Inicializando qubits
+    { icon: FiLayers,   text: t('app.loading.phrases.1') },  // Entrelazando datos
+    { icon: FiZap,      text: t('app.loading.phrases.2') },  // Hadamard
+    { icon: FiActivity, text: t('app.loading.phrases.3') },  // Colapsando función de onda
+    { icon: FiTarget,   text: t('app.loading.phrases.4') },  // Midiendo estados
+    { icon: FiCpu,      text: t('app.loading.phrases.5') },  // Decodificando superposición
   ]
 
   useEffect(() => {
@@ -193,7 +195,7 @@ function App() {
                 if (isMounted) {
                   setIsLoading(false)
                 }
-              }, 500)
+              }, 700)
             }
           }, 2000)
         } else {
@@ -216,7 +218,7 @@ function App() {
                   if (isMounted) {
                     setIsLoading(false)
                   }
-                }, 500)
+                }, 700)
               }
             }, 2500)
           }
@@ -249,7 +251,7 @@ function App() {
                 if (isMounted) {
                   setIsLoading(false)
                 }
-              }, 500)
+              }, 700)
             }
           }, 2500)
         }
@@ -270,8 +272,23 @@ function App() {
   
   // Mostrar pantalla de carga mientras está cargando (incluyendo durante el fadeOut)
   if (isLoading) {
+    const PhraseIcon = QUANTUM_PHRASES[quantumPhrase]?.icon || FiCpu
+    const phraseText = isRefreshing
+      ? t('app.loading.refreshing')
+      : (QUANTUM_PHRASES[quantumPhrase]?.text || '')
     return (
       <div className={`${styles.loadingScreen} ${isExiting ? styles.fadeOut : ''}`}>
+        {/* Fondo: cuadrícula sutil que respira + partículas cuánticas dispersas */}
+        <div className={styles.loadingBgGrid} aria-hidden="true" />
+        <div className={styles.loadingBgParticles} aria-hidden="true">
+          <span style={{ left: '12%', top: '18%', animationDelay: '0s'  }} />
+          <span style={{ left: '78%', top: '22%', animationDelay: '1.4s' }} />
+          <span style={{ left: '24%', top: '72%', animationDelay: '2.8s' }} />
+          <span style={{ left: '68%', top: '78%', animationDelay: '0.7s' }} />
+          <span style={{ left: '46%', top: '12%', animationDelay: '3.5s' }} />
+          <span style={{ left: '88%', top: '54%', animationDelay: '2.1s' }} />
+        </div>
+
         <div className={styles.loadingContent}>
           <img 
             src="/logo.png" 
@@ -346,13 +363,25 @@ function App() {
             )}
             {loadingResult === null && (
               <span className={styles.quantumPhrase} key={quantumPhrase}>
-                {isRefreshing ? t('app.loading.refreshing') : QUANTUM_PHRASES[quantumPhrase]}
+                <PhraseIcon className={styles.quantumPhraseIcon} aria-hidden="true" />
+                {phraseText}
               </span>
             )}
           </p>
-          <p className={`${styles.retryText} ${retryCount > 0 && loadingResult === null ? styles.retryVisible : ''}`}>
-            {t('app.loading.retrying', { count: retryCount })}
-          </p>
+
+          {/* Barra de progreso indeterminada (siempre visible mientras carga) */}
+          {loadingResult === null && (
+            <div className={styles.loadingProgress} aria-hidden="true">
+              <div className={styles.loadingProgressFill} />
+            </div>
+          )}
+
+          {retryCount > 0 && loadingResult === null && (
+            <div className={styles.retryPill}>
+              <FiWifi size={11} className={styles.retryPillIcon} aria-hidden="true" />
+              <span>{t('app.loading.retrying', { count: retryCount })}</span>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -563,6 +592,16 @@ function App() {
             </p>
           </section>}
 
+          {/* Banner portal al universo — colocado al final del fold inicial
+             para invitar a explorar el grafo 3D nada más entrar.
+             Delay 1.1s para aparecer claramente DESPUÉS del chat IA (que
+             tiene sus propias animaciones internas tras el stagger2). */}
+          {devFeatures.collabBanner !== false && (
+            <div className={styles.fadeInStagger3} style={{ animationDelay: '1.1s' }}>
+              <CollaborationBanner />
+            </div>
+          )}
+
           {devFeatures.quantumDividers !== false && <QuantumDivider />}
 
           {/* Gráficos interactivos con drill-down */}
@@ -571,9 +610,6 @@ function App() {
           </div>}
 
           {devFeatures.quantumDividers !== false && <QuantumDivider variant="large" />}
-
-          {/* Banner portal al universo - justo antes de la sección de red */}
-          {devFeatures.collabBanner !== false && <CollaborationBanner />}
 
           {/* Análisis de colaboración y ecosistema */}
           <div id="section-network" className={`${styles.sectionAnchor} ${styles.fadeInStagger4}`}>
@@ -671,9 +707,32 @@ function App() {
         {/* Separador ondulado */}
         <div className={styles.footerWave}>
           <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
-            <path 
-              d="M0,20 Q150,0 300,20 T600,20 T900,20 T1200,20 L1200,40 L0,40 Z" 
-              fill="var(--color-card)"
+            <defs>
+              <linearGradient id="footerWaveGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="rgba(15, 20, 30, 0)" />
+                <stop offset="60%" stopColor="rgba(15, 20, 30, 0.55)" />
+                <stop offset="100%" stopColor="rgba(20, 26, 38, 0.95)" />
+              </linearGradient>
+              <linearGradient id="footerWaveStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="rgba(0, 212, 228, 0)" />
+                <stop offset="30%" stopColor="rgba(0, 212, 228, 0.65)" />
+                <stop offset="50%" stopColor="rgba(157, 111, 219, 0.75)" />
+                <stop offset="70%" stopColor="rgba(0, 212, 228, 0.65)" />
+                <stop offset="100%" stopColor="rgba(0, 212, 228, 0)" />
+              </linearGradient>
+            </defs>
+            {/* Fondo ondulado: gradient transparente arriba → opaco abajo */}
+            <path
+              d="M0,20 Q150,0 300,20 T600,20 T900,20 T1200,20 L1200,40 L0,40 Z"
+              fill="url(#footerWaveGrad)"
+            />
+            {/* Línea brillante en la cresta — accent cuántico */}
+            <path
+              d="M0,20 Q150,0 300,20 T600,20 T900,20 T1200,20"
+              fill="none"
+              stroke="url(#footerWaveStroke)"
+              strokeWidth="1.2"
+              opacity="0.85"
             />
           </svg>
         </div>

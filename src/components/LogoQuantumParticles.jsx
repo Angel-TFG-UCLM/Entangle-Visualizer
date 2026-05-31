@@ -11,9 +11,10 @@
  * cuánticas del proyecto.
  */
 
+import { memo } from 'react'
 import styles from './LogoQuantumParticles.module.css'
 
-export default function LogoQuantumParticles() {
+function LogoQuantumParticles() {
   return (
     <span className={styles.atom} aria-hidden="true">
       {/* Órbita 1 - elipse plana, rotación lenta horaria */}
@@ -40,3 +41,9 @@ export default function LogoQuantumParticles() {
     </span>
   )
 }
+
+// Wrap in memo: el componente no recibe props ni depende de estado externo,
+// asÃ­ que NUNCA necesita re-renderizarse cuando su padre (App) re-render
+// por otros motivos (p.ej. polling de estado del backend). Sin este memo,
+// cada update de App provocaba un micro-freeze visible en el Ã¡tomo del badge.
+export default memo(LogoQuantumParticles)

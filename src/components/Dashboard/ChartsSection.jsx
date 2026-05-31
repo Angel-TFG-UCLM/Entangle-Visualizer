@@ -13,10 +13,10 @@
  * @module ChartsSection
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { 
-  FiUsers, FiCode, FiEye, FiPackage, FiStar, FiGitBranch, FiUserCheck, FiTarget 
+  FiUsers, FiCode, FiEye, FiPackage, FiStar, FiGitBranch, FiUserCheck, FiTarget, FiX, FiLayers
 } from 'react-icons/fi'
 import { Building2, GitFork, User, ExternalLink, X, MapPin, Calendar, Globe, Shield, BookOpen, Tag, GitCommit, GitPullRequest, AlertCircle, Scale, Archive, Eye, Users, Code, Briefcase, Mail, Clock, Cpu, Zap, Bot, Network, ArrowRight } from 'lucide-react'
 import {
@@ -82,7 +82,10 @@ function StaggeredTick({ x, y, payload, index, fill }) {
  * Hook para animaciones de scroll con Intersection Observer
  * Devuelve [ref, isVisible] - cuando el elemento entra en el viewport, isVisible se vuelve true
  */
-function useScrollAnimation(threshold = 0.3) {
+// Charts: threshold 0.5 para que cualquier chart anime solo cuando ya estÃ¡
+// la mitad dentro del viewport (asÃ­ el usuario lo estÃ¡ mirando directamente,
+// no procesando otros elementos de la pÃ¡gina).
+function useScrollAnimation(threshold = 0.5, rootMargin = '0px') {
   const [isVisible, setIsVisible] = useState(false)
   const observerRef = useRef(null)
 
@@ -102,11 +105,11 @@ function useScrollAnimation(threshold = 0.3) {
           observer.disconnect()
         }
       },
-      { threshold, rootMargin: '0px' }
+      { threshold, rootMargin }
     )
     observer.observe(node)
     observerRef.current = observer
-  }, [threshold, isVisible])
+  }, [threshold, rootMargin, isVisible])
 
   return [ref, isVisible]
 }
@@ -211,7 +214,7 @@ function FilterBadge({ value, onClear, label }) {
 /**
  * Componente principal de gráficos
  */
-export default function ChartsSection({ data }) {
+function ChartsSection({ data }) {
   const { t } = useTranslation()
   const { 
     selectedOrg, 
@@ -247,7 +250,15 @@ export default function ChartsSection({ data }) {
   const [hoveredPieIndex, setHoveredPieIndex] = useState(null)
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null)
   const [showOthersPanel, setShowOthersPanel] = useState(false) // Panel para "Otros" lenguajes
+  const [isOthersClosing, setIsOthersClosing] = useState(false) // animación de salida del panel "Otros"
+  const othersCloseTimeoutRef = useRef(null)
   const [otrosPopover, setOtrosPopover] = useState(null) // { x, y, items } - popover para disciplinas agrupadas en "Otros"
+
+  // Infinite scroll del panel lateral de Bridge Profiles (disciplinas)
+  const BRIDGE_PANEL_PAGE = 7
+  const [bridgePanelLimit, setBridgePanelLimit] = useState(BRIDGE_PANEL_PAGE)
+  const bridgePanelSentinelRef = useRef(null)
+  const bridgePanelBodyRef = useRef(null)
   
   // Estado para tipo de colaborador (solo aplica cuando hay repo seleccionado)
   const [collabType, setCollabType] = useState('all') // 'all', 'contributors', 'reviewers'
@@ -261,11 +272,11 @@ export default function ChartsSection({ data }) {
   const [detailClosing, setDetailClosing] = useState(false)
   
   // Animaciones de scroll
-  const [orgChartRef, orgChartVisible] = useScrollAnimation(0.3)
-  const [repoChartRef, repoChartVisible] = useScrollAnimation(0.3)
-  const [userChartRef, userChartVisible] = useScrollAnimation(0.3)
-  const [pieChartRef, pieChartVisible] = useScrollAnimation(0.3)
-  const [disciplineChartRef, disciplineChartVisible] = useScrollAnimation(0.3)
+  const [orgChartRef, orgChartVisible] = useScrollAnimation()
+  const [repoChartRef, repoChartVisible] = useScrollAnimation()
+  const [userChartRef, userChartVisible] = useScrollAnimation()
+  const [pieChartRef, pieChartVisible] = useScrollAnimation()
+  const [disciplineChartRef, disciplineChartVisible] = useScrollAnimation()
 
   // Refs para aplicar transiciones CSS inline a las barras SVG
   const orgBarContainerRef = useRef(null)
@@ -745,6 +756,10 @@ export default function ChartsSection({ data }) {
         description: repo.description || null,
         language: repo.primary_language?.name || repo.primary_language || null,
         owner: repo.owner?.login || null,
+        /* Avatar del repo = avatar del owner (user u org). El backend
+           expone `owner.avatar_url`; algunos repos pueden tener también
+           `organization.avatar_url` cuando viven en una org. */
+        avatar_url: repo.owner?.avatar_url || repo.organization?.avatar_url || null,
         stargazer_count: (repo.stargazer_count ?? 0) || 0,
         fork_count: (repo.fork_count ?? 0) || 0,
         collaborators_count: (repo.collaborators_count ?? 0) || 0,
@@ -1064,6 +1079,34 @@ export default function ChartsSection({ data }) {
     return main
   }, [disciplineAnalysis, t])
 
+  /* Reset del paginado del panel de bridge profiles cuando cambia
+     la fuente (otro análisis de disciplinas). */
+  useEffect(() => {
+    setBridgePanelLimit(BRIDGE_PANEL_PAGE)
+  }, [disciplineAnalysis?.bridge_profiles?.length])
+
+  /* Infinite scroll del panel lateral de bridge profiles: el sentinel
+     vive dentro de .bridgePanelBody (que tiene overflow-y: auto), por
+     tanto debemos pasar ese contenedor como `root` al IntersectionObserver
+     — si no, el observer escucha el viewport y nunca dispara. */
+  useEffect(() => {
+    const total = disciplineAnalysis?.bridge_profiles?.length || 0
+    if (bridgePanelLimit >= total) return
+    const sentinel = bridgePanelSentinelRef.current
+    const scrollRoot = bridgePanelBodyRef.current
+    if (!sentinel || !scrollRoot) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setBridgePanelLimit(prev => Math.min(prev + BRIDGE_PANEL_PAGE, total))
+        }
+      },
+      { root: scrollRoot, threshold: 0.1, rootMargin: '120px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [bridgePanelLimit, disciplineAnalysis?.bridge_profiles?.length])
+
   // Verificar si hay algún sector/barra seleccionado
   const hasSelectedLanguage = selectedLanguage !== null
   const hasSelectedOrg = selectedOrg !== null
@@ -1307,8 +1350,24 @@ export default function ChartsSection({ data }) {
   
   const handleOthersLanguageSelect = (langName) => {
     setFilter('language', langName)
-    setShowOthersPanel(false)
+    closeOthersPanel()
   }
+
+  /* Cierre del panel "Otros" con animación de salida: marca closing,
+     espera la duración de la transición CSS y luego desmonta. */
+  const closeOthersPanel = useCallback(() => {
+    if (isOthersClosing) return
+    setIsOthersClosing(true)
+    if (othersCloseTimeoutRef.current) clearTimeout(othersCloseTimeoutRef.current)
+    othersCloseTimeoutRef.current = setTimeout(() => {
+      setShowOthersPanel(false)
+      setIsOthersClosing(false)
+    }, 240)
+  }, [isOthersClosing])
+
+  useEffect(() => () => {
+    if (othersCloseTimeoutRef.current) clearTimeout(othersCloseTimeoutRef.current)
+  }, [])
 
   // Custom tooltip para Organizaciones - info rica
   const OrgTooltip = ({ active, payload }) => {
@@ -1696,7 +1755,6 @@ export default function ChartsSection({ data }) {
           <div className={`${styles.comparisonPanel} ${comparisonClosing ? styles.comparisonPanelClosing : ''}`}>
             {isAnalyzing ? (
               <div className={styles.comparisonLoading}>
-                <div className={styles.chartLoadingSpinner}></div>
                 <span>{t('charts.analyzing')}</span>
               </div>
             ) : collaborationData ? (
@@ -1916,9 +1974,13 @@ export default function ChartsSection({ data }) {
                 ) : (
                   <div className={styles.comparisonEmpty}>
                     <FiUsers size={32} />
-                    <p>{collaborationData.mode === 'user_focus'
-                      ? t('charts.noCoCollaborators')
-                      : t('charts.noSharedUsers')}
+                    <p>{collaborationData.error === 'not_found'
+                      ? t('charts.userNotFound', { defaultValue: 'Este usuario no está en la base de datos local. Carga su perfil completo primero.' })
+                      : collaborationData.error
+                        ? t('charts.analysisError', { defaultValue: 'No se pudo completar el análisis. Inténtalo de nuevo.' })
+                        : collaborationData.mode === 'user_focus'
+                          ? t('charts.noCoCollaborators')
+                          : t('charts.noSharedUsers')}
                     </p>
                   </div>
                 )}
@@ -1933,8 +1995,9 @@ export default function ChartsSection({ data }) {
         ref={orgChartRef}
         className={`${styles.chartCard} ${styles.scrollReveal} ${orgChartVisible ? styles.scrollRevealed : ''}`}
       >
+        <div className={styles.particlesLayer} aria-hidden="true" />
         <div className={styles.titleRow}>
-          <h3 className={styles.chartTitle}>📊 {t('charts.chart1')}</h3>
+          <h3 className={styles.chartTitle}>🏢 {t('charts.chart1')}</h3>
           <FilterBadge 
             value={selectedOrg}
             label={t('charts.filtering')}
@@ -1999,6 +2062,20 @@ export default function ChartsSection({ data }) {
             <div ref={orgBarContainerRef}>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={orgData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                <defs>
+                  <linearGradient id="barGradOrgCyan" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3FF0FF" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#0096A8" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="barGradOrgPurple" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#C896FF" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#6A3FA8" stopOpacity={0.9} />
+                  </linearGradient>
+                  <linearGradient id="barGradOrgPink" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FF6FC8" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#C42884" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
                 <XAxis dataKey="name" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis 
@@ -2010,22 +2087,22 @@ export default function ChartsSection({ data }) {
                 <Tooltip content={<OrgTooltip />} cursor={false} />
                 <Bar 
                   dataKey={orgMetric} 
-                  fill="#00D4E4"
+                  fill="url(#barGradOrgCyan)"
                   onClick={(data, index, event) => handleOrgClick(data, event)}
                   cursor="pointer"
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={true}
                   animationBegin={0}
-                  animationDuration={600}
-                  animationEasing="ease-in-out"
+                  animationDuration={700}
+                  animationEasing="ease-out"
                 >
                   {orgData.map((entry, index) => (
                     <Cell 
                       key={`org-cell-${index}`} 
-                      fill={selectedOrgs.includes(entry.name) ? '#9D6FDB' : (entry.isSelected ? '#FF3CAC' : '#00D4E4')}
+                      fill={selectedOrgs.includes(entry.name) ? 'url(#barGradOrgPurple)' : (entry.isSelected ? 'url(#barGradOrgPink)' : 'url(#barGradOrgCyan)')}
                       style={{ 
                         transition: 'fill 0.3s ease',
-                        filter: selectedOrgs.includes(entry.name) ? 'brightness(1.1) drop-shadow(0 0 6px rgba(157, 111, 219, 0.5))' : 'none'
+                        filter: selectedOrgs.includes(entry.name) ? 'brightness(1.15) drop-shadow(0 0 10px rgba(157, 111, 219, 0.6))' : 'none'
                       }}
                     />
                   ))}
@@ -2051,6 +2128,7 @@ export default function ChartsSection({ data }) {
         ref={repoChartRef}
         className={`${styles.chartCard} ${styles.scrollReveal} ${repoChartVisible ? styles.scrollRevealed : ''}`}
       >
+        <div className={styles.particlesLayer} aria-hidden="true" />
         <div className={styles.titleRow}>
           <h3 className={styles.chartTitle}>⭐ {t('charts.chart2')}</h3>
           <FilterBadge 
@@ -2115,28 +2193,42 @@ export default function ChartsSection({ data }) {
             <div ref={repoBarContainerRef}>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={repoData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                <defs>
+                  <linearGradient id="barGradRepoPurple" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#C896FF" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#6A3FA8" stopOpacity={0.9} />
+                  </linearGradient>
+                  <linearGradient id="barGradRepoCyan" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3FF0FF" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#0096A8" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="barGradRepoPink" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FF6FC8" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#C42884" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
                 <XAxis dataKey="name" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
                 <Tooltip content={<RepoTooltip />} cursor={false} />
                 <Bar 
                   dataKey={repoMetric}
-                  fill="#9D6FDB"
+                  fill="url(#barGradRepoPurple)"
                   onClick={(data, index, event) => handleRepoClick(repoData[index], event)}
                   cursor="pointer"
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={true}
                   animationBegin={0}
-                  animationDuration={600}
-                  animationEasing="ease-in-out"
+                  animationDuration={700}
+                  animationEasing="ease-out"
                 >
                   {repoData.map((entry, index) => (
                     <Cell 
                       key={`repo-cell-${index}`} 
-                      fill={selectedRepos.includes(entry.fullName) ? '#00D4E4' : (entry.isSelected ? '#FF3CAC' : '#9D6FDB')}
+                      fill={selectedRepos.includes(entry.fullName) ? 'url(#barGradRepoCyan)' : (entry.isSelected ? 'url(#barGradRepoPink)' : 'url(#barGradRepoPurple)')}
                       style={{ 
                         transition: 'fill 0.3s ease',
-                        filter: selectedRepos.includes(entry.fullName) ? 'brightness(1.1) drop-shadow(0 0 6px rgba(0, 212, 228, 0.5))' : 'none'
+                        filter: selectedRepos.includes(entry.fullName) ? 'brightness(1.15) drop-shadow(0 0 10px rgba(0, 212, 228, 0.6))' : 'none'
                       }}
                     />
                   ))}
@@ -2162,6 +2254,7 @@ export default function ChartsSection({ data }) {
         ref={userChartRef}
         className={`${styles.chartCard} ${styles.scrollReveal} ${userChartVisible ? styles.scrollRevealed : ''}`}
       >
+        <div className={styles.particlesLayer} aria-hidden="true" />
         <div className={styles.titleRow}>
           <h3 className={styles.chartTitle}>
             <FiUsers className={styles.chartTitleIcon} /> {t('charts.chart3')}
@@ -2283,6 +2376,16 @@ export default function ChartsSection({ data }) {
           {userChartVisible ? (
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={userData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                <defs>
+                  <linearGradient id="barGradUserGreen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#5DFFC0" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#00B570" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="barGradUserPink" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FF6FC8" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#C42884" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(75, 85, 99, 0.3)" vertical={false} />
                 <XAxis dataKey="displayName" stroke="#6b7280" tick={<StaggeredTick />} interval={0} />
                 <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
@@ -2293,18 +2396,18 @@ export default function ChartsSection({ data }) {
                   name={userMetric === 'repos' ? t('charts.reposShort') : `Score ${t('charts.collaboration')}`}
                   isAnimationActive={true} 
                   animationBegin={0} 
-                  animationDuration={600} 
-                  animationEasing="ease-in-out"
+                  animationDuration={700} 
+                  animationEasing="ease-out"
                   onClick={(data, index, event) => handleUserClick(userData[index], event)}
                   style={{ cursor: 'pointer' }}
                 >
                   {userData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.isSelected ? '#FF3CAC' : '#00ff9f'}
+                      fill={entry.isSelected ? 'url(#barGradUserPink)' : 'url(#barGradUserGreen)'}
                       style={{ 
                         transition: 'fill 0.3s ease',
-                        filter: entry.isSelected ? 'brightness(1.1) drop-shadow(0 0 6px rgba(255, 60, 172, 0.5))' : 'none'
+                        filter: entry.isSelected ? 'brightness(1.15) drop-shadow(0 0 10px rgba(255, 60, 172, 0.6))' : 'none'
                       }}
                     />
                   ))}
@@ -2327,6 +2430,7 @@ export default function ChartsSection({ data }) {
         ref={pieChartRef}
         className={`${styles.chartCard} ${styles.scrollReveal} ${pieChartVisible ? styles.scrollRevealed : ''}`}
       >
+        <div className={styles.particlesLayer} aria-hidden="true" />
         <div className={styles.titleRow}>
           <h3 className={styles.chartTitle}>🔬 {t('charts.chart4')}</h3>
           <FilterBadge 
@@ -2408,15 +2512,24 @@ export default function ChartsSection({ data }) {
               }}
               labelLine={{ stroke: 'rgba(156, 163, 175, 0.4)', strokeWidth: 1, pointerEvents: 'none' }}
             >
-              {languageData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`}
-                  fill={PIE_COLORS[index % PIE_COLORS.length]}
-                  stroke="rgba(15, 20, 25, 0.6)"
-                  strokeWidth={1}
-                  style={{ cursor: 'pointer' }}
-                />
-              ))}
+              {languageData.map((entry, index) => {
+                const isSelected = selectedLanguage === entry.name
+                const baseColor = PIE_COLORS[index % PIE_COLORS.length]
+                const dimmed = hasSelectedLanguage && !isSelected
+                return (
+                  <Cell 
+                    key={`cell-${index}`}
+                    fill={isSelected ? '#FF3CAC' : baseColor}
+                    stroke={isSelected ? '#FF3CAC' : 'rgba(15, 20, 25, 0.6)'}
+                    strokeWidth={isSelected ? 2 : 1}
+                    style={{
+                      cursor: 'pointer',
+                      opacity: dimmed ? 0.35 : 1,
+                      filter: isSelected ? 'brightness(1.15) drop-shadow(0 0 12px rgba(255, 60, 172, 0.8))' : 'none',
+                    }}
+                  />
+                )
+              })}
             </Pie>
             <Tooltip content={<PieTooltip />} />
           </PieChart>
@@ -2430,16 +2543,20 @@ export default function ChartsSection({ data }) {
             </div>
         
         {/* Panel expandible para "Otros" lenguajes */}
-        {showOthersPanel && othersLanguages.length > 0 && (
-          <div className={styles.othersPanel}>
+        {(showOthersPanel || isOthersClosing) && othersLanguages.length > 0 && (
+          <div className={`${styles.othersPanel} ${isOthersClosing ? styles.othersPanelClosing : ''}`}>
             <div className={styles.othersPanelHeader}>
-              <h4 className={styles.othersPanelTitle}>🔬 {t('charts.otherLanguages')} ({othersLanguages.length})</h4>
+              <h4 className={styles.othersPanelTitle}>
+                <span className={styles.othersPanelTitleIcon}><FiLayers size={14} /></span>
+                {t('charts.otherLanguages')}
+                <span className={styles.othersPanelTitleCount}>{othersLanguages.length}</span>
+              </h4>
               <button 
                 className={styles.othersPanelClose}
-                onClick={() => setShowOthersPanel(false)}
+                onClick={closeOthersPanel}
                 aria-label={t('common.close')}
               >
-                ✕
+                <FiX size={14} />
               </button>
             </div>
             <p className={styles.othersPanelSubtitle}>{t('charts.clickLanguageToFilter')}</p>
@@ -2448,6 +2565,7 @@ export default function ChartsSection({ data }) {
                 <button
                   key={lang.name}
                   className={styles.othersPanelItem}
+                  style={{ animationDelay: `${index * 25}ms` }}
                   onClick={() => handleOthersLanguageSelect(lang.name)}
                 >
                   <span className={styles.othersPanelLang}>{lang.name}</span>
@@ -2462,11 +2580,25 @@ export default function ChartsSection({ data }) {
       </div>
 
       {/* GRÁFICO 5: Distribución por Disciplina Interdisciplinar */}
-      {disciplinePieData.length > 0 && (
+      {disciplinePieData.length === 0 ? (
+        // Placeholder con altura reservada para evitar layout shift al cargar
+        <div
+          ref={disciplineChartRef}
+          className={`${styles.chartCard} ${styles.chartCardWide} ${styles.scrollReveal} ${styles.disciplineSkeletonCard} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
+          aria-busy="true"
+        >
+          <div className={styles.particlesLayer} aria-hidden="true" />
+          <div className={styles.disciplineSkeleton}>
+            <div className={styles.disciplineSkeletonPie} />
+            <div className={styles.disciplineSkeletonLabel}>{t('charts.loadingChart')}</div>
+          </div>
+        </div>
+      ) : (
         <div
           ref={disciplineChartRef}
           className={`${styles.chartCard} ${styles.chartCardWide} ${styles.scrollReveal} ${disciplineChartVisible ? styles.scrollRevealed : ''}`}
         >
+          <div className={styles.particlesLayer} aria-hidden="true" />
           <div className={styles.titleRow}>
             <h3 className={styles.chartTitle}>{t('charts.chart5')}</h3>
             {selectedDiscipline && (
@@ -2485,7 +2617,7 @@ export default function ChartsSection({ data }) {
             {t('charts.disciplineAutoClassification')}
             {disciplineAnalysis?.cross_discipline_index != null && (
               <span style={{ marginLeft: 8, color: '#00ff9f', fontWeight: 600 }}>
-                — {t('charts.crossDisciplineIndex')}: {disciplineAnalysis.cross_discipline_index.toFixed(1)}%
+                {t('charts.crossDisciplineIndex')}: {disciplineAnalysis.cross_discipline_index.toFixed(1)}%
               </span>
             )}
           </p>
@@ -2555,7 +2687,7 @@ export default function ChartsSection({ data }) {
                       dataKey="value"
                       isAnimationActive={!hasAnimatedDisciplinePie}
                       animationBegin={0}
-                      animationDuration={800}
+                      animationDuration={1000}
                       animationEasing="ease-out"
                       style={{ cursor: 'pointer' }}
                       onClick={handleDisciplineSliceClick}
@@ -2671,8 +2803,8 @@ export default function ChartsSection({ data }) {
                     </div>
                   </div>
                 </div>
-                <div className={styles.bridgePanelBody}>
-                  {disciplineAnalysis.bridge_profiles.map((bp, i) => {
+                <div ref={bridgePanelBodyRef} className={styles.bridgePanelBody}>
+                  {disciplineAnalysis.bridge_profiles.slice(0, bridgePanelLimit).map((bp, i) => {
                     const avatarUrl = allUsersMap[bp.login]?.avatar_url || userData.find(u => u.login === bp.login)?.avatar_url || null
                     const disciplineKeys = bp.repos_per_discipline ? Object.keys(bp.repos_per_discipline) : []
                     const isTop3 = i < 3
@@ -2705,7 +2837,12 @@ export default function ChartsSection({ data }) {
                           }
                         }}
                       >
-                        <span className={`${styles.bridgeRank} ${isTop3 ? styles.bridgeRankTop : styles.bridgeRankNormal}`}>
+                        <span className={`${styles.bridgeRank} ${
+                          i === 0 ? styles.bridgeRankGold
+                          : i === 1 ? styles.bridgeRankSilver
+                          : i === 2 ? styles.bridgeRankBronze
+                          : styles.bridgeRankNormal
+                        }`}>
                           {i + 1}
                         </span>
                         {avatarUrl ? (
@@ -2753,6 +2890,20 @@ export default function ChartsSection({ data }) {
                       </div>
                     )
                   })}
+
+                  {/* Sentinel para infinite scroll del panel + indicador */}
+                  {bridgePanelLimit < disciplineAnalysis.bridge_profiles.length && (
+                    <div ref={bridgePanelSentinelRef} className={styles.bridgePanelLoadMore}>
+                      <span className={styles.bridgePanelSpinner} aria-hidden="true" />
+                      <span>
+                        {t('bridge.loadingMore', {
+                          shown: bridgePanelLimit,
+                          total: disciplineAnalysis.bridge_profiles.length,
+                          defaultValue: 'Cargando más… ({{shown}} de {{total}})'
+                        })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3480,3 +3631,10 @@ export default function ChartsSection({ data }) {
     </section>
   )
 }
+
+// Wrap in memo: ChartsSection es un componente muy pesado (3000+ líneas con Recharts).
+// Sin memo, cada re-render de App (p.ej. polling cada 15 s del backend status)
+// reconcilia todo el subtree y puede interrumpir las animaciones de Recharts,
+// haciendo que los pie charts se vean `a trompicones`.
+export default memo(ChartsSection)
+

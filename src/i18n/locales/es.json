@@ -180,6 +180,8 @@
     "inNofTotal": "en {{count}} de {{total}} {{type}}",
     "noCoCollaborators": "No se encontraron co-colaboradores",
     "noSharedUsers": "No se encontraron usuarios compartidos",
+    "userNotFound": "Este usuario no está en la base de datos local. Carga su perfil completo primero.",
+    "analysisError": "No se pudo completar el análisis. Inténtalo de nuevo.",
     "sharedUsersBetweenOrgs": "Usuarios compartidos entre organizaciones",
     "sharedUsersBetweenRepos": "Usuarios compartidos entre repositorios",
     "compRepos": "Repositorios",
@@ -559,7 +561,9 @@
     "colExpertise": "Expertise",
     "noCollaborators": "Sin colaboradores",
     "moreRepos": "repos más…",
-    "moreOrgs": "+{{count}}"
+    "moreOrgs": "+{{count}}",
+    "loadingMore": "Cargando más puentes… ({{shown}} de {{total}})",
+    "endOfList": "✓ Mostrando los {{total}} puentes interdisciplinares"
   },
   "sankey": {
     "title": "Flujo de Contribuidores",

@@ -18,6 +18,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart3, PieChart, Network, Gauge, ChevronUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useIdleTimer } from '../../hooks/useIdleTimer'
+import { useDashboardStore } from '../../store/dashboardStore'
 import styles from './DashboardNav.module.css'
 
 /**
@@ -37,6 +39,41 @@ export default function DashboardNav() {
   const [activeSection, setActiveSection] = useState(null)
   const [isVisible, setIsVisible] = useState(false)
   const [hoveredItem, setHoveredItem] = useState(null)
+
+  // Cinematic mode: tras 20 s sin actividad en el dashboard, ocultar el dock
+  // de navegaciÃ³n lateral y avisar a otros componentes (p.ej. el FAB de IA)
+  // mediante un atributo en <body>. Sólo se activa cuando el dashboard estÃ¡
+  // realmente visible (el dock ya estÃ¡ visible por scroll), no estamos en el
+  // Universo 3D (que tiene su propio cinematic mode), y no hay un panel
+  // interactivo abierto en el dashboard (chat IA, panel admin, etc.).
+  const isUniverseView = useDashboardStore(s => s.showCollaborationGraph)
+  const [interactivePanelsOpen, setInteractivePanelsOpen] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      const chatEl = document.querySelector('[class*="chatWindow"]:not([class*="chatWindowClosing"])')
+      const adminEl = document.querySelector('[class*="adminPanel"]:not([class*="adminPanelClosing"])')
+      const popoverEl = document.querySelector('[class*="settingsDropdown"]:not([class*="settingsDropdownClosing"])')
+      setInteractivePanelsOpen(!!(chatEl || adminEl || popoverEl))
+    }
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+  const { isIdle: cinematic } = useIdleTimer({
+    timeoutMs: 20000,
+    enabled: isVisible && !isUniverseView && !interactivePanelsOpen,
+  })
+  useEffect(() => {
+    if (cinematic) {
+      document.body.dataset.dashboardCinematic = 'true'
+    } else {
+      delete document.body.dataset.dashboardCinematic
+    }
+    return () => {
+      delete document.body.dataset.dashboardCinematic
+    }
+  }, [cinematic])
 
   // Detectar sección activa y visibilidad del nav basándonos en scroll
   useEffect(() => {
@@ -115,7 +152,7 @@ export default function DashboardNav() {
   }, [])
 
   return (
-    <nav className={`${styles.dashboardNav} ${isVisible ? styles.navVisible : ''}`}>
+    <nav className={`${styles.dashboardNav} ${isVisible ? styles.navVisible : ''} ${cinematic ? styles.navCinematicHidden : ''}`}>
       <div className={styles.navTrack}>
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon

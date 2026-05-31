@@ -180,6 +180,8 @@
     "inNofTotal": "in {{count}} of {{total}} {{type}}",
     "noCoCollaborators": "No co-collaborators found",
     "noSharedUsers": "No shared users found",
+    "userNotFound": "This user is not in the local database. Load their full profile first.",
+    "analysisError": "Could not complete the analysis. Please try again.",
     "sharedUsersBetweenOrgs": "Shared users between organizations",
     "sharedUsersBetweenRepos": "Shared users between repositories",
     "compRepos": "Repositories",
@@ -559,7 +561,9 @@
     "colExpertise": "Expertise",
     "noCollaborators": "No collaborators",
     "moreRepos": "more repos…",
-    "moreOrgs": "+{{count}}"
+    "moreOrgs": "+{{count}}",
+    "loadingMore": "Loading more bridges… ({{shown}} of {{total}})",
+    "endOfList": "✓ Showing all {{total}} interdisciplinary bridges"
   },
   "sankey": {
     "title": "Contributor Flow",

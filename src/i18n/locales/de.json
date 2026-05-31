@@ -180,6 +180,8 @@
     "inNofTotal": "in {{count}} von {{total}} {{type}}",
     "noCoCollaborators": "Keine Co-Mitarbeiter gefunden",
     "noSharedUsers": "Keine gemeinsamen Benutzer gefunden",
+    "userNotFound": "Dieser Benutzer ist nicht in der lokalen Datenbank. Lade zuerst sein vollständiges Profil.",
+    "analysisError": "Die Analyse konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
     "sharedUsersBetweenOrgs": "Gemeinsame Benutzer zwischen Organisationen",
     "sharedUsersBetweenRepos": "Gemeinsame Benutzer zwischen Repositories",
     "compRepos": "Repositories",
@@ -559,7 +561,9 @@
     "colExpertise": "Expertise",
     "noCollaborators": "Keine Mitarbeiter",
     "moreRepos": "weitere Repos…",
-    "moreOrgs": "+{{count}}"
+    "moreOrgs": "+{{count}}",
+    "loadingMore": "Weitere Brücken werden geladen… ({{shown}} von {{total}})",
+    "endOfList": "✓ Alle {{total}} interdisziplinären Brücken angezeigt"
   },
   "sankey": {
     "title": "Mitwirkenden-Fluss",

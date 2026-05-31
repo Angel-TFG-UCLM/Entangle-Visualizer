@@ -241,35 +241,177 @@
   /* sin shift - el min-height ya estaba */
 }
 .resultText {
-  display: inline-block;
-  animation: resultTextIn 0.5s ease-out 0.5s both;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(0, 255, 159, 0.10));
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  animation: resultTextIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-base);
-  letter-spacing: 0.05em;
-  color: rgba(16, 185, 129, 0.85);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #5af0bb;
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.40);
+  box-shadow:
+    0 0 24px rgba(16, 185, 129, 0.18),
+    0 0 48px rgba(0, 255, 159, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
+
+/* dot pulsante verde al inicio del pill (estado "online" / coherencia) */
+.resultText::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.85), 0 0 16px rgba(16, 185, 129, 0.40);
+  animation: resultDotPulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
 .resultTextError {
-  color: rgba(239, 68, 68, 0.85);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(248, 113, 113, 0.10));
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fda4af;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.40);
+  box-shadow:
+    0 0 24px rgba(239, 68, 68, 0.18),
+    0 0 48px rgba(248, 113, 113, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
+
+.resultTextError::before {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.85), 0 0 16px rgba(239, 68, 68, 0.40);
+}
+
+@keyframes resultDotPulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.25); opacity: 1; }
+}
+
 @keyframes resultTextIn {
-  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  0%   { opacity: 0; transform: translateY(8px) scale(0.85); filter: blur(4px); }
+  60%  { opacity: 1; transform: translateY(0) scale(1.06); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 
 .quantumPhrase {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   animation: phraseFade 2.2s ease-in-out;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-base);
   letter-spacing: 0.03em;
-  color: rgba(0, 212, 228, 0.7);
+  color: rgba(0, 212, 228, 0.78);
+  text-shadow: 0 0 10px rgba(0, 212, 228, 0.20);
+}
+
+.quantumPhraseIcon {
+  width: 14px;
+  height: 14px;
+  color: #00D4E4;
+  filter: drop-shadow(0 0 6px rgba(0, 212, 228, 0.6));
+  animation: phraseIconSpin 2.2s ease-in-out;
+  flex-shrink: 0;
 }
 
 @keyframes phraseFade {
-  0% { opacity: 0; transform: translateY(6px); filter: blur(4px); }
-  15% { opacity: 1; transform: translateY(0); filter: blur(0); }
-  85% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  0%   { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  15%  { opacity: 1; transform: translateY(0);   filter: blur(0); }
+  85%  { opacity: 1; transform: translateY(0);   filter: blur(0); }
   100% { opacity: 0; transform: translateY(-6px); filter: blur(4px); }
+}
+
+@keyframes phraseIconSpin {
+  0%   { transform: rotate(-90deg) scale(0.6); opacity: 0; }
+  15%  { transform: rotate(0deg)    scale(1);   opacity: 1; }
+  100% { transform: rotate(0deg)    scale(1);   opacity: 1; }
+}
+
+/* Barra indeterminada bajo la frase: "estoy haciendo cosas" */
+.loadingProgress {
+  position: relative;
+  width: 220px;
+  height: 2px;
+  margin: 12px auto 0;
+  background: rgba(0, 212, 228, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loadingProgressFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 212, 228, 0.8) 30%,
+    rgba(157, 111, 219, 0.9) 50%,
+    rgba(0, 255, 159, 0.8) 70%,
+    transparent 100%
+  );
+  border-radius: 2px;
+  animation: loadingProgressSlide 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.35);
+}
+
+@keyframes loadingProgressSlide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* Pill naranja para el reintento (consistente con resultText) */
+.retryPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.18), rgba(251, 146, 60, 0.10));
+  border: 1px solid rgba(249, 115, 22, 0.40);
+  color: #fdba74;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px rgba(249, 115, 22, 0.30);
+  box-shadow:
+    0 0 20px rgba(249, 115, 22, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation:
+    retryPillIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    retryPillPulse 2s ease-in-out infinite 0.5s;
+}
+
+.retryPillIcon {
+  color: #fb923c;
+  filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.6));
+  animation: retryPillIconBlink 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes retryPillIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.85); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes retryPillPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(249, 115, 22, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+  50%      { box-shadow: 0 0 28px rgba(249, 115, 22, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+}
+
+@keyframes retryPillIconBlink {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 
 .retryText {
@@ -305,15 +447,19 @@
 }
 
 .fadeOut {
-  animation: fadeOutAnimation 0.5s ease-out forwards;
+  animation: fadeOutAnimation 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes fadeOutAnimation {
   from {
     opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
   }
   to {
     opacity: 0;
+    transform: scale(1.03);
+    filter: blur(4px);
   }
 }
 
@@ -466,15 +612,45 @@
 
 /* === HEADER === */
 .header {
-  background: var(--color-card);
-  border-bottom: 2px solid var(--color-border);
+  /* Multi-layer glassmorphism coherente con .chartCard y .statCard */
+  background:
+    radial-gradient(circle at top left, rgba(0, 212, 228, 0.05), transparent 60%),
+    radial-gradient(circle at top right, rgba(157, 111, 219, 0.04), transparent 55%),
+    linear-gradient(180deg, rgba(15, 20, 30, 0.85) 0%, rgba(20, 26, 38, 0.92) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: var(--spacing-lg) 0;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   overflow: hidden;
+}
+
+/* Border bottom animado: gradient cyan→purple→neon que se desplaza */
+.header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-accent) 25%,
+    var(--color-secondary) 50%,
+    var(--color-neon) 75%,
+    transparent 100%);
+  background-size: 200% 100%;
+  opacity: 0.55;
+  animation: headerBorderShimmer 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes headerBorderShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 .headerContent {
@@ -511,6 +687,14 @@
   width: auto;
   filter: drop-shadow(-15px 0 12px rgba(157, 111, 219, 0.5))
           drop-shadow(15px 0 12px rgba(0, 212, 228, 0.5));
+  transition: filter 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.header:hover .headerLogo {
+  filter: drop-shadow(-18px 0 18px rgba(157, 111, 219, 0.8))
+          drop-shadow(18px 0 18px rgba(0, 212, 228, 0.8))
+          drop-shadow(0 0 6px rgba(255, 255, 255, 0.2));
+  transform: scale(1.03);
 }
 
 /* Wrapper del logo: cuadrado del mismo tamaño que la imagen,
@@ -1014,17 +1198,65 @@
 
 /* === STAT CARD === */
 .statCard {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
+  /* Multi-layer background coherente con .chartCard */
+  background:
+    radial-gradient(circle at top left, rgba(0, 212, 228, 0.06), transparent 60%),
+    radial-gradient(circle at bottom right, rgba(157, 111, 219, 0.05), transparent 55%),
+    linear-gradient(135deg, rgba(15, 20, 30, 0.92) 0%, rgba(20, 26, 38, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
-  transition: transform var(--transition-normal), border-color var(--transition-normal), box-shadow var(--transition-normal);
+  /* Extra padding inferior para separar la onda WavefunctionCollapse del número */
+  padding-bottom: calc(var(--spacing-xl) + 14px);
+  transition:
+    border-color 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: default;
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  will-change: transform, box-shadow;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Glow ring detrás del icono — pulsa sutil constantemente
+   Posición ajustada al statHeader (margen del card + header height) */
+.statCard::after {
+  content: '';
+  position: absolute;
+  /* statHeader es el primer bloque tras el padding; centramos halo sobre él */
+  top: calc(var(--spacing-xl) + 18px);
+  left: 50%;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 212, 228, 0.22) 0%, rgba(0, 212, 228, 0) 70%);
+  transform: translate(-50%, -50%) scale(0.85);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+  animation: kpiIconGlow 3.4s ease-in-out infinite;
+}
+
+@keyframes kpiIconGlow {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.4; }
+  50%      { transform: translate(-50%, -50%) scale(1.05); opacity: 0.75; }
+}
+
+/* Particula cuántica flotante por card — sutil
+   IMPORTANTE: el selector original `.statCard > *` rompía los hijos position:absolute
+   (BlochCorner, WavefunctionCollapse) al forzarlos a relative. Limitamos el reset a
+   los hijos que necesitan stacking sin posición absoluta propia. */
+.statCard > .statHeader,
+.statCard > .statContent {
+  position: relative;
+  z-index: 1;
 }
 
 /* Esfera de Bloch decorativa en esquina de KPI */
@@ -1032,13 +1264,18 @@
   position: absolute;
   top: var(--spacing-sm);
   right: var(--spacing-sm);
-  opacity: 0.4;
-  transition: opacity 0.3s ease;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 8px rgba(157, 111, 219, 0.35));
+  transition: opacity 0.4s ease, filter 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
+  z-index: 2;
 }
 
 .statCard:hover .kpiBlochCorner {
   opacity: 1;
+  filter: drop-shadow(0 0 14px rgba(157, 111, 219, 0.7))
+          drop-shadow(0 0 4px rgba(0, 212, 228, 0.4));
+  transform: scale(1.1);
 }
 
 .statCard::before {
@@ -1047,21 +1284,36 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-secondary) 50%, var(--color-neon) 100%);
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--color-accent) 0%,
+    var(--color-secondary) 35%,
+    var(--color-neon) 65%,
+    var(--color-accent) 100%);
+  background-size: 200% 100%;
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform var(--transition-normal);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 2;
 }
 
 .statCard:hover {
+  border-color: rgba(0, 212, 228, 0.45);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    0 0 32px rgba(0, 212, 228, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   transform: translateY(-4px);
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-lg);
 }
 
 .statCard:hover::before {
   transform: scaleX(1);
+  animation: statCardAccent 2.4s ease-in-out infinite;
+}
+
+@keyframes statCardAccent {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 .statHeader {
@@ -1074,31 +1326,36 @@
 
 .statIcon {
   color: var(--color-accent);
-  opacity: 0.8;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 6px rgba(0, 212, 228, 0.35));
   transition: opacity var(--transition-normal), transform var(--transition-normal), filter var(--transition-normal);
 }
 
 .statCard:hover .statIcon {
   opacity: 1;
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 8px var(--color-accent));
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 16px var(--color-accent)) drop-shadow(0 0 4px var(--color-accent));
 }
 
 .statBadge {
   position: absolute;
   top: 10px;
   left: 12px;
-  z-index: 2;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(0, 212, 228, 0.08);
-  border: 1px solid rgba(0, 212, 228, 0.2);
+  background: rgba(0, 212, 228, 0.10);
+  border: 1px solid rgba(0, 212, 228, 0.35);
   border-radius: 6px;
   padding: 2px 8px;
-  animation: badgePop 0.3s ease-out;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 0 0 1px rgba(0, 212, 228, 0.15),
+    0 0 14px rgba(0, 212, 228, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 @keyframes badgePop {
@@ -1130,16 +1387,35 @@
 }
 
 .statValue {
-  font-size: 3rem;
+  font-size: 3.2rem;
   font-weight: 700;
   color: var(--color-text);
   margin: 0;
   line-height: 1;
-  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  letter-spacing: -0.02em;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  background: linear-gradient(
+    110deg,
+    var(--color-accent) 0%,
+    var(--color-secondary) 40%,
+    var(--color-neon) 60%,
+    var(--color-accent) 100%
+  );
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out, filter 0.4s ease;
+}
+
+.statCard:hover .statValue {
+  animation: statValueShimmer 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(0, 212, 228, 0.4));
+}
+
+@keyframes statValueShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 .statValue:not(:empty) {
@@ -1329,22 +1605,58 @@
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(0, 212, 228, 0.15) 0%, rgba(157, 111, 219, 0.15) 100%);
-  border: 1px solid rgba(0, 212, 228, 0.4);
-  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.12) 0%, rgba(157, 111, 219, 0.10) 100%);
+  border: 1px solid rgba(0, 212, 228, 0.35);
+  border-radius: 8px;
   color: var(--color-accent);
   font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer line al hover (igual que pills del chat) */
+.refreshButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(0, 212, 228, 0.7) 35%,
+    rgba(157, 111, 219, 0.7) 65%,
+    transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
 }
 
 .refreshButton:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(0, 212, 228, 0.25) 0%, rgba(157, 111, 219, 0.25) 100%);
-  border-color: var(--color-accent);
-  box-shadow: 0 0 20px rgba(0, 212, 228, 0.3);
-  transform: translateY(-1px);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.22) 0%, rgba(157, 111, 219, 0.20) 100%);
+  border-color: rgba(0, 212, 228, 0.65);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.3),
+    0 0 22px rgba(0, 212, 228, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.refreshButton:hover:not(:disabled)::before {
+  transform: translateX(100%);
 }
 
 .refreshButton:disabled {
@@ -1375,6 +1687,14 @@
   position: relative;
   padding: 8px 10px;
   gap: 0;
+  /* Permitir que el badge de contador se salga del botón sin recortarse */
+  overflow: visible;
+}
+
+/* Sin shimmer-line en favoritos: con overflow:visible el ::before del
+   refreshButton se asoma lateralmente. Lo desactivamos solo aquí. */
+.favoritesButton::before {
+  display: none;
 }
 
 .favoritesButton:hover:not(:disabled) svg {
@@ -1406,9 +1726,15 @@
 
 /* === FOOTER CON CIRCUITO CUÁNTICO === */
 .footer {
-  background: var(--color-card);
+  /* Multi-layer glassmorphism coherente con .header y cards */
+  background:
+    radial-gradient(circle at bottom left, rgba(0, 212, 228, 0.05), transparent 60%),
+    radial-gradient(circle at bottom right, rgba(157, 111, 219, 0.04), transparent 55%),
+    linear-gradient(0deg, rgba(15, 20, 30, 0.88) 0%, rgba(20, 26, 38, 0.94) 100%);
   position: relative;
   overflow: visible;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .footerWave {
@@ -1492,6 +1818,72 @@
   50% { opacity: 1; filter: drop-shadow(0 0 5px var(--color-accent)); }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   LOADING SCREEN — Ambient (grid + partículas) + logo shimmer
+   ═══════════════════════════════════════════════════════════════ */
+
+.loadingBgGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(0, 212, 228, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 228, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 75%);
+  animation: loadingGridDrift 28s linear infinite, loadingGridBreathe 4s ease-in-out infinite;
+}
+
+@keyframes loadingGridDrift {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 48px 48px, 48px 48px; }
+}
+
+@keyframes loadingGridBreathe {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
+
+.loadingBgParticles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.loadingBgParticles span {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 212, 228, 0.85) 0%, rgba(0, 212, 228, 0) 70%);
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.5);
+  animation: loadingParticleFloat 8s ease-in-out infinite;
+}
+
+.loadingBgParticles span:nth-child(2n) {
+  background: radial-gradient(circle, rgba(157, 111, 219, 0.85) 0%, rgba(157, 111, 219, 0) 70%);
+  box-shadow: 0 0 8px rgba(157, 111, 219, 0.5);
+}
+
+.loadingBgParticles span:nth-child(3n) {
+  background: radial-gradient(circle, rgba(0, 255, 159, 0.85) 0%, rgba(0, 255, 159, 0) 70%);
+  box-shadow: 0 0 8px rgba(0, 255, 159, 0.5);
+}
+
+@keyframes loadingParticleFloat {
+  0%, 100% { transform: translate(0, 0)        scale(1);   opacity: 0.35; }
+  25%      { transform: translate(14px, -10px) scale(1.4); opacity: 1;   }
+  50%      { transform: translate(-8px, -22px) scale(0.9); opacity: 0.6; }
+  75%      { transform: translate(-16px, 8px)  scale(1.2); opacity: 1;   }
+}
+
+/* Logo: mantiene el shadowMove original sin shimmer adicional
+   (el shimmer con mask interfería con el drop-shadow morado/cyan y
+   se veía mal). */
+
 /* Info del proyecto */
 .footerInfo {
   display: flex;
@@ -1513,12 +1905,30 @@
   font-size: var(--font-size-lg);
   font-weight: 700;
   letter-spacing: 0.15em;
-  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(
+    110deg,
+    var(--color-accent) 0%,
+    var(--color-secondary) 40%,
+    var(--color-neon) 60%,
+    var(--color-accent) 100%
+  );
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   cursor: default;
   user-select: none;
+  transition: filter 0.4s ease;
+}
+
+.footer:hover .footerLogo {
+  animation: footerLogoShimmer 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(0, 212, 228, 0.45));
+}
+
+@keyframes footerLogoShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 .footerTagline {
@@ -1547,7 +1957,23 @@
 
 .footerDivider {
   color: var(--color-accent);
-  opacity: 0.3;
+  opacity: 0.45;
+  text-shadow: 0 0 6px rgba(0, 212, 228, 0.55);
+  animation: footerDividerPulse 3.2s ease-in-out infinite;
+}
+
+.footerDivider:nth-of-type(2) { animation-delay: 0.6s; }
+.footerDivider:nth-of-type(3) { animation-delay: 1.2s; }
+
+@keyframes footerDividerPulse {
+  0%, 100% {
+    opacity: 0.35;
+    text-shadow: 0 0 4px rgba(0, 212, 228, 0.35);
+  }
+  50% {
+    opacity: 0.7;
+    text-shadow: 0 0 10px rgba(0, 212, 228, 0.7);
+  }
 }
 
 .footer p {
@@ -1603,3 +2029,78 @@
     display: none;
   }
 }
+
+/* ==========================================================================
+   KPI Particles — capa flotante coherente con chart cards
+   ========================================================================== */
+.statParticles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+.statParticles::before,
+.statParticles::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.statParticles::before {
+  width: 5px;
+  height: 5px;
+  top: 14%;
+  left: 10%;
+  background: radial-gradient(circle, rgba(0, 212, 228, 1) 0%, rgba(0, 212, 228, 0) 70%);
+  box-shadow: 0 0 10px rgba(0, 212, 228, 0.7);
+  animation: kpiParticle1 38s ease-in-out infinite;
+}
+
+.statParticles::after {
+  width: 6px;
+  height: 6px;
+  top: 78%;
+  left: 80%;
+  background: radial-gradient(circle, rgba(157, 111, 219, 1) 0%, rgba(157, 111, 219, 0) 70%);
+  box-shadow: 0 0 12px rgba(157, 111, 219, 0.7);
+  animation: kpiParticle2 44s ease-in-out infinite;
+}
+
+@keyframes kpiParticle1 {
+  0%   { transform: translate(0, 0) scale(0.8); opacity: 0.35; }
+  25%  { transform: translate(110px, 40px) scale(1); opacity: 0.8; }
+  50%  { transform: translate(220px, 130px) scale(0.95); opacity: 0.7; }
+  75%  { transform: translate(140px, 200px) scale(1.1); opacity: 0.8; }
+  100% { transform: translate(0, 0) scale(0.8); opacity: 0.35; }
+}
+
+@keyframes kpiParticle2 {
+  0%   { transform: translate(0, 0) scale(0.75); opacity: 0.35; }
+  30%  { transform: translate(-140px, -60px) scale(1); opacity: 0.8; }
+  60%  { transform: translate(-220px, -160px) scale(1.05); opacity: 0.7; }
+  100% { transform: translate(0, 0) scale(0.75); opacity: 0.35; }
+}
+
+/* Stagger por card: cada KPI tiene su propio ritmo */
+.statsGrid > *:nth-child(1) .statParticles::before { animation-delay: 0s; animation-duration: 38s; }
+.statsGrid > *:nth-child(1) .statParticles::after  { animation-delay: -12s; animation-duration: 44s; }
+.statsGrid > *:nth-child(2) .statParticles::before { animation-delay: -15s; animation-duration: 42s; }
+.statsGrid > *:nth-child(2) .statParticles::after  { animation-delay: -5s; animation-duration: 50s; }
+.statsGrid > *:nth-child(3) .statParticles::before { animation-delay: -25s; animation-duration: 36s; }
+.statsGrid > *:nth-child(3) .statParticles::after  { animation-delay: -18s; animation-duration: 48s; }
+
+/* Stagger del reveal: el segundo y tercer KPI llegan ligeramente después
+   (ya hay transitionDelay inline, esto refuerza la curva) */
+.statsGrid > .scrollReveal {
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING SCREEN — Ambient background (grid + particles) + logo shimmer
+   ═══════════════════════════════════════════════════════════════ */
+

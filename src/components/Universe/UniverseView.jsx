@@ -7377,8 +7377,15 @@ export default function UniverseView() {
       {/* === QUANTUM LOADING OVERLAY - pantalla de carga inicial === */}
       {loaderVisible && (
         <div className={`${styles.quantumLoader} ${loaderFading ? styles.quantumLoaderHide : ''}`}>
+          {/* Halo ambient detrás del átomo (volumen visual) */}
+          <div className={styles.loaderAmbientHalo} aria-hidden="true" />
+          {/* Pulse rings expansivos: cyan + purple + verde (triada cromática) */}
           <div className={styles.loaderPulseRing} />
           <div className={styles.loaderPulseRing2} />
+          <div className={styles.loaderPulseRing3} />
+          {/* Big-Bang seed: puntito blanco en el centro que pulsa lento
+             (energía acumulándose antes de la explosión) */}
+          <div className={styles.loaderBigBangSeed} aria-hidden="true" />
           <div className={styles.loaderScanline} />
           <div className={styles.loaderContent}>
             <img src="/logo.png" alt="ENTANGLE" className={styles.loaderLogo} />
@@ -7447,12 +7454,25 @@ export default function UniverseView() {
                 <circle cx="0" cy="0" r="2.5" fill="rgba(255,255,255,0.85)" className={styles.svgNucleus} />
               </svg>
             </div>
-            {/* Mensajes cíclicos - puro CSS, sin JS setInterval */}
+            {/* Mensajes cíclicos - puro CSS, sin JS setInterval.
+                Cada uno con su icono cósmico semántico. */}
             <div className={styles.loaderMessages}>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>{t('universe.loader.wave')}</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>{t('universe.loader.orbital')}</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '3.2s' }}>{t('universe.loader.entangling')}</p>
-              <p className={styles.loaderMsgItem} style={{ animationDelay: '4.8s' }}>{t('universe.loader.materializing')}</p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '0s' }}>
+                <FiActivity className={styles.loaderMsgIcon} aria-hidden="true" />
+                {t('universe.loader.wave')}
+              </p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '1.6s' }}>
+                <FiTarget className={styles.loaderMsgIcon} aria-hidden="true" />
+                {t('universe.loader.orbital')}
+              </p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '3.2s' }}>
+                <FiLayers className={styles.loaderMsgIcon} aria-hidden="true" />
+                {t('universe.loader.entangling')}
+              </p>
+              <p className={styles.loaderMsgItem} style={{ animationDelay: '4.8s' }}>
+                <FiZap className={styles.loaderMsgIcon} aria-hidden="true" />
+                {t('universe.loader.materializing')}
+              </p>
             </div>
           </div>
         </div>

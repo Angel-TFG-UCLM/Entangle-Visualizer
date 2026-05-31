@@ -48,17 +48,20 @@ function AnimatedNumber({ value, duration = 1500, visible = true }) {
       const endValue = value
       const animDuration = hasAnimatedInitial.current ? 400 : duration
       const startTime = Date.now()
-      
+        
       const animate = () => {
         const elapsed = Date.now() - startTime
         const progress = Math.min(elapsed / animDuration, 1)
-        
-        // Easing function (ease-out expo para más dramatismo)
-        const easeOut = 1 - Math.pow(1 - progress, 4)
-        
-        const currentValue = Math.round(startValue + (endValue - startValue) * easeOut)
+          
+        // Easing ease-out cúbico — suave al final, sin "freno" perceptible
+        const easeOut = 1 - Math.pow(1 - progress, 3)
+          
+        // Garantizar valor exacto al final (evita off-by-one por redondeo)
+        const currentValue = progress >= 1
+          ? endValue
+          : Math.round(startValue + (endValue - startValue) * easeOut)
         setDisplayValue(currentValue)
-        
+          
         if (progress < 1) {
           requestAnimationFrame(animate)
         } else {
@@ -66,7 +69,7 @@ function AnimatedNumber({ value, duration = 1500, visible = true }) {
           hasAnimatedInitial.current = true
         }
       }
-      
+        
       requestAnimationFrame(animate)
     }
   }, [value, duration, visible])
@@ -241,6 +244,7 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('repos')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.statParticles} aria-hidden="true" />
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'repos'} />
         </div>
@@ -269,6 +273,7 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('users')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.statParticles} aria-hidden="true" />
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'users'} />
         </div>
@@ -297,6 +302,7 @@ export default function KPISection({ data }) {
         onMouseEnter={() => setHoveredCard('orgs')}
         onMouseLeave={() => setHoveredCard(null)}
       >
+        <div className={styles.statParticles} aria-hidden="true" />
         <div className={styles.kpiBlochCorner}>
           <BlochSphere size={36} collapsed={hoveredCard === 'orgs'} />
         </div>

@@ -7,6 +7,7 @@
  */
 
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { useDashboardStore } from '../../store/dashboardStore'
@@ -18,6 +19,7 @@ import {
   FiMapPin, FiCheckCircle, FiZap, FiAward, FiSearch
 } from 'react-icons/fi'
 import styles from './NetworkGraph.module.css'
+import Tooltip from '../Tooltip'
 
 // Known bot logins — filters bots missed by backend isBot flag
 const KNOWN_BOT_LOGINS = new Set([
@@ -856,14 +858,18 @@ export default function NetworkGraph() {
           {/* Detail level toggle */}
           <div className={styles.detailToggle}>
             {Object.entries(DETAIL_LEVELS).map(([key, cfg]) => (
-              <button
+              <Tooltip
                 key={key}
-                className={`${styles.detailBtn} ${detailLevel === key ? styles.detailBtnActive : ''}`}
-                onClick={() => { setDetailLevel(key); setAnimationComplete(false); setTimeout(() => setAnimationComplete(true), 100) }}
-                title={`${t(`network.detail.${key}`)}: ${cfg.maxReposPerOrg} repos, ${cfg.maxSinglePerOrg} users`}
+                position="bottom"
+                label={`${t(`network.detail.${key}`)}: ${cfg.maxReposPerOrg} repos, ${cfg.maxSinglePerOrg} users`}
               >
-                {t(`network.detail.${key}`)}
-              </button>
+                <button
+                  className={`${styles.detailBtn} ${detailLevel === key ? styles.detailBtnActive : ''}`}
+                  onClick={() => { setDetailLevel(key); setAnimationComplete(false); setTimeout(() => setAnimationComplete(true), 100) }}
+                >
+                  {t(`network.detail.${key}`)}
+                </button>
+              </Tooltip>
             ))}
           </div>
           <div className={styles.legend}>
@@ -1248,42 +1254,68 @@ export default function NetworkGraph() {
               )
             })()}
 
-            {/* ─── HTML TOOLTIP OVERLAY ─── */}
+            {/* ─── HTML TOOLTIP OVERLAY (PORTAL FIXED · FARTHEST CORNER) ─── */}
             {hoveredNode && svgRef.current && (() => {
               const node = hoveredNode
               const nodeColor = getNodeColor(node, false)
               const m = node._metrics || {}
 
-              // Convert SVG viewBox coords → pixel coords relative to wrapper
+              // El tooltip se renderiza vía portal a document.body con
+              // position:fixed → escapa libremente del container del grafo.
+              // Estrategia: lo anclamos a la ESQUINA del SVG más alejada del
+              // nodo hover. Resultado: nunca está cerca del cursor, nunca
+              // tapa el nodo ni su vecindario inmediato, y aparece siempre en
+              // una de 4 posiciones predecibles.
               const svgEl = svgRef.current
               const svgRect = svgEl.getBoundingClientRect()
               const scaleX = svgRect.width / SVG_W
               const scaleY = svgRect.height / SVG_H
-              const px = node.x * scaleX
-              const py = node.y * scaleY
 
-              // Estimate tooltip height based on node type
+              // Posición del nodo en coords de viewport
+              const nx = svgRect.left + node.x * scaleX
+              const ny = svgRect.top + node.y * scaleY
+
+              // Tamaño estimado del tooltip
               const estH = node.type === 'org' ? 280 : node.type === 'user' ? 200 : 160
-              // Determine if tooltip would clip at edges
-              const fitsAbove = py > estH + 18
-              const nearLeft = px < 140
-              const nearRight = px > (svgRect.width - 140)
+              const estW = node.type === 'org' ? 320 : node.type === 'user' ? 280 : 260
 
-              let tx = 'translateX(-50%)'
-              let ty = fitsAbove ? 'translateY(calc(-100% - 14px))' : 'translateY(18px)'
-              if (nearLeft) tx = 'translateX(-12px)'
-              else if (nearRight) tx = 'translateX(calc(-100% + 12px))'
+              const padding = 14
+
+              // 4 esquinas posibles dentro del SVG
+              const corners = [
+                { left: svgRect.left + padding,                top: svgRect.top + padding                  },
+                { left: svgRect.right - estW - padding,        top: svgRect.top + padding                  },
+                { left: svgRect.left + padding,                top: svgRect.bottom - estH - padding        },
+                { left: svgRect.right - estW - padding,        top: svgRect.bottom - estH - padding        },
+              ]
+
+              // Elegir la esquina cuyo CENTRO está más lejos del nodo
+              let best = corners[0]
+              let bestDist = -1
+              for (const c of corners) {
+                const cxc = c.left + estW / 2
+                const cyc = c.top + estH / 2
+                const d = Math.hypot(cxc - nx, cyc - ny)
+                if (d > bestDist) { bestDist = d; best = c }
+              }
+
+              // Clamp final al viewport (8px margen) por si el SVG es más
+              // pequeño que el tooltip o se sale por algún borde
+              const vw = window.innerWidth
+              const vh = window.innerHeight
+              const margin = 8
+              let finalLeft = Math.max(margin, Math.min(vw - estW - margin, best.left))
+              let finalTop  = Math.max(margin, Math.min(vh - estH - margin, best.top))
 
               const tooltipStyle = {
-                position: 'absolute',
-                left: `${px}px`,
-                top: `${py}px`,
-                transform: `${tx} ${ty}`,
-                zIndex: 50,
+                position: 'fixed',
+                left: `${finalLeft}px`,
+                top: `${finalTop}px`,
+                zIndex: 9999,
                 pointerEvents: 'none',
               }
 
-              return (
+              return createPortal(
                 <div style={tooltipStyle} className={styles.nodeTooltip}>
                   <div className={styles.ntBar} style={{ background: nodeColor }} />
 
@@ -1521,7 +1553,8 @@ export default function NetworkGraph() {
                     {node.type === 'repo' && t('network.clickToFocus')}
                     {node.type === 'user' && (node._isBridge ? t('network.bridgeUserHint') : t('network.collaborator'))}
                   </div>
-                </div>
+                </div>,
+                document.body
               )
             })()}
 

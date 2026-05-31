@@ -7,12 +7,19 @@
 
 .container {
   position: absolute;
-  bottom: 4px;
-  right: 12px;
+  bottom: 12px;
+  /* Centrado horizontal robusto: usamos left: 50% + translateX(-50%) sobre
+     un container con width auto (display: inline-block por defecto al ser
+     absolute) — la onda y sus labels quedan agrupados y centrados. */
+  left: 50%;
+  transform: translateX(-50%);
   opacity: 0.4;
   transition: opacity 0.3s ease;
   pointer-events: none;
   overflow: visible;
+  /* Forzar layout coherente: el container envuelve solo a sus hijos */
+  display: inline-block;
+  line-height: 0;
 }
 
 .container.active {

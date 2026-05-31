@@ -89,30 +89,46 @@
   50%      { opacity: 1; filter: drop-shadow(0 0 4px rgba(0, 212, 228, 0.4)); }
 }
 
-/* Tooltip flotante (sigue al cursor) */
+/* Tooltip flotante (sigue al cursor) — coherente con .customTooltip de charts */
 .floatingTooltip {
   position: absolute;
   transform: translate(-50%, -100%);
   pointer-events: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  background: rgba(20, 26, 32, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 212, 228, 0.35);
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  /* Glassmorphism multi-layer con gradient diagonal */
+  background:
+    linear-gradient(135deg, rgba(15, 20, 30, 0.97) 0%, rgba(22, 28, 40, 0.98) 100%);
+  border: 1px solid rgba(0, 212, 228, 0.30);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-md);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 24px rgba(0, 212, 228, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
   z-index: 50;
-  white-space: nowrap;
-  max-width: min(90vw, 480px);
-  animation: tooltipIn 0.18s ease-out;
+  /* Permitir wrap natural en lugar de cortes feos por palabra */
+  white-space: normal;
+  min-width: 220px;
+  max-width: min(90vw, 560px);
+  width: max-content;
+  animation: tooltipIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity;
 }
 
 @keyframes tooltipIn {
-  from { opacity: 0; transform: translate(-50%, calc(-100% - 4px)); }
-  to   { opacity: 1; transform: translate(-50%, -100%); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 4px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
 }
 
 .tooltipText {
@@ -122,17 +138,23 @@
   letter-spacing: 0.01em;
   line-height: 1.4;
   white-space: normal;
+  font-weight: 500;
 }
 
 .formula {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
-  background: rgba(0, 212, 228, 0.08);
-  border: 1px solid rgba(0, 212, 228, 0.25);
+  padding: 0.2rem 0.55rem;
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.12) 0%, rgba(157, 111, 219, 0.10) 100%);
+  border: 1px solid rgba(0, 212, 228, 0.35);
   border-radius: var(--radius-sm);
-  color: rgba(0, 212, 228, 0.95);
+  color: rgba(0, 212, 228, 1);
+  font-family: var(--font-family-mono);
   font-size: 0.8em;
+  box-shadow:
+    0 0 10px rgba(0, 212, 228, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* Etiqueta + hint debajo del circuito (siempre visible) */

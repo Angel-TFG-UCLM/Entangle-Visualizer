@@ -631,7 +631,35 @@ export const useDashboardStore = create(
           console.log(`✅ Análisis de colaboración: ${result?.mode} - ${result?.shared_users?.length || 0} usuarios compartidos`)
         } catch (error) {
           console.error('Error en análisis de colaboración:', error)
-          set({ isAnalyzing: false, collaborationData: null }, false, 'analyzeCollaboration/error')
+          /* IMPORTANTE: en lugar de nulificar collaborationData (lo que
+             cierra el modal y deja al usuario sin saber qué pasó), construimos
+             un resultado vacío sintético con la misma "mode" y un flag de
+             error. El modal queda abierto mostrando el empty-state con un
+             mensaje claro en lugar de cerrarse sin previo aviso. */
+          const fallbackMode = hasUser
+            ? 'user_focus'
+            : hasRepos
+              ? 'repos_comparison'
+              : 'orgs_comparison'
+          const fallbackSelections = hasUser
+            ? [state.selectedUser]
+            : hasRepos
+              ? state.selectedRepos
+              : state.selectedOrgs
+          set({
+            isAnalyzing: false,
+            collaborationData: {
+              mode: fallbackMode,
+              selections: fallbackSelections,
+              shared_users: [],
+              collaboration_graph: { nodes: [], links: [] },
+              metrics: {},
+              error: error?.response?.status === 404
+                ? 'not_found'
+                : (error?.message || 'unknown'),
+            },
+            collaborationMode: fallbackMode,
+          }, false, 'analyzeCollaboration/error')
         }
       },
 

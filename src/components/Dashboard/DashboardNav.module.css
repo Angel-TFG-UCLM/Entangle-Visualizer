@@ -40,13 +40,45 @@
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm);
-  background: rgba(26, 31, 46, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 212, 228, 0.15);
+  /* Multi-layer glassmorphism coherente con cards */
+  background:
+    radial-gradient(circle at top, rgba(0, 212, 228, 0.06), transparent 65%),
+    radial-gradient(circle at bottom, rgba(157, 111, 219, 0.05), transparent 60%),
+    linear-gradient(180deg, rgba(20, 26, 38, 0.78) 0%, rgba(15, 20, 30, 0.85) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(0, 212, 228, 0.18);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(0, 212, 228, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Top accent shimmer constante muy sutil */
+.navTrack::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-accent) 35%,
+    var(--color-secondary) 65%,
+    transparent 100%);
+  opacity: 0.55;
+  background-size: 200% 100%;
+  animation: navTrackShimmer 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes navTrackShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 /* === NAV ITEM (botón individual) === */
@@ -57,22 +89,30 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: color 0.2s ease,
-              background 0.2s ease,
-              transform 0.15s ease;
+  transition:
+    color 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   outline: none;
   -webkit-tap-highlight-color: transparent;
 }
 
 .navItem:hover {
   color: var(--color-accent);
-  background: rgba(0, 212, 228, 0.08);
-  transform: scale(1.08);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.14) 0%, rgba(157, 111, 219, 0.10) 100%);
+  border-color: rgba(0, 212, 228, 0.35);
+  box-shadow:
+    0 0 14px rgba(0, 212, 228, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: scale(1.1);
 }
 
 .navItem:active {
@@ -82,11 +122,20 @@
 /* === ITEM ACTIVO === */
 .navItemActive {
   color: var(--color-accent);
-  background: rgba(0, 212, 228, 0.12);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.20) 0%, rgba(157, 111, 219, 0.14) 100%);
+  border-color: rgba(0, 212, 228, 0.45);
+  box-shadow:
+    0 0 16px rgba(0, 212, 228, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .navItemActive:hover {
-  background: rgba(0, 212, 228, 0.18);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 228, 0.28) 0%, rgba(157, 111, 219, 0.20) 100%);
+  box-shadow:
+    0 0 22px rgba(0, 212, 228, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* === DOT INDICADOR ACTIVO === */

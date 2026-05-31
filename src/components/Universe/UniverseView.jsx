@@ -3944,7 +3944,11 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef, f
   const { camera, gl } = useThree()
   const target = useRef(new THREE.Vector3(0, 0, 0))
   const goal = useRef(new THREE.Vector3(0, 80, 260))
-  const flying = flyingRef || useRef(false)
+  // El hook debe llamarse siempre en el mismo orden (Rules of Hooks).
+  // Si el padre pasa un flyingRef compartido lo usamos; si no, caemos al
+  // ref local. Antes era `flyingRef || useRef(false)` — condicional.
+  const localFlyingRef = useRef(false)
+  const flying = flyingRef || localFlyingRef
 
   useEffect(() => {
     if (focusTarget) {
@@ -4440,8 +4444,11 @@ function FloatingLabel({ entity, position }) {
 
 function FocusHighlight({ position, entityType }) {
   const groupRef = useRef()
-  const color = entityType === 'org' ? '#00f7ff' : entityType === 'repo' ? '#bd00ff'
-    : entityType === 'user' ? (/* bridge check in parent */ '#00ff9f') : '#00ff9f'
+  // Verde para 'user' (incluye bridges) y para el caso por defecto.
+  // Cyan para 'org', magenta para 'repo'.
+  const color = entityType === 'org' ? '#00f7ff'
+              : entityType === 'repo' ? '#bd00ff'
+              : '#00ff9f'
   const baseSize = entityType === 'org' ? 5.5 : entityType === 'repo' ? 2.8 : 1.6
 
   useFrame(({ clock }) => {

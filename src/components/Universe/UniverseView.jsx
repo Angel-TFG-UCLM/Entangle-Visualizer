@@ -45,6 +45,39 @@ const REPO_MAX_ORBIT = 55 // órbita máxima qubit→procesador
 const USER_MIN_ORBIT = 4  // órbita mínima partícula→qubit
 const USER_MAX_ORBIT = 10 // órbita máxima partícula→qubit
 
+const SINGULARITY = new THREE.Vector3(0, 0, 0)
+const _tmpRadial = new THREE.Vector3()
+const _tmpTangent = new THREE.Vector3()
+const _tmpUp = new THREE.Vector3(0, 1, 0)
+const _tmpRight = new THREE.Vector3(1, 0, 0)
+
+function setEntryTravelPosition(out, pos, progress, staggerDelay, duration) {
+  const travelP = Math.min(1, Math.max(0, (progress - staggerDelay) / duration))
+  const eased = travelP < 1 ? easeOutCubic(travelP) : 1
+  out.lerpVectors(SINGULARITY, pos, eased)
+  if (eased < 0.999) {
+    const len = _tmpRadial.set(pos.x, pos.y, pos.z).length()
+    if (len > 0.001) {
+      const swirlMag = Math.sin(eased * Math.PI) * len * 0.12
+      const radial = _tmpRadial.normalize()
+      _tmpTangent.crossVectors(_tmpUp, radial)
+      if (_tmpTangent.lengthSq() < 0.0001) _tmpTangent.crossVectors(_tmpRight, radial)
+      out.addScaledVector(_tmpTangent.normalize(), swirlMag)
+    }
+  }
+  return travelP
+}
+
+function applyExitCollapse(out, exitProgress) {
+  if (exitProgress <= 0.001) return 0
+  // Quadratic curve (`t^2`) for visible collapse from ~25% of progress.
+  // Linear lerp toward singularity (no spiral — spiral was disorienting
+  // for the viewer; straight line preserves spatial mapping of nodes).
+  const eased = exitProgress < 1 ? exitProgress * exitProgress : 1
+  out.lerp(SINGULARITY, eased)
+  return eased
+}
+
 // Known bot logins — fallback when backend isBot flag is missing from cached data
 const KNOWN_BOT_LOGINS = new Set([
   'dependabot', 'renovate', 'greenkeeper', 'snyk-bot', 'codecov',
@@ -552,12 +585,14 @@ function QuantumVacuum({ progressRef, progressKey }) {
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
     fluctMat.uniforms.uTime.value = t
     fluctMat.uniforms.uProgress.value = p
-    fluctMat.uniforms.uOpacity.value = p > 0.01 ? 0.15 * p : 0
+    fluctMat.uniforms.uOpacity.value = p > 0.01 ? 0.15 * p * exitFade : 0
 
     // Lattice fade-in
-    if (latticeRef.current) latticeRef.current.material.opacity = 0.025 * p
+    if (latticeRef.current) latticeRef.current.material.opacity = 0.025 * p * exitFade
   })
 
   return (
@@ -615,6 +650,7 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
     const t = clock.getElapsedTime()
     const hasSel = highlightSet !== null
     const progress = progressRef.current[progressKey]
+    const exitProgress = progressRef.current.exitProgress || 0
 
     // Smooth lens blend
     if (lensData !== lastOrgLens.current) {
@@ -656,11 +692,14 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
         : 1.0
       const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
       const vis = visRef.current[i]
-      const scale = (isHighlighted ? localP * 1.25 : localP) * appliedLensScale * (vis < 0.001 ? 0 : 1)
+      const travelP = setEntryTravelPosition(tmpObj.position, pos, progress, stagger * 0.6, 0.5)
+      const exitEased = applyExitCollapse(tmpObj.position, exitProgress)
+      const breathing = travelP >= 1 ? 1 + Math.sin(t * 1.5 + i * 0.7) * 0.015 : 1
+      let scale = (isHighlighted ? localP * 1.25 : localP) * appliedLensScale * breathing * (vis < 0.001 ? 0 : 1)
+      if (exitEased > 0) scale *= 1 - exitEased * 0.85
       const speed = 0.3 + i * 0.05
 
       // Torus 1 - rotación X,Y
-      tmpObj.position.copy(pos)
       tmpObj.rotation.set(t * speed, t * speed * 0.7, 0)
       tmpObj.scale.setScalar(scale)
       tmpObj.updateMatrix()
@@ -812,9 +851,11 @@ function ProbabilityClouds({ repoNodes, positions, progressRef, progressKey, dim
   useFrame(({ clock }) => {
     if (!ref.current) return
     const p = easeOutCubic(progressRef.current[progressKey])
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
     shaderMat.uniforms.uTime.value = clock.getElapsedTime() * 0.4
     shaderMat.uniforms.uProgress.value = p
-    shaderMat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.5) * p
+    shaderMat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.5) * p * exitFade
 
     // === Temporal visibility per cloud particle ===
     const geo = ref.current?.geometry
@@ -894,6 +935,7 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
     const t = clock.getElapsedTime()
     const n = repoNodes.length
     const hasSel = highlightSet !== null
+    const exitProgress = progressRef.current.exitProgress || 0
 
     // Smooth lens blend for qubits - delayed until canvas visible
     if (lensData !== lastQubitLens.current) {
@@ -947,16 +989,22 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
       const appliedLensScale = 1.0 + (lensScaleFactor - 1.0) * blend
       const vis = visRef.current[i]
       const visFade = vis * vis  // quadratic for smoother perceptual fade
-      dummy.position.copy(pos)
+      const travelP = setEntryTravelPosition(dummy.position, pos, progress, stagger * 0.5, 0.6)
       // Heisenberg uncertainty - micro-vibración cuántica
-      dummy.position.x += Math.sin(t * 1.7 + i * 3.14) * 0.04
-      dummy.position.y += Math.cos(t * 2.3 + i * 2.71) * 0.04
-      dummy.position.z += Math.sin(t * 1.9 + i * 1.62) * 0.04
-      dummy.scale.setScalar(baseScale * localP * selScale * appliedLensScale * (vis < 0.001 ? 0 : 1))
+      if (travelP >= 1) {
+        dummy.position.x += Math.sin(t * 1.7 + i * 3.14) * 0.04
+        dummy.position.y += Math.cos(t * 2.3 + i * 2.71) * 0.04
+        dummy.position.z += Math.sin(t * 1.9 + i * 1.62) * 0.04
+      }
+      const exitEased = applyExitCollapse(dummy.position, exitProgress)
+      const breathing = travelP >= 1 ? 1 + Math.sin(t * 1.5 + i * 0.7) * 0.015 : 1
+      let scale = baseScale * localP * selScale * appliedLensScale * breathing * (vis < 0.001 ? 0 : 1)
+      if (exitEased > 0) scale *= 1 - exitEased * 0.85
+      dummy.scale.setScalar(scale)
       dummy.updateMatrix()
       ref.current.setMatrixAt(i, dummy.matrix)
       if (hitRef.current) {
-        dummy.scale.setScalar(vis > 0.01 && localP > 0.1 ? 1 : 0.001)
+        dummy.scale.setScalar(vis > 0.01 && localP > 0.1 ? Math.max(0.001, 1 - exitEased * 0.85) : 0.001)
         dummy.updateMatrix()
         hitRef.current.setMatrixAt(i, dummy.matrix)
       }
@@ -1031,7 +1079,10 @@ function BlochAxes({ repoNodes, positions, progressRef, progressKey, dimmed, act
   useEffect(() => () => geometry?.dispose(), [geometry])
 
   useFrame(() => {
-    if (matRef.current) matRef.current.uniforms.uOpacity.value = 0.15 * easeOutCubic(progressRef?.current?.[progressKey] || 0) * (dimmed ? 0.04 : 1)
+    const progress = easeOutCubic(progressRef?.current?.[progressKey] || 0)
+    const exitProgress = progressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
+    if (matRef.current) matRef.current.uniforms.uOpacity.value = 0.15 * progress * (dimmed ? 0.04 : 1) * exitFade
     // === Temporal visibility for Bloch axes ===
     const visAttr = geometry.attributes.aVisible
     if (visAttr) {
@@ -1125,6 +1176,7 @@ const PARTICLE_VERTEX = /* glsl */`
   attribute float aVisible;
   uniform float uTime;
   uniform float uProgress;
+  uniform float uExitProgress;
   uniform float uBaseSize;
   uniform float uBridgeSize;
   uniform float uLensActive;
@@ -1137,6 +1189,12 @@ const PARTICLE_VERTEX = /* glsl */`
   varying float vDensity;
   varying float vBridgeBlend;
   varying float vVisible;
+  varying float vExitFade;
+
+  float easeOutCubicGpu(float t) {
+    t = clamp(t, 0.0, 1.0);
+    return 1.0 - pow(1.0 - t, 3.0);
+  }
 
   void main() {
     vBrightness = aBrightness;
@@ -1150,6 +1208,12 @@ const PARTICLE_VERTEX = /* glsl */`
     // === STAGGERING PER-PARTICLE ===
     float stagger = fract(aSeed * 3.7) * 0.55;
     float localP = smoothstep(stagger, stagger + 0.45, p);
+    float travelP = clamp((p - stagger) / 0.45, 0.0, 1.0);
+    float entryEased = easeOutCubicGpu(travelP);
+    float exitEased = uExitProgress > 0.001
+      ? (uExitProgress < 1.0 ? uExitProgress * uExitProgress : 1.0)
+      : 0.0;
+    vExitFade = 1.0 - exitEased;
 
     // === CRITICAL: GPU clampea gl_PointSize mínimo a 1px ===
     if (localP < 0.001 || aVisible < 0.001) {
@@ -1170,7 +1234,16 @@ const PARTICLE_VERTEX = /* glsl */`
     float jx = sin(uTime * 3.14 + aSeed * 17.3) * 0.04;
     float jy = sin(uTime * 2.71 + aSeed * 31.7) * 0.04;
     float jz = sin(uTime * 1.62 + aSeed * 47.1) * 0.04;
-    vec3 pos = position + vec3(jx, jy, jz);
+    float radialLen = length(position);
+    vec3 radial = radialLen > 0.001 ? normalize(position) : vec3(0.0, 0.0, 1.0);
+    vec3 tangent = cross(vec3(0.0, 1.0, 0.0), radial);
+    if (length(tangent) < 0.001) tangent = cross(vec3(1.0, 0.0, 0.0), radial);
+    tangent = normalize(tangent);
+    float swirlMag = sin(entryEased * 3.14159265) * radialLen * 0.12;
+    vec3 pos = mix(vec3(0.0), position, entryEased) + tangent * swirlMag;
+    if (travelP >= 1.0) pos += vec3(jx, jy, jz);
+    // Linear collapse toward singularity (no spiral — disorienting for viewer)
+    pos = mix(pos, vec3(0.0), exitEased);
 
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
 
@@ -1189,6 +1262,7 @@ const PARTICLE_VERTEX = /* glsl */`
     float normalSize = uBaseSize * normalPulse * lensScale;
     float bridgeSize = uBridgeSize * bridgePulse * lensScale;
     float size = mix(normalSize, bridgeSize, bridgeBlend);
+    size *= 1.0 - exitEased * 0.85;
 
     // Reducir tamaño en repos densos (bridges preservan tamaño mínimo)
     float densitySize = mix(aDensity, max(aDensity, 0.5), bridgeBlend);
@@ -1200,7 +1274,7 @@ const PARTICLE_VERTEX = /* glsl */`
     vGlow = mix(normalGlow, 1.0 + personalFlash * 0.6, bridgeBlend);
 
     gl_PointSize = size * (350.0 / -mvPos.z);
-    if (aVisible < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
+    if (aVisible < 0.001 || size < 0.001) { gl_PointSize = 0.0; gl_Position = vec4(9999.0, 9999.0, 9999.0, 1.0); return; }
     gl_Position = projectionMatrix * mvPos;
   }
 `
@@ -1217,9 +1291,10 @@ const PARTICLE_FRAGMENT = /* glsl */`
   varying float vDensity;
   varying float vBridgeBlend;
   varying float vVisible;
+  varying float vExitFade;
 
   void main() {
-    float visFade = vVisible * vVisible;
+    float visFade = vVisible * vVisible * vExitFade;
     vec4 texel = texture2D(uMap, gl_PointCoord);
     // Bridge reveal: verde → dorado progresivo según vBridgeBlend
     vec3 baseCol = mix(uColorNormal, uColorBridge, vBridgeBlend);
@@ -1294,6 +1369,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
     uniforms: {
       uTime: { value: 0 },
       uProgress: { value: 0 },
+      uExitProgress: { value: 0 },
       uBaseSize: { value: 3.5 },
       uBridgeSize: { value: 5.0 },
       uMap: { value: glowMap },
@@ -1349,6 +1425,7 @@ function QuantumParticles({ userNodes, positions, onHover, onClick, progressRef,
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progressRef.current[progressKey]
+    mat.uniforms.uExitProgress.value = progressRef.current.exitProgress || 0
     // Bridge reveal driven by entanglement progress - bridges "se descubren" con las conexiones
     mat.uniforms.uBridgeReveal.value = easeOutCubic(progressRef.current.entanglement || 0)
 
@@ -1678,9 +1755,11 @@ function QuantumBonds({ repoUsers, positions, progressRef, progressKey, dimmed, 
   useFrame(({ clock }) => {
     if (!mat) return
     const progress = progressRef.current[progressKey]
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
     mat.uniforms.uTime.value = clock.getElapsedTime()
     mat.uniforms.uProgress.value = progress
-    mat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.35) * easeOutCubic(progress)
+    mat.uniforms.uOpacity.value = (dimmed ? 0.008 : 0.35) * easeOutCubic(progress) * exitFade
 
     // === Temporal visibility lerp ===
     if (geo) {
@@ -1849,8 +1928,10 @@ function OrgEntanglementArcs({ arcs, progressRef, progressKey, dimmed, collabHig
     if (!mat) return
     mat.uniforms.uTime.value = clock.getElapsedTime()
     const p = easeOutCubic(progressRef.current[progressKey])
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
     mat.uniforms.uProgress.value = p
-    mat.uniforms.uOpacity.value = p < 0.01 ? 0 : (collabHighlight ? 1.0 : (dimmed ? 0.015 : 0.7))
+    mat.uniforms.uOpacity.value = (p < 0.01 ? 0 : (collabHighlight ? 1.0 : (dimmed ? 0.015 : 0.7))) * exitFade
     // Smooth boost transition
     const targetBoost = collabHighlight ? 1.0 : 0.0
     mat.uniforms.uBoost.value += (targetBoost - mat.uniforms.uBoost.value) * 0.08
@@ -2041,9 +2122,11 @@ function EntanglementChannels({ connections, progressRef, progressKey, dimmed, h
   useFrame(({ clock }) => {
     if (!ref.current || connections.length === 0) return
     const p = easeOutCubic(progressRef.current[progressKey])
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
 
     const baseOpacity = p < 0.01 ? 0 : (collabHighlight ? 0.03 : (dimmed ? (highlightSet ? 0.4 : 0.05) : 0.55))
-    shaderMat.uniforms.uOpacity.value = baseOpacity
+    shaderMat.uniforms.uOpacity.value = baseOpacity * exitFade
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
     shaderMat.uniforms.uDrawProgress.value = p
 
@@ -2154,7 +2237,9 @@ function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightS
   useFrame(({ clock }) => {
     if (!meshRef.current) return
     const t = clock.getElapsedTime()
-    const p = easeOutCubic(progressRef.current[progressKey])
+    const progress = progressRef.current[progressKey]
+    const p = easeOutCubic(progress)
+    const exitProgress = progressRef.current.exitProgress || 0
     const hasSel = highlightSet !== null
 
     // === Temporal visibility lerp ===
@@ -2176,11 +2261,15 @@ function EnergyRings({ orgNodes, positions, progressRef, progressKey, highlightS
       const vis = visRef.current[i]
       const visFade = vis * vis  // quadratic for smoother perceptual fade
       const phase = (t * 0.5 + i * 0.8) % 3
-      const scale = (1 + phase * 6) * p
+      const stagger = n > 1 ? i / (n - 1) : 0
+      const travelP = setEntryTravelPosition(tmpObj.position, pos, progress, stagger * 0.6, 0.5)
+      const exitEased = applyExitCollapse(tmpObj.position, exitProgress)
+      const breathing = travelP >= 1 ? 1 + Math.sin(t * 1.5 + i * 0.7) * 0.015 : 1
+      let scale = (1 + phase * 6) * p * breathing
+      if (exitEased > 0) scale *= 1 - exitEased * 0.85
       const dim = (hasSel && !highlightSet.has(orgNodes[i]?.id) ? 0.02 : 1) * (dimmed && !hasSel ? 0.03 : 1)
-      const fade = Math.max(0, 1 - phase / 3) * p * dim * visFade
+      const fade = Math.max(0, 1 - phase / 3) * p * dim * visFade * (1 - exitEased)
 
-      tmpObj.position.copy(pos)
       tmpObj.rotation.set(Math.PI / 2, 0, 0)
       tmpObj.scale.setScalar(fade < 0.001 ? 0 : scale)
       tmpObj.updateMatrix()
@@ -2254,8 +2343,10 @@ function InterferenceField({ progressRef, progressKey }) {
 
   useFrame(({ clock }) => {
     const p = easeOutCubic(progressRef.current[progressKey])
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
-    shaderMat.uniforms.uOpacity.value = 0.06 * p
+    shaderMat.uniforms.uOpacity.value = 0.06 * p * exitFade
   })
 
   return (
@@ -2305,6 +2396,8 @@ function QuantumGenesis({ progressRef, progressKey }) {
   useFrame((_, delta) => {
     const p = progressRef.current[progressKey]
     const done = p >= 1
+    const exitProgress = progressRef.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
 
     // Central flash sphere — bright, expanding fast, fading
     if (flashRef.current) {
@@ -2314,7 +2407,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
         flashRef.current.visible = true
         const s = easeOutCubic(Math.min(p * 3, 1)) * 22
         flashRef.current.scale.setScalar(Math.max(s, 0.001))
-        flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.90
+        flashRef.current.material.opacity = Math.max(0, 1 - p * 1.5) * 0.90 * exitFade
       }
     }
 
@@ -2326,7 +2419,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
         innerGlowRef.current.visible = true
         const s = easeOutCubic(Math.min(p * 2, 1)) * 8
         innerGlowRef.current.scale.setScalar(Math.max(s, 0.001))
-        innerGlowRef.current.material.opacity = Math.max(0, 0.6 * (1 - p * 1.2))
+        innerGlowRef.current.material.opacity = Math.max(0, 0.6 * (1 - p * 1.2)) * exitFade
       }
     }
 
@@ -2338,7 +2431,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
         wave1Ref.current.visible = true
         const s = easeOutCubic(p) * 500
         wave1Ref.current.scale.setScalar(Math.max(s, 0.001))
-        wave1Ref.current.material.opacity = Math.max(0, 0.25 * (1 - p))
+        wave1Ref.current.material.opacity = Math.max(0, 0.25 * (1 - p)) * exitFade
       }
     }
 
@@ -2351,7 +2444,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
         wave2Ref.current.visible = true
         const s = easeOutCubic(wp) * 350
         wave2Ref.current.scale.setScalar(Math.max(s, 0.001))
-        wave2Ref.current.material.opacity = Math.max(0, 0.18 * (1 - wp))
+        wave2Ref.current.material.opacity = Math.max(0, 0.18 * (1 - wp)) * exitFade
       }
     }
 
@@ -2364,7 +2457,7 @@ function QuantumGenesis({ progressRef, progressKey }) {
         wave3Ref.current.visible = true
         const s = easeOutCubic(wp) * 250
         wave3Ref.current.scale.setScalar(Math.max(s, 0.001))
-        wave3Ref.current.material.opacity = Math.max(0, 0.15 * (1 - wp))
+        wave3Ref.current.material.opacity = Math.max(0, 0.15 * (1 - wp)) * exitFade
       }
     }
 
@@ -2393,9 +2486,9 @@ function QuantumGenesis({ progressRef, progressKey }) {
           }
         }
         pos.needsUpdate = true
-        burstRef.current.material.opacity = p > fadeStart
+        burstRef.current.material.opacity = (p > fadeStart
           ? Math.max(0, 0.7 * (1 - (p - fadeStart) / (1 - fadeStart)))
-          : Math.min(0.7, p * 10)
+          : Math.min(0.7, p * 10)) * exitFade
       }
     }
   })
@@ -2448,7 +2541,7 @@ const _norm = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _perp = new THREE.Vector3()
 
-function TunnelingPulses({ connections, startAnimation, dimmed, activeNodeIdsRef }) {
+function TunnelingPulses({ connections, startAnimation, dimmed, activeNodeIdsRef, exitProgressRef }) {
   const ref = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const PULSE_COUNT = Math.min(connections.length, 25)
@@ -2487,8 +2580,10 @@ function TunnelingPulses({ connections, startAnimation, dimmed, activeNodeIdsRef
       return
     }
     // Fade-in gradual (empieza DESPUÉS del delay)
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
     fadeRef.current = Math.min(fadeRef.current + delta * 0.5, 0.9)
-    mat.opacity = fadeRef.current * (dimmed ? 0.04 : 1)
+    mat.opacity = fadeRef.current * (dimmed ? 0.04 : 1) * exitFade
 
     pulseData.forEach((pulse, i) => {
       pulse.t += pulse.speed * delta
@@ -2539,7 +2634,7 @@ function TunnelingPulses({ connections, startAnimation, dimmed, activeNodeIdsRef
 // DECOHERENCE SHOCKWAVES - ondas de decoherencia desde procesadores
 // ============================================================================
 
-function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef }) {
+function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef, exitProgressRef }) {
   const MAX_WAVES = 3
   const wavesRef = useRef([])
   const waveState = useRef(
@@ -2557,6 +2652,8 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeN
   useFrame(({ clock }, delta) => {
     if (orgNodes.length === 0 || !startAnimation) return
     const t = clock.getElapsedTime()
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
     nextWave.current -= delta
     if (nextWave.current <= 0) {
       nextWave.current = 8 + Math.random() * 6
@@ -2588,7 +2685,7 @@ function DecoherenceWaves({ orgNodes, positions, startAnimation, dimmed, activeN
       const p = wave.age / duration
       mesh.position.copy(wave.pos)
       mesh.scale.setScalar(easeOutCubic(p) * 90)
-      waveMats[i].opacity = 0.3 * Math.pow(1 - p, 2) * (dimmed ? 0.04 : 1)
+      waveMats[i].opacity = 0.3 * Math.pow(1 - p, 2) * (dimmed ? 0.04 : 1) * exitFade
       mesh.rotation.x = Math.PI / 2
       mesh.rotation.z = t * 0.08
     })
@@ -2662,7 +2759,7 @@ const COSMIC_RAY_FRAGMENT = `
   }
 `
 
-function CosmicRays({ startAnimation, dimmed, shellImpactsRef }) {
+function CosmicRays({ startAnimation, dimmed, shellImpactsRef, exitProgressRef }) {
   const MAX_RAYS = 8
   const TRAIL_POINTS = 48
   const SHELL_R = 3500    // radio de la Dyson Shell — barrera de impacto
@@ -2776,13 +2873,15 @@ function CosmicRays({ startAnimation, dimmed, shellImpactsRef }) {
     timerRef.current += dt
     if (timerRef.current < DELAY) { shaderMat.uniforms.uGlobalOpacity.value = 0; return }
 
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
     const targetOpacity = dimmed ? 0.15 : 1
     fadeRef.current += (targetOpacity - fadeRef.current) * dt * 2
-    shaderMat.uniforms.uGlobalOpacity.value = fadeRef.current
+    shaderMat.uniforms.uGlobalOpacity.value = fadeRef.current * exitFade
     const t = clock.getElapsedTime()
 
     // Spawn new rays periodically
-    if (raysRef.current.length < MAX_RAYS && Math.random() < dt * 1.8) {
+    if (exitFade > 0.001 && raysRef.current.length < MAX_RAYS && Math.random() < dt * 1.8) {
       raysRef.current.push(spawnRay())
     }
 
@@ -2959,7 +3058,7 @@ const DYSON_NODE_FRAGMENT = `
   }
 `
 
-function ElectronOrbits({ startAnimation, dimmed, shellImpactsRef }) {
+function ElectronOrbits({ startAnimation, dimmed, shellImpactsRef, exitProgressRef }) {
   const SHELL_R = 3500          // radio de la esfera — frontera masiva que envuelve todo el universo
   const SUBDIVISIONS = 4        // subdivisiones geodésicas (4 → ~1280 triángulos, más detalle a gran escala)
   const PULSE_COUNT = 12        // más pulsos para cubrir la red más grande
@@ -3157,16 +3256,27 @@ function ElectronOrbits({ startAnimation, dimmed, shellImpactsRef }) {
 
     const target = dimmed ? 0.04 : 0.45
     fadeRef.current += (target - fadeRef.current) * dt * 0.4
-    edgeMat.uniforms.uOpacity.value = fadeRef.current
-    nodeMat.uniforms.uOpacity.value = fadeRef.current * 0.7
+    // Exit collapse: Dyson shell compresses toward the singularity in sync
+    // with the matter. The whole envelope shrinks via group scale, and the
+    // shader opacity fades a bit slower so it's still faintly visible as a
+    // contracting halo around the implosion.
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitEased = exitProgress > 0.001
+      ? (exitProgress < 1 ? exitProgress * exitProgress : 1)
+      : 0
+    const exitFade = exitEased > 0 ? Math.max(0, 1 - exitEased * 1.6) : 1
+    const exitScale = 1 - exitEased  // 1 → 0 (sphere collapses to center)
+    edgeMat.uniforms.uOpacity.value = fadeRef.current * exitFade
+    nodeMat.uniforms.uOpacity.value = fadeRef.current * 0.7 * exitFade
     edgeMat.uniforms.uDimmed.value = dimmed ? 1.0 : 0.0
     nodeMat.uniforms.uDimmed.value = dimmed ? 1.0 : 0.0
 
     const t = clock.getElapsedTime()
 
-    // ─── Rotación ultra-lenta ───
+    // ─── Rotación ultra-lenta + compresión por exit collapse ───
     groupRef.current.rotation.y = t * ROTATION_SPEED
     groupRef.current.rotation.x = Math.sin(t * 0.003) * 0.06
+    groupRef.current.scale.setScalar(exitScale)
 
     // ─── Reset energías de edges ───
     const eArr = edgeEnergyAttr.array
@@ -3395,7 +3505,7 @@ const FOAM_FRAGMENT = `
   }
 `
 
-function QuantumFoam({ startAnimation, dimmed }) {
+function QuantumFoam({ startAnimation, dimmed, exitProgressRef }) {
   const ref = useRef()
   const fadeRef = useRef(0)
   const timerRef = useRef(0)
@@ -3443,7 +3553,9 @@ function QuantumFoam({ startAnimation, dimmed }) {
 
     const target = dimmed ? 0.06 : 0.5
     fadeRef.current += (target - fadeRef.current) * dt * 0.7
-    shaderMat.uniforms.uOpacity.value = fadeRef.current
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
+    shaderMat.uniforms.uOpacity.value = fadeRef.current * exitFade
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
   })
 
@@ -3524,7 +3636,7 @@ const GRID_FRAGMENT = `
   }
 `
 
-function InterferenceGrid({ startAnimation, dimmed }) {
+function InterferenceGrid({ startAnimation, dimmed, exitProgressRef }) {
   const ref = useRef()
   const fadeRef = useRef(0)
   const timerRef = useRef(0)
@@ -3584,7 +3696,9 @@ function InterferenceGrid({ startAnimation, dimmed }) {
 
     const target = dimmed ? 0.08 : 0.65
     fadeRef.current += (target - fadeRef.current) * dt * 0.5
-    shaderMat.uniforms.uOpacity.value = fadeRef.current
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.0) : 1
+    shaderMat.uniforms.uOpacity.value = fadeRef.current * exitFade
 
     const t = clock.getElapsedTime()
     shaderMat.uniforms.uTime.value = t
@@ -3635,7 +3749,7 @@ const GRAV_WAVE_FRAGMENT = `
   }
 `
 
-function GravitationalWaves({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef }) {
+function GravitationalWaves({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef, exitProgressRef }) {
   const MAX_WAVES = 4
   const RING_SEGMENTS = 96
   const meshRef = useRef()
@@ -3697,11 +3811,22 @@ function GravitationalWaves({ orgNodes, positions, startAnimation, dimmed, activ
 
     const target = dimmed ? 0.08 : 0.85
     fadeRef.current += (target - fadeRef.current) * dt * 1.0
-    shaderMat.uniforms.uGlobalOpacity.value = fadeRef.current
+    // Black hole exit: the orgs emitting the pulses are themselves being
+    // absorbed → kill existing waves fast and stop spawning new ones.
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const isCollapsing = exitProgress > 0.02
+    const exitFade = isCollapsing ? Math.max(0, 1 - exitProgress * 3.0) : 1
+    shaderMat.uniforms.uGlobalOpacity.value = fadeRef.current * exitFade
+    if (isCollapsing) {
+      // Force existing waves to die quickly
+      for (const wave of wavesRef.current) {
+        if (wave) wave.maxAge = Math.min(wave.maxAge, wave.age + 0.2)
+      }
+    }
 
-    // Spawn waves periodically
+    // Spawn waves periodically — but NOT during exit
     nextSpawnRef.current -= dt
-    if (nextSpawnRef.current <= 0 && wavesRef.current.length < MAX_WAVES) {
+    if (!isCollapsing && nextSpawnRef.current <= 0 && wavesRef.current.length < MAX_WAVES) {
       const org = topOrgs[Math.floor(Math.random() * topOrgs.length)]
       const pos = positions[org.id]
       if (pos) {
@@ -3824,7 +3949,7 @@ const HAWKING_FRAGMENT = `
   }
 `
 
-function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef }) {
+function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed, activeNodeIdsRef, exitProgressRef }) {
   const ref = useRef()
   const PER_ORG = 18
   const animTimer = useRef(0)
@@ -3880,7 +4005,11 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed, activeN
     const target = dimmed ? 0.03 : 0.7
     opacityRef.current = Math.min(opacityRef.current + dt * 0.4, target)
     if (dimmed && opacityRef.current > target) opacityRef.current = Math.max(opacityRef.current - dt * 0.8, target)
-    shaderMat.uniforms.uOpacity.value = opacityRef.current
+    // Black hole exit: Hawking radiation around orgs fades fast since the
+    // emitters (orgs) are themselves being absorbed by the singularity.
+    const exitProgress = exitProgressRef?.current?.exitProgress || 0
+    const exitFade = exitProgress > 0.01 ? Math.max(0, 1 - exitProgress * 2.5) : 1
+    shaderMat.uniforms.uOpacity.value = opacityRef.current * exitFade
     shaderMat.uniforms.uTime.value = clock.getElapsedTime()
 
     // === Temporal visibility per org radiation ===
@@ -3938,13 +4067,49 @@ function HawkingRadiation({ orgNodes, positions, startAnimation, dimmed, activeN
 const _CAM_OFFSET_USER = new THREE.Vector3(4, 2.5, 4)
 const _CAM_OFFSET_REPO = new THREE.Vector3(10, 6, 10)
 const _CAM_OFFSET_ORG  = new THREE.Vector3(18, 10, 18)
+const _tmpGoal = new THREE.Vector3()
+const _tmpDir = new THREE.Vector3()
 
-function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef, flyingRef }) {
+// Cinematic camera dolly used by CameraRig during Big Bang entry and
+// Black Hole exit. Computes a RADIAL push (along the look direction) so
+// the camera pulls back when the universe is condensed at the singularity.
+// - Entry: starts at full 220-unit pullback, eases in via cubic to 0 as
+//   the slowest of the three node phases (processors/qubits/particles)
+//   reaches 1. Once settled, dolly is 0 and the camera sits at its base goal.
+// - Exit: ramps from 0 to 280 with easeInExpo as the universe collapses,
+//   pulling the camera back so the implosion is framed instead of consuming it.
+function dollyMagnitude(progressRef) {
+  const bp = progressRef?.current
+  if (!bp) return 0
+  const entryP = Math.min(1, Math.max(
+    0,
+    Math.max(bp.processors || 0, bp.qubits || 0, bp.particles || 0)
+  ))
+  const entryEased = entryP < 1 ? 1 - Math.pow(1 - entryP, 3) : 1
+  const entryDolly = (1 - entryEased) * 380
+  const exitP = bp.exitProgress || 0
+  // Quadratic curve: visible motion from ~30% of the way through (instead of
+  // exponential which only kicks in at the end). Lets the user appreciate
+  // the camera pulling back while matter condenses to the singularity.
+  const exitEased = exitP > 0.001 ? exitP * exitP : 0
+  const exitDolly = exitEased * 280
+  return entryDolly + exitDolly
+}
+
+function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef, flyingRef, progressRef }) {
   const controlsRef = useRef()
   const { camera, gl } = useThree()
   const target = useRef(new THREE.Vector3(0, 0, 0))
   const goal = useRef(new THREE.Vector3(0, 80, 260))
-  const flying = flyingRef || useRef(false)
+  // El hook debe llamarse siempre en el mismo orden (Rules of Hooks).
+  // Si el padre pasa un flyingRef compartido lo usamos; si no, caemos al
+  // ref local. Antes era `flyingRef || useRef(false)` — condicional.
+  const localFlyingRef = useRef(false)
+  const flying = flyingRef || localFlyingRef
+  // Track previous dolly magnitude to detect rising edge (start of Big Bang
+  // entry). On rising edge we snap the camera to the far position so the
+  // big bang frames it instead of starting zoomed in catching up.
+  const prevDollyRef = useRef(0)
 
   useEffect(() => {
     if (focusTarget) {
@@ -4038,14 +4203,42 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef, f
       controlsRef.current.update()
       return
     }
-    if (!flying.current) return
+    if (!flying.current && dollyMagnitude(progressRef) < 0.5) {
+      prevDollyRef.current = 0
+      return
+    }
     // Damping exponencial independiente del frame rate:
     // a 60fps → t≈0.072, a 30fps → t≈0.139 (compensa frames largos automáticamente)
     const t = 1 - Math.exp(-4.5 * delta)
     controlsRef.current.target.lerp(target.current, t)
-    camera.position.lerp(goal.current, t)
+
+    // Compute effective goal = base goal + radial dolly (cinematic zoom-out
+    // during Big Bang start and Black Hole end). The dolly is a radial push
+    // along the view direction so it never alters where the camera looks.
+    const dollyZ = dollyMagnitude(progressRef)
+    _tmpGoal.copy(goal.current)
+    if (dollyZ > 0.5) {
+      _tmpDir.copy(_tmpGoal).sub(target.current)
+      const baseDist = _tmpDir.length()
+      if (baseDist > 0.01) {
+        _tmpDir.normalize()
+        _tmpGoal.copy(target.current).addScaledVector(_tmpDir, baseDist + dollyZ)
+      }
+    }
+
+    // Rising edge: previous frame had little/no dolly, this frame has a
+    // large one → Big Bang just started. Teleport the camera to the far
+    // position to avoid 200ms of "catching up" while nodes already explode.
+    const prev = prevDollyRef.current
+    if (prev < 20 && dollyZ > 120 && !tc?.active && !focusTarget) {
+      camera.position.copy(_tmpGoal)
+    } else {
+      camera.position.lerp(_tmpGoal, t)
+    }
+    prevDollyRef.current = dollyZ
+
     controlsRef.current.update()
-    if (camera.position.distanceTo(goal.current) < 0.5) flying.current = false
+    if (camera.position.distanceTo(_tmpGoal) < 0.5 && dollyZ < 0.5) flying.current = false
   })
 
   const tourActive = tourCameraRef?.current?.active
@@ -4440,8 +4633,11 @@ function FloatingLabel({ entity, position }) {
 
 function FocusHighlight({ position, entityType }) {
   const groupRef = useRef()
-  const color = entityType === 'org' ? '#00f7ff' : entityType === 'repo' ? '#bd00ff'
-    : entityType === 'user' ? (/* bridge check in parent */ '#00ff9f') : '#00ff9f'
+  // Verde para 'user' (incluye bridges) y para el caso por defecto.
+  // Cyan para 'org', magenta para 'repo'.
+  const color = entityType === 'org' ? '#00f7ff'
+              : entityType === 'repo' ? '#bd00ff'
+              : '#00ff9f'
   const baseSize = entityType === 'org' ? 5.5 : entityType === 'repo' ? 2.8 : 1.6
 
   useFrame(({ clock }) => {
@@ -4533,6 +4729,25 @@ function BuildDirector({ progressRef, startAnimation, replayKey }) {
 
     for (const [key, [start, dur]] of Object.entries(PHASE_TIMINGS)) {
       bp[key] = Math.min(Math.max((elapsed - start) / dur, 0), 1)
+    }
+  })
+
+  return null
+}
+
+function ExitDirector({ progressRef, isExiting }) {
+  // 2 seconds is enough to see the matter visibly condense to the
+  // singularity BEFORE BlackHoleExit's wrapper blur/clip kicks in
+  // around t=0.32 of the 6.5s total (~2s).
+  const EXIT_DURATION = 2.0
+
+  useFrame((_, delta) => {
+    const bp = progressRef.current
+    if (!bp) return
+    if (isExiting) {
+      bp.exitProgress = Math.min(1, (bp.exitProgress || 0) + delta / EXIT_DURATION)
+    } else {
+      bp.exitProgress = 0
     }
   })
 
@@ -5532,10 +5747,10 @@ function generateTourWaypoints(universeData, temporalRange, t) {
   return waypoints
 }
 
-const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, disciplineHighlightSet, tunnelPath, favoriteIdSet, multiOrgColors, multiDiscColors, activeNodeIdsRef, tourCameraRef, tourBigBangReplay, simpleMode, cameraFlyingRef }) {
+const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHovered, focusTarget, resetTrigger, selectedEntity, lensData, lensRevealDelay, searchHighlightSet, onSceneReady, startAnimation, showZones, entityFilter, disciplineHighlightSet, tunnelPath, favoriteIdSet, multiOrgColors, multiDiscColors, activeNodeIdsRef, tourCameraRef, tourBigBangReplay, simpleMode, cameraFlyingRef, isExiting }) {
   // === PROGRESO VIA REF - CERO re-renders de React desde el render-loop ===
   // BuildDirector escribe directo a este ref; los componentes lo leen en useFrame
-  const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0 })
+  const bpRef = useRef({ genesis: 0, vacuum: 0, processors: 0, qubits: 0, particles: 0, entanglement: 0, exitProgress: 0 })
   const shellImpactsRef = useRef([])   // eventos de impacto rayo-cósmico → Dyson Shell
   const pointerDownPos = useRef({ x: 0, y: 0, dragged: false })
   const isDraggingRef = useRef(false)
@@ -5749,10 +5964,11 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
       <ambientLight intensity={0.05} />
 
       {/* Cámara */}
-      <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} tourCameraRef={tourCameraRef} flyingRef={cameraFlyingRef} />
+      <CameraRig focusTarget={focusTarget} resetTrigger={resetTrigger} selectedEntity={selectedEntity} tourCameraRef={tourCameraRef} flyingRef={cameraFlyingRef} progressRef={bpRef} />
 
       {/* Director de animación - escribe directo al ref, sin setState */}
       <BuildDirector progressRef={bpRef} startAnimation={startAnimation} replayKey={tourBigBangReplay} />
+      <ExitDirector progressRef={bpRef} isExiting={isExiting} />
 
       {/* Génesis cuántica - Big Bang inicial */}
       <QuantumGenesis progressRef={bpRef} progressKey="genesis" />
@@ -5795,16 +6011,16 @@ const QuantumScene = memo(function QuantumScene({ universeData, onSelect, setHov
 
       {/* Stage 8: Efectos de ambiente - radiación + decoherencia + tunelización */}
       {/* Pasan startAnimation para no hacerse visibles durante la carga */}
-      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
-      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
-      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
+      {mountStage >= 8 && showEffects && <HawkingRadiation orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showEffects && <DecoherenceWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showEffects && <TunnelingPulses connections={longConnections} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} exitProgressRef={bpRef} />}
 
       {/* Stage 9: Efectos ambientales espectaculares */}
-      {mountStage >= 8 && showAmbient && <CosmicRays startAnimation={startAnimation} dimmed={dimmed} shellImpactsRef={shellImpactsRef} />}
-      {mountStage >= 8 && showAmbient && devFeatures.electronOrbits !== false && <ElectronOrbits startAnimation={startAnimation} dimmed={dimmed} shellImpactsRef={shellImpactsRef} />}
-      {mountStage >= 8 && showAmbient && <GravitationalWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} />}
-      {mountStage >= 8 && showAmbient && <QuantumFoam startAnimation={startAnimation} dimmed={dimmed} />}
-      {mountStage >= 8 && showAmbient && <InterferenceGrid startAnimation={startAnimation} dimmed={dimmed} />}
+      {mountStage >= 8 && showAmbient && <CosmicRays startAnimation={startAnimation} dimmed={dimmed} shellImpactsRef={shellImpactsRef} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showAmbient && devFeatures.electronOrbits !== false && <ElectronOrbits startAnimation={startAnimation} dimmed={dimmed} shellImpactsRef={shellImpactsRef} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showAmbient && <GravitationalWaves orgNodes={orgNodes} positions={positions} startAnimation={startAnimation} dimmed={dimmed} activeNodeIdsRef={activeNodeIdsRef} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showAmbient && <QuantumFoam startAnimation={startAnimation} dimmed={dimmed} exitProgressRef={bpRef} />}
+      {mountStage >= 8 && showAmbient && <InterferenceGrid startAnimation={startAnimation} dimmed={dimmed} exitProgressRef={bpRef} />}
       </group>
 
       {/* Highlight de selección - anillos rotando */}
@@ -7330,7 +7546,7 @@ export default function UniverseView() {
           dpr={[1, 1.5]}
           raycaster={{ params: { Points: { threshold: 2 } } }}
           onCreated={({ gl }) => gl.setClearColor('#020208')}
-          frameloop={(animationStarted || tourActive) ? 'always' : 'demand'}
+          frameloop={(animationStarted || tourActive || isExiting) ? 'always' : 'demand'}
         >
           <QuantumScene
             universeData={universeData}
@@ -7356,6 +7572,7 @@ export default function UniverseView() {
             tourBigBangReplay={tourBigBangReplay}
             simpleMode={simpleMode}
             cameraFlyingRef={cameraFlyingRef}
+            isExiting={isExiting}
           />
           {/* Label flotante - fuera de QuantumScene para no causar re-renders de la escena 3D */}
           <FloatingLabel entity={hovered?.entity ?? null} position={hovered?.pos ?? null} />

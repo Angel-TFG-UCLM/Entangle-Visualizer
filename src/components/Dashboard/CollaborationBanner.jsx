@@ -247,13 +247,15 @@ export default function CollaborationBanner() {
         <h3 className={styles.title}>{t('collaboration.bannerTitle')}</h3>
         <p className={styles.subtitle}>
           {metrics ? (() => {
-            // Plantilla con tokens \x00X\x00 que respetan el orden de cualquier idioma
+            // Plantilla con tokens U+E000-U+E002 (Private Use Area: no son
+            // control characters ni se renderizan en ningún idioma) que
+            // respetan el orden de tokens en cualquier traducción.
             const tpl = t('collaboration.bannerMetrics', {
-              nodes: '\x00N\x00',
-              links: '\x00L\x00',
-              bridges: '\x00B\x00',
+              nodes: '\uE000N\uE000',
+              links: '\uE000L\uE000',
+              bridges: '\uE000B\uE000',
             })
-            const parts = tpl.split(/\x00([NLB])\x00/)
+            const parts = tpl.split(/\uE000([NLB])\uE000/)
             return parts.map((p, i) => {
               if (i % 2 === 0) return p
               const val = p === 'N'

@@ -24,7 +24,7 @@ import styles from './QuantumChat.module.css'
  * Normaliza delimitadores LaTeX para remark-math:
  *   \( ... \)  →  $ ... $       (inline)
  *   \[ ... \]  →  $$ ... $$     (block)
- * GPT-4o a veces usa \(...\) en vez de $...$
+ * gpt-5-mini a veces usa \(...\) en vez de $...$
  */
 function normalizeMathDelimiters(text) {
   if (!text) return text

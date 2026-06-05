@@ -512,7 +512,7 @@
     },
     "superposition": "Estado en superposición",
     "collapseHint": "Tu pregunta colapsará la función de onda",
-    "modelBadge": "GPT-4o",
+    "modelBadge": "GPT-5-mini",
     "aiBadge": "AI",
     "autoViewPrefix": "Vista Autogenerada",
     "autoViewName": "Vista Autogenerada #{{number}}"

@@ -44,7 +44,7 @@ Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Cor
 <p align="center">
   <img src="docs/assets/architecture-overview-es.png" alt="Arquitectura del sistema Entangle" width="900" />
   <br/>
-  <sub><i><b>Arquitectura del sistema Entangle.</b> El pipeline de ingesta + enriquecimiento (Entangle-Core, Container App Job) alimenta Azure Cosmos DB for MongoDB vCore. El servicio FastAPI expone 56 endpoints REST con streaming SSE hacia el frontend Entangle-Visualizer (Dashboard 2D, Universo 3D, Chat IA). El motor de Análisis de Red se ejecuta on-demand desde la API. El agente conversacional sobre Azure AI Foundry usa GPT-4o con tool-calling de solo lectura sobre MongoDB. IaC con Bicep, CI/CD via GitHub Actions, calidad gobernada con SonarQube Cloud.</i></sub>
+  <sub><i><b>Arquitectura del sistema Entangle.</b> El pipeline de ingesta + enriquecimiento (Entangle-Core, Container App Job) alimenta Azure Cosmos DB for MongoDB vCore. El servicio FastAPI expone 56 endpoints REST con streaming SSE hacia el frontend Entangle-Visualizer (Dashboard 2D, Universo 3D, Chat IA). El motor de Análisis de Red se ejecuta on-demand desde la API. El agente conversacional sobre Azure AI Foundry usa gpt-5-mini con tool-calling de solo lectura sobre MongoDB. IaC con Bicep, CI/CD via GitHub Actions, calidad gobernada con SonarQube Cloud.</i></sub>
 </p>
 
 ---
@@ -111,7 +111,7 @@ Consume la API de [Entangle Core](https://github.com/Angel-TFG-UCLM/Entangle-Cor
 <p align="center">
   <img src="docs/assets/AIES.png" alt="Terminal Cuántico (chat IA)" width="900" />
   <br/>
-  <sub><i><b>Terminal Cuántico.</b> Chat con IA (GPT-4o vía Azure AI Foundry) que responde mediante tool-calling sobre el dataset en vivo, devolviendo tablas y descripciones.</i></sub>
+  <sub><i><b>Terminal Cuántico.</b> Chat con IA (gpt-5-mini vía Azure AI Foundry) que responde mediante tool-calling sobre el dataset en vivo, devolviendo tablas y descripciones.</i></sub>
 </p>
 
 ---

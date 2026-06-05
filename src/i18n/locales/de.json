@@ -512,7 +512,7 @@
     },
     "superposition": "Zustand in Superposition",
     "collapseHint": "Ihre Frage wird die Wellenfunktion kollabieren lassen",
-    "modelBadge": "GPT-4o",
+    "modelBadge": "GPT-5-mini",
     "aiBadge": "KI",
     "autoViewPrefix": "Auto-generierte Ansicht",
     "autoViewName": "Auto-generierte Ansicht #{{number}}"

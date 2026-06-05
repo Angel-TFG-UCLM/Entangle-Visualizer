@@ -43,7 +43,7 @@ export default function TaglineRotator() {
     base.push('INTERACTIVE 3D UNIVERSE · COLLABORATION GRAPH')
     base.push('LOUVAIN COMMUNITIES · BRIDGE USERS · BETWEENNESS')
     base.push('NLP DISCIPLINE CLASSIFIER · 5 QUANTUM AREAS')
-    base.push('AI ASSISTANT POWERED BY AZURE FOUNDRY GPT-4O')
+    base.push('AI ASSISTANT POWERED BY AZURE FOUNDRY GPT-5-MINI')
     base.push('BUILT ON AZURE · FASTAPI · REACT · THREE.JS')
     return base
   }, [kpis, t])

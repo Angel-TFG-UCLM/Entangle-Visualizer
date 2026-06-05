@@ -512,7 +512,7 @@
     },
     "superposition": "Superposition state",
     "collapseHint": "Your question will collapse the wave function",
-    "modelBadge": "GPT-4o",
+    "modelBadge": "GPT-5-mini",
     "aiBadge": "AI",
     "autoViewPrefix": "Auto-Generated View",
     "autoViewName": "Auto-Generated View #{{number}}"

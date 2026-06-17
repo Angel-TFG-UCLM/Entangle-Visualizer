@@ -13,11 +13,27 @@
 /* eslint-disable react-refresh/only-export-components --
    módulo de utilidades + presentación compartido a propósito; no es un
    componente de pantalla, así que el fast-refresh no aplica. */
+import { useEffect } from 'react'
 import { FiCpu } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+
+/**
+ * Auto-scroll compartido por ambos chats: desliza el cuerpo del chat al fondo
+ * cuando llega contenido nuevo, y la lista de pasos de razonamiento (que tiene
+ * su propio overflow) cuando aparecen nuevos pasos.
+ */
+export function useChatAutoScroll(bodyRef, thinkingStepsRef, { msgs, loading, thinkingSteps, streamingContent }) {
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
+  }, [bodyRef, msgs, loading, thinkingSteps, streamingContent])
+
+  useEffect(() => {
+    thinkingStepsRef.current?.scrollTo({ top: thinkingStepsRef.current.scrollHeight, behavior: 'smooth' })
+  }, [thinkingStepsRef, thinkingSteps])
+}
 
 /**
  * Normaliza delimitadores LaTeX para remark-math:

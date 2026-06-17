@@ -25,6 +25,7 @@ import {
   ThinkingBlock,
   StreamingBubble,
   MessageAgentBadge,
+  useChatAutoScroll,
 } from './chatShared'
 import styles from './QuantumChat.module.css'
 
@@ -198,16 +199,8 @@ export default function QuantumChat() {
     send: sendMessage, cancel: cancelRequest, newConversation, clearLocal,
   } = useChatSession({ onAction: handleAction })
 
-  /* Auto-scroll body cuando llega contenido nuevo */
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs, loading, thinkingSteps, streamingContent])
-
-  /* Auto-scroll de la lista de herramientas (tiene su propio overflow interno):
-     cuando aparecen nuevos pasos, la deslizamos al fondo para mostrar el último. */
-  useEffect(() => {
-    thinkingStepsRef.current?.scrollTo({ top: thinkingStepsRef.current.scrollHeight, behavior: 'smooth' })
-  }, [thinkingSteps])
+  /* Auto-scroll del cuerpo y de la lista de pasos (lógica compartida) */
+  useChatAutoScroll(bodyRef, thinkingStepsRef, { msgs, loading, thinkingSteps, streamingContent })
 
   const send = useCallback(async (text, opts) => {
     const msg = (text ?? '').trim()

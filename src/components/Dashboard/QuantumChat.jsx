@@ -9,15 +9,16 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FiSend, FiZap, FiCpu, FiActivity, FiX, FiSquare } from 'react-icons/fi'
+import { FiSend, FiZap, FiCpu, FiActivity, FiX, FiSquare, FiGlobe, FiTrash2 } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import { sendChatMessageStream } from '../../services/api'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import useChatSession from '../../hooks/useChatSession'
+import Tooltip from '../Tooltip'
 import styles from './QuantumChat.module.css'
 
 /**
@@ -33,6 +34,31 @@ function normalizeMathDelimiters(text) {
   // Inline math: \(...\) → $...$
   out = out.replace(/\\\((.*?)\\\)/g, (_m, inner) => `$${inner}$`)
   return out
+}
+
+/* Detecta si una cadena es un número puro (con separadores opcionales y
+ * sufijos comunes como %, k, M). Usado por el renderer de <code>: si lo es,
+ * lo renderizamos como número grande y legible en vez de cajita de código.
+ */
+const NUMERIC_REGEX = /^\s*-?\d[\d.,]*\s*[%kKmMbB]?\s*$/
+
+/* Renderer custom para <code> inline:
+ *   - Si el contenido es puramente numérico → <strong> con color cyan grande
+ *     (no caja). Los números no son "código", son valores que el usuario
+ *     necesita leer claramente.
+ *   - Si NO es numérico → render por defecto (caja monospace cyan pequeña),
+ *     útil para identificadores como `repositories`, `stargazer_count`, etc.
+ *   - Para bloques de código (```), no aplica: este renderer es solo para
+ *     code inline; los <pre><code> se procesan aparte.
+ */
+function makeCodeRenderer(styles) {
+  return function CodeRenderer({ inline, className, children, ...rest }) {
+    const text = String(children ?? '')
+    if (inline !== false && NUMERIC_REGEX.test(text)) {
+      return <strong className={styles.inlineNumber}>{text.trim()}</strong>
+    }
+    return <code className={className} {...rest}>{children}</code>
+  }
 }
 
 /* ─── i18n helpers for SSE events ─── */
@@ -51,12 +77,8 @@ function translateThinkingDesc(step, t) {
 
 function translateToolResult(step, t) {
   if (step.count !== undefined && step.count !== null) return t('chat.resultsObtained', { count: step.count })
+  if (step.summary) return step.summary
   return t('chat.dataReceived')
-}
-
-function translateStatus(event, t) {
-  if (event.status_key) return t(`chat.${event.status_key}`, { defaultValue: event.message })
-  return event.message
 }
 
 const PROMPTS = [
@@ -82,31 +104,18 @@ function buildWavePath(w, h, freq = 5, amp = 0.38, pts = 80) {
 export default function QuantumChat() {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
-  const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [history, setHistory] = useState(null)
-  const [tools, setTools] = useState([])
-  const [thinkingSteps, setThinkingSteps] = useState([])  // pasos de razonamiento en tiempo real
-  const [statusMsg, setStatusMsg] = useState('')           // estado actual del agente (SSE status)
-  const [elapsedSec, setElapsedSec] = useState(0)          // segundos transcurridos
-  const [activeAgent, setActiveAgent] = useState(null)      // "DATA" | "DASHBOARD" | "UNIVERSE"
   const bodyRef = useRef(null)
   const inputRef = useRef(null)
   const sectionRef = useRef(null)
   const cardRef = useRef(null)
-  const abortRef = useRef(null)  // AbortController para cancelar
-  const timerRef = useRef(null)  // intervalo del timer
-  const agentRef = useRef(null)  // persiste intent del router entre callbacks
+  const thinkingStepsRef = useRef(null)
 
   /* dos ondas superpuestas con frecuencias distintas */
   const wave1 = useMemo(() => buildWavePath(800, 56, 4.5, 0.40), [])
+  // Renderer custom para <code> que detecta números puros y los hace grandes
+  const mdComponents = useMemo(() => ({ code: makeCodeRenderer(styles) }), [])
   const wave2 = useMemo(() => buildWavePath(800, 56, 6.2, 0.25), [])
-
-  /* scroll SOLO dentro del panel de chat */
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs, loading, thinkingSteps])
 
   /* desplazar viewport para mostrar la card completa al abrir */
   useEffect(() => {
@@ -126,22 +135,6 @@ export default function QuantumChat() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [expanded])
-
-  /* cancelar razonamiento */
-  const cancelRequest = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort()
-      abortRef.current = null
-    }
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-    setLoading(false)
-    setThinkingSteps([])
-    setStatusMsg('')
-    setElapsedSec(0)
-    setActiveAgent(null)
-    agentRef.current = null
-    setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.cancelledByUser'), cancelled: true }])
-  }, [])
 
   /**
    * Maneja acciones del agente IA que afectan al frontend.
@@ -247,102 +240,51 @@ export default function QuantumChat() {
       }
       return
     }
-  }, [])
+  }, [t])
 
-  const send = useCallback(async (text) => {
+  /* ─── Lógica de chat (memoria + research mode + reset) en un hook ─── */
+  const {
+    msgs, loading, tools,
+    thinkingSteps, statusMsg, elapsedSec, activeAgent,
+    sessionId, researchMode, setResearchMode,
+    resetting, streamingContent,
+    send: sendMessage, cancel: cancelRequest, newConversation, clearLocal,
+  } = useChatSession({ onAction: handleAction })
+
+  /* Auto-scroll body cuando llega contenido nuevo */
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
+  }, [msgs, loading, thinkingSteps, streamingContent])
+
+  /* Auto-scroll de la lista de herramientas (tiene su propio overflow interno):
+     cuando aparecen nuevos pasos, la deslizamos al fondo para mostrar el último. */
+  useEffect(() => {
+    thinkingStepsRef.current?.scrollTo({ top: thinkingStepsRef.current.scrollHeight, behavior: 'smooth' })
+  }, [thinkingSteps])
+
+  const send = useCallback(async (text, opts) => {
     const msg = (text ?? '').trim()
     if (!msg || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
     if (!expanded) setExpanded(true)
-    setLoading(true)
-    setThinkingSteps([])
-    setStatusMsg(t('chat.classifying'))
-    setElapsedSec(0)
-    setActiveAgent(null)
-    agentRef.current = null
+    await sendMessage(msg, opts)
+  }, [loading, expanded, sendMessage])
 
-    // Timer de segundos transcurridos
-    const start = Date.now()
-    timerRef.current = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - start) / 1000))
-    }, 1000)
-
-    // Crear AbortController para esta petición
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    try {
-      await sendChatMessageStream(msg, history, {
-        onStatus: (event) => {
-          if (event.message) setStatusMsg(translateStatus(event, t))
-        },
-        onRouting: (event) => {
-          const intent = event.intent || null
-          setActiveAgent(intent)
-          agentRef.current = intent
-          setStatusMsg(intent === 'DATA'
-            ? t('chat.connecting')
-            : intent === 'UNIVERSE'
-              ? t('chat.connectingUniverse')
-              : t('chat.connectingDashboard'))
-        },
-        onThinking: (event) => {
-          setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
-          setStatusMsg(`${t('chat.executing')}: ${translateThinkingDesc(event, t)}`)
-        },
-        onToolResult: (event) => {
-          setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
-          setStatusMsg(translateToolResult(event, t))
-        },
-        onAction: (event) => {
-          handleAction(event)
-        },
-        onReply: (event) => {
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          const capturedAgent = agentRef.current
-          setMsgs(prev => [...prev, { role: 'assistant', content: event.content, agent: capturedAgent }])
-          setHistory(event.history)
-          if (event.tools_used?.length) setTools(event.tools_used)
-          setThinkingSteps([])
-          setStatusMsg('')
-          setElapsedSec(0)
-          setActiveAgent(null)
-          agentRef.current = null
-          setLoading(false)
-        },
-        onError: (errMsg) => {
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || t('chat.agentError'), err: true }])
-          setThinkingSteps([])
-          setStatusMsg('')
-          setElapsedSec(0)
-          setActiveAgent(null)
-          setLoading(false)
-        },
-      }, controller.signal)
-    } catch (err) {
-      if (err.name === 'AbortError') return // cancelado por el usuario
-      setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.agentError'), err: true }])
-    } finally {
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-      setLoading(false)
-      setThinkingSteps([])
-      setStatusMsg('')
-      setElapsedSec(0)
-      setActiveAgent(null)
-      abortRef.current = null
+  /* Permite que un quick prompt active research mode para ESTE envío */
+  const sendWithMode = useCallback((text, asResearch) => {
+    if (asResearch) {
+      setResearchMode(true)
+      send(text, { research: true })
+    } else {
+      send(text)
     }
-  }, [loading, history, expanded])
+  }, [setResearchMode, send])
 
   const submit = (e) => { e.preventDefault(); send(input) }
 
   const close = () => {
-    if (abortRef.current) abortRef.current.abort()
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    clearLocal()
     setExpanded(false)
-    // Limpiar estado tras la animación de cierre (clip-path 0.38s)
-    setTimeout(() => { setMsgs([]); setHistory(null); setTools([]); setThinkingSteps([]); setStatusMsg(''); setElapsedSec(0); setActiveAgent(null) }, 400)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -370,7 +312,31 @@ export default function QuantumChat() {
                   <span className={styles.statusDot} />
                   {loading ? t('chat.reasoning') : t('chat.connected')}
                 </span>
-                <button className={styles.closeBtn} onClick={close} title={t('chat.closeChat')}>
+                <Tooltip label={t('chat.researchModeTooltip')} position="bottom">
+                  <button
+                    type="button"
+                    className={`${styles.webToggle} ${researchMode ? styles.webToggleActive : ''}`}
+                    onClick={() => setResearchMode(prev => !prev)}
+                    disabled={loading}
+                    aria-label={t('chat.researchMode')}
+                    aria-pressed={researchMode}
+                  >
+                    <FiGlobe size={11} />
+                  </button>
+                </Tooltip>
+                {msgs.length > 0 && (
+                  <Tooltip label={t('chat.newConversationTooltip')} position="bottom">
+                    <button
+                      className={styles.newConvBtn}
+                      onClick={newConversation}
+                      disabled={loading || resetting}
+                      aria-label={t('chat.newConversation')}
+                    >
+                      <FiTrash2 size={11} />
+                    </button>
+                  </Tooltip>
+                )}
+                <button className={styles.closeBtn} onClick={close} aria-label={t('chat.closeChat')}>
                   <FiX />
                 </button>
               </div>
@@ -378,6 +344,14 @@ export default function QuantumChat() {
 
             {/* línea decorativa gradiente */}
             <div className={styles.headerAccent} />
+
+            {/* banner research mode */}
+            {researchMode && (
+              <div className={styles.researchModeBanner}>
+                <FiGlobe size={11} />
+                <span>{t('chat.researchModeActive')}</span>
+              </div>
+            )}
 
             {/* mensajes */}
             <div className={styles.chatBody} ref={bodyRef}>
@@ -390,6 +364,11 @@ export default function QuantumChat() {
                   <div className={styles.welcomeKet}>|ψ⟩</div>
                   <p className={styles.welcomeTitle}>{t('chat.superposition')}</p>
                   <p className={styles.welcomeHint}>{t('chat.collapseHint')}</p>
+                  {sessionId && (
+                    <span className={styles.sessionBadge} title={t('chat.sessionMemoryHint')}>
+                      {t('chat.sessionActive')}
+                    </span>
+                  )}
                   <p className={styles.disclaimer}>{t('chat.disclaimerFull')}</p>
                 </div>
               )}
@@ -403,19 +382,46 @@ export default function QuantumChat() {
                     </span>
                   )}
                   <div className={styles.bubble}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMathDelimiters(m.content)}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{normalizeMathDelimiters(m.content)}</ReactMarkdown>
                     {m.role === 'assistant' && m.agent && (
-                      <span className={`${styles.msgAgent} ${m.agent === 'DATA' ? styles.msgAgentData : styles.msgAgentUI}`}>
+                      <span className={`${styles.msgAgent} ${
+                        m.agent === 'DATA' ? styles.msgAgentData :
+                        m.agent === 'KNOWLEDGE' ? styles.msgAgentKnowledge :
+                        m.agent === 'RESEARCH' ? styles.msgAgentResearch :
+                        m.agent === 'INSIGHTS' ? styles.msgAgentInsights :
+                        styles.msgAgentUI
+                      }`}>
                         <span className={styles.msgAgentDot} />
-                        {m.agent === 'DATA' ? t('chat.dataAnalyst') : m.agent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
+                        {m.agent === 'DATA' ? t('chat.dataAnalyst') :
+                         m.agent === 'UNIVERSE' ? t('chat.agentUniverse') :
+                         m.agent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
+                         m.agent === 'RESEARCH' ? t('chat.agentResearch') :
+                         m.agent === 'INSIGHTS' ? t('chat.agentInsights') :
+                         t('chat.agentDashboard')}
                       </span>
                     )}
                   </div>
                 </div>
               ))}
 
+              {/* Respuesta en streaming (texto llegando token a token) */}
+              {loading && streamingContent && (
+                <div className={`${styles.msg} ${styles.msgBot}`}>
+                  <span className={styles.avatar}>
+                    <span className={styles.avatarGlow} />
+                    ⟨ψ|
+                  </span>
+                  <div className={styles.bubble}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                      {normalizeMathDelimiters(streamingContent)}
+                    </ReactMarkdown>
+                    <span className={styles.streamingCursor}>▌</span>
+                  </div>
+                </div>
+              )}
+
               {/* Pasos de razonamiento en tiempo real */}
-              {loading && (
+              {loading && !streamingContent && (
                 <div className={`${styles.msg} ${styles.msgBot}`}>
                   <span className={styles.avatar}>
                     <span className={styles.avatarGlow} />
@@ -427,32 +433,72 @@ export default function QuantumChat() {
                         <div className={styles.thinkingHeader}>
                           <span className={styles.thinkingPulse} />
                           {statusMsg || t('chat.reasoning')}
-                          {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? t('chat.agentDataShort') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') : t('chat.agentDashboardShort')}</span>}
+                          {activeAgent && <span className={`${styles.agentBadge} ${
+                            activeAgent === 'DATA' ? styles.agentBadgeData :
+                            activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
+                            activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
+                            activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
+                            styles.agentBadgeUI
+                          }`}>{
+                            activeAgent === 'DATA' ? t('chat.agentDataShort') :
+                            activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') :
+                            activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledgeShort') :
+                            activeAgent === 'RESEARCH' ? t('chat.agentResearchShort') :
+                            activeAgent === 'INSIGHTS' ? t('chat.agentInsightsShort') :
+                            t('chat.agentDashboardShort')
+                          }</span>}
                           {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                         </div>
-                        <div className={styles.thinkingSteps}>
-                          {thinkingSteps.map((step, i) => (
-                            <div key={i} className={`${styles.thinkingStep} ${step.type === 'result' ? styles.thinkingStepResult : ''}`}>
-                              {step.type === 'thinking' ? (
-                                <>
-                                  <FiCpu className={styles.thinkingIcon} />
-                                  <span>{translateThinkingDesc(step, t)}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className={styles.thinkingCheck}>✓</span>
-                                  <span>{translateToolResult(step, t)}</span>
-                                </>
-                              )}
-                            </div>
-                          ))}
+                        <div className={styles.thinkingSteps} ref={thinkingStepsRef}>
+                          {thinkingSteps.map((step, i) => {
+                            const isInProgress = step.type === 'thinking' && step.startTs && !step.endTs
+                            const isDoneThinking = step.type === 'thinking' && step.startTs && step.endTs
+                            const isResult = step.type === 'result'
+                            let durationLabel = null
+                            if (isInProgress) {
+                              const live = Math.max(0, Math.floor((Date.now() - step.startTs) / 1000))
+                              if (live > 0) durationLabel = `${live}s`
+                            } else if (isDoneThinking) {
+                              const dur = ((step.endTs - step.startTs) / 1000).toFixed(1)
+                              durationLabel = `${dur}s`
+                            }
+                            return (
+                              <div key={i} className={`${styles.thinkingStep} ${isResult ? styles.thinkingStepResult : ''} ${isInProgress ? styles.thinkingStepLive : ''}`}>
+                                {step.type === 'thinking' ? (
+                                  <>
+                                    <FiCpu className={styles.thinkingIcon} />
+                                    <span>{translateThinkingDesc(step, t)}</span>
+                                    {durationLabel && <span className={styles.thinkingStepTime}>{durationLabel}</span>}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className={styles.thinkingCheck}>✓</span>
+                                    <span>{translateToolResult(step, t)}</span>
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </>
                     ) : (
                       <div className={styles.thinkingHeader}>
                         <span className={styles.thinkingPulse} />
                         {statusMsg || t('chat.thinking')}
-                        {activeAgent && <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>{activeAgent === 'DATA' ? t('chat.agentDataShort') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') : t('chat.agentDashboardShort')}</span>}
+                        {activeAgent && <span className={`${styles.agentBadge} ${
+                          activeAgent === 'DATA' ? styles.agentBadgeData :
+                          activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
+                          activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
+                          activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
+                          styles.agentBadgeUI
+                        }`}>{
+                          activeAgent === 'DATA' ? t('chat.agentDataShort') :
+                          activeAgent === 'UNIVERSE' ? t('chat.agentUniverseShort') :
+                          activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledgeShort') :
+                          activeAgent === 'RESEARCH' ? t('chat.agentResearchShort') :
+                          activeAgent === 'INSIGHTS' ? t('chat.agentInsightsShort') :
+                          t('chat.agentDashboardShort')
+                        }</span>}
                         {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                       </div>
                     )}
@@ -531,7 +577,12 @@ export default function QuantumChat() {
       {/* ═══ Quick-prompt pills (colapsan al abrir el chat) ═══ */}
       <div className={`${styles.pills} ${expanded ? styles.pillsHidden : ''}`}>
         {PROMPTS.map((p, i) => (
-          <button key={i} className={styles.pill} onClick={() => send(t(p.msgKey))} disabled={loading}>
+          <button
+            key={i}
+            className={styles.pill}
+            onClick={() => sendWithMode(t(p.msgKey), p.researchMode || false)}
+            disabled={loading}
+          >
             <span className={styles.pillIcon}>{p.icon}</span>
             <span className={styles.pillLabel}>{t(p.labelKey)}</span>
             <span className={styles.pillTag}>{t(p.tagKey)}</span>

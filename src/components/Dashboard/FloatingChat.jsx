@@ -20,52 +20,14 @@ import useFavoritesStore from '../../store/favoritesStore'
 import useChatSession from '../../hooks/useChatSession'
 import Tooltip from '../Tooltip'
 import { useTranslation } from 'react-i18next'
+import {
+  normalizeMathDelimiters,
+  makeCodeRenderer,
+  ThinkingBlock,
+  StreamingBubble,
+  MessageAgentBadge,
+} from './chatShared'
 import styles from './FloatingChat.module.css'
-
-/* ─── Helpers ─── */
-
-function normalizeMathDelimiters(text) {
-  if (!text) return text
-  let out = text.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => `$$${inner}$$`)
-  out = out.replace(/\\\((.*?)\\\)/g, (_m, inner) => `$${inner}$`)
-  return out
-}
-
-/* Detecta si una cadena es un número puro (con separadores opcionales y
- * sufijos comunes como %, k, M). Mismo razonamiento que en QuantumChat:
- * los números van como negrita grande, no como cajita de código.
- */
-const NUMERIC_REGEX = /^\s*-?\d[\d.,]*\s*[%kKmMbB]?\s*$/
-
-function makeCodeRenderer(styles) {
-  return function CodeRenderer({ inline, className, children, ...rest }) {
-    const text = String(children ?? '')
-    if (inline !== false && NUMERIC_REGEX.test(text)) {
-      return <strong className={styles.inlineNumber}>{text.trim()}</strong>
-    }
-    return <code className={className} {...rest}>{children}</code>
-  }
-}
-
-/* ─── i18n helpers for SSE events ─── */
-function translateThinkingDesc(step, t) {
-  if (!step.tool_key) return step.description
-  const toolName = t(`chat.toolNames.${step.tool_key}`, { defaultValue: t('chat.toolNames.default') })
-  const parts = [toolName]
-  if (step.collection_key) {
-    const col = t(`chat.collectionNames.${step.collection_key}`, { defaultValue: step.collection_key })
-    const prep = step.tool_key === 'get_collection_schema' ? t('chat.toolPrepositions.of') : t('chat.toolPrepositions.in')
-    parts.push(`${prep} ${col}`)
-  }
-  if (step.has_filter) parts.push(t('chat.toolPrepositions.withFilters'))
-  return parts.join(' ')
-}
-
-function translateToolResult(step, t) {
-  if (step.count !== undefined && step.count !== null) return t('chat.resultsObtained', { count: step.count })
-  if (step.summary) return step.summary
-  return t('chat.dataReceived')
-}
 
 const QUICK_PROMPTS = [
   { icon: <FiZap size={12} />,      labelKey: 'chat.quantumPrompts.topReposLabel',  msgKey: 'chat.quickPrompts.topRepos' },
@@ -448,21 +410,7 @@ export default function FloatingChat() {
                     {normalizeMathDelimiters(m.content)}
                   </ReactMarkdown>
                   {m.role === 'assistant' && m.agent && (
-                    <span className={`${styles.msgAgent} ${
-                      m.agent === 'DATA' ? styles.msgAgentData :
-                      m.agent === 'KNOWLEDGE' ? styles.msgAgentKnowledge :
-                      m.agent === 'RESEARCH' ? styles.msgAgentResearch :
-                      m.agent === 'INSIGHTS' ? styles.msgAgentInsights :
-                      styles.msgAgentUI
-                    }`}>
-                      <span className={styles.msgAgentDot} />
-                      {m.agent === 'DATA' ? t('chat.agentAnalyst') :
-                       m.agent === 'UNIVERSE' ? t('chat.agentUniverse') :
-                       m.agent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
-                       m.agent === 'RESEARCH' ? t('chat.agentResearch') :
-                       m.agent === 'INSIGHTS' ? t('chat.agentInsights') :
-                       t('chat.agentDashboard')}
-                    </span>
+                    <MessageAgentBadge agent={m.agent} styles={styles} t={t} variant="long" />
                   )}
                 </div>
               </div>
@@ -470,18 +418,7 @@ export default function FloatingChat() {
 
             {/* Respuesta en streaming */}
             {loading && streamingContent && (
-              <div className={`${styles.msg} ${styles.msgBot}`}>
-                <span className={styles.avatar}>
-                  <span className={styles.avatarGlow} />
-                  ⟨ψ|
-                </span>
-                <div className={styles.bubble}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                    {normalizeMathDelimiters(streamingContent)}
-                  </ReactMarkdown>
-                  <span className={styles.streamingCursor}>▌</span>
-                </div>
-              </div>
+              <StreamingBubble content={streamingContent} styles={styles} mdComponents={mdComponents} />
             )}
 
             {/* Thinking state */}
@@ -492,77 +429,16 @@ export default function FloatingChat() {
                   ⟨ψ|
                 </span>
                 <div className={styles.thinkingBlock}>
-                  {thinkingSteps.length > 0 ? (
-                    <>
-                      <div className={styles.thinkingHeader}>
-                        <span className={styles.thinkingPulse} />
-                        {statusMsg || t('chat.reasoning')}
-                        {activeAgent && (
-                          <span className={`${styles.agentBadge} ${
-                            activeAgent === 'DATA' ? styles.agentBadgeData :
-                            activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
-                            activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
-                            activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
-                            styles.agentBadgeUI
-                          }`}>
-                            {activeAgent === 'DATA' ? t('chat.agentAnalyst') :
-                             activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') :
-                             activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
-                             activeAgent === 'RESEARCH' ? t('chat.agentResearch') :
-                             activeAgent === 'INSIGHTS' ? t('chat.agentInsights') :
-                             t('chat.agentDashboard')}
-                          </span>
-                        )}
-                        {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
-                      </div>
-                      <div className={styles.thinkingSteps} ref={thinkingStepsRef}>
-                        {thinkingSteps.map((step, i) => {
-                          const isInProgress = step.type === 'thinking' && step.startTs && !step.endTs
-                          const isDoneThinking = step.type === 'thinking' && step.startTs && step.endTs
-                          const isResult = step.type === 'result'
-                          let durationLabel = null
-                          if (isInProgress) {
-                            const live = Math.max(0, Math.floor((Date.now() - step.startTs) / 1000))
-                            if (live > 0) durationLabel = `${live}s`
-                          } else if (isDoneThinking) {
-                            const dur = ((step.endTs - step.startTs) / 1000).toFixed(1)
-                            durationLabel = `${dur}s`
-                          }
-                          return (
-                            <div key={i} className={`${styles.thinkingStep} ${isResult ? styles.thinkingStepResult : ''} ${isInProgress ? styles.thinkingStepLive : ''}`}>
-                              {step.type === 'thinking' ? (
-                                <><FiCpu className={styles.thinkingIcon} /><span>{translateThinkingDesc(step, t)}</span>{durationLabel && <span className={styles.thinkingStepTime}>{durationLabel}</span>}</>
-                              ) : (
-                                <><span className={styles.thinkingCheck}>✓</span><span>{translateToolResult(step, t)}</span></>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    <div className={styles.thinkingHeader}>
-                      <span className={styles.thinkingPulse} />
-                      {statusMsg || t('chat.thinking')}
-                      {activeAgent && (
-                        <span className={`${styles.agentBadge} ${
-                          activeAgent === 'DATA' ? styles.agentBadgeData :
-                          activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
-                          activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
-                          activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
-                          styles.agentBadgeUI
-                        }`}>
-                          {activeAgent === 'DATA' ? t('chat.agentAnalyst') :
-                           activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') :
-                           activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
-                           activeAgent === 'RESEARCH' ? t('chat.agentResearch') :
-                           activeAgent === 'INSIGHTS' ? t('chat.agentInsights') :
-                           t('chat.agentDashboard')}
-                        </span>
-                      )}
-                      {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
-                    </div>
-                  )}
+                  <ThinkingBlock
+                    thinkingSteps={thinkingSteps}
+                    statusMsg={statusMsg}
+                    activeAgent={activeAgent}
+                    elapsedSec={elapsedSec}
+                    styles={styles}
+                    t={t}
+                    thinkingStepsRef={thinkingStepsRef}
+                    variant="long"
+                  />
                 </div>
                 <button className={styles.stopBtn} onClick={cancelRequest} title={t('chat.stop')}>
                   <FiSquare size={10} />

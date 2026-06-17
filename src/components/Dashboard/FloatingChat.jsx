@@ -26,6 +26,7 @@ import {
   ThinkingBlock,
   StreamingBubble,
   MessageAgentBadge,
+  useChatAutoScroll,
 } from './chatShared'
 import styles from './FloatingChat.module.css'
 
@@ -165,15 +166,8 @@ export default function FloatingChat() {
     send: sendMessage, cancel: cancelRequest, newConversation, clearLocal,
   } = useChatSession({ onAction: handleAction })
 
-  /* Auto-scroll body cuando llega contenido nuevo (después del hook) */
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs, loading, thinkingSteps, streamingContent])
-
-  /* Auto-scroll de la lista de herramientas (overflow interno propio) */
-  useEffect(() => {
-    thinkingStepsRef.current?.scrollTo({ top: thinkingStepsRef.current.scrollHeight, behavior: 'smooth' })
-  }, [thinkingSteps])
+  /* Auto-scroll del cuerpo y de la lista de pasos (lógica compartida) */
+  useChatAutoScroll(bodyRef, thinkingStepsRef, { msgs, loading, thinkingSteps, streamingContent })
 
   /* Dynamic resize — expand window when tables/wide content appear (después del hook) */
   useEffect(() => {

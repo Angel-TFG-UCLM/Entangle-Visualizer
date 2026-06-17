@@ -101,19 +101,19 @@
   display: grid;
   grid-template-rows: 0fr;
   clip-path: inset(100% 0 0 0);
-  /* CIERRE: curva natural (acelera al inicio, suaviza al final) */
+  /* CIERRE: lineal y limpio — sin trabas */
   transition:
-    grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    clip-path 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    grid-template-rows 0.32s linear,
+    clip-path 0.32s linear;
 }
 
 .chatAreaOpen {
   grid-template-rows: 1fr;
   clip-path: inset(0 0 0 0);
-  /* APERTURA: ligero overshoot elástico (el chat "salta" para revelarse) */
+  /* APERTURA: expo suave — el chat se despliega con elegancia */
   transition:
-    grid-template-rows 0.42s cubic-bezier(0.34, 1.4, 0.64, 1),
-    clip-path 0.42s cubic-bezier(0.34, 1.4, 0.64, 1);
+    grid-template-rows 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    clip-path 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .chatInner {
@@ -121,6 +121,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* CIERRE: sin transición propia — colapsa junto al clip-path sin trabarse */
+  opacity: 0;
+  transition: none;
+}
+
+.chatAreaOpen .chatInner {
+  opacity: 1;
+  /* APERTURA: fade-in sutil del contenido, sincronizado con el reveal */
+  transition: opacity 0.45s ease 0.12s;
 }
 
 /* Altura fija solo cuando el chat está abierto — evita resize
@@ -1598,4 +1607,247 @@
   user-select: none;
   position: relative;
   z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RAG + DEEP_RESEARCH UI EXTENSIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Badges agente KNOWLEDGE (ámbar/dorado) y RESEARCH (magenta) ─── */
+.agentBadgeKnowledge {
+  background: linear-gradient(135deg, rgba(255, 179, 71, 0.22), rgba(255, 179, 71, 0.10));
+  color: #FFB347;
+  border: 1px solid rgba(255, 179, 71, 0.4);
+  text-shadow: 0 0 6px rgba(255, 179, 71, 0.35);
+}
+.agentBadgeResearch {
+  background: linear-gradient(135deg, rgba(255, 61, 157, 0.22), rgba(255, 61, 157, 0.10));
+  color: #FF7ABF;
+  border: 1px solid rgba(255, 61, 157, 0.4);
+  text-shadow: 0 0 6px rgba(255, 61, 157, 0.35);
+}
+
+/* ─── Etiqueta del agente bajo cada respuesta ─── */
+.msgAgentKnowledge {
+  color: rgba(255, 179, 71, 0.65);
+}
+.msgAgentKnowledge .msgAgentDot {
+  background: rgba(255, 179, 71, 0.7);
+  box-shadow: 0 0 4px rgba(255, 179, 71, 0.35);
+}
+.msgAgentResearch {
+  color: rgba(255, 122, 191, 0.65);
+}
+.msgAgentResearch .msgAgentDot {
+  background: rgba(255, 122, 191, 0.7);
+  box-shadow: 0 0 4px rgba(255, 122, 191, 0.35);
+}
+
+/* ─── Toggle "Investigación profunda" en la barra de input ─── */
+.researchToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  margin-right: 8px;
+  border: 1px solid rgba(255, 61, 157, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 61, 157, 0.06);
+  color: rgba(255, 122, 191, 0.7);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.researchToggle:hover {
+  background: rgba(255, 61, 157, 0.12);
+  border-color: rgba(255, 61, 157, 0.4);
+  color: #FF7ABF;
+}
+.researchToggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.researchToggleActive {
+  background: linear-gradient(135deg, rgba(255, 61, 157, 0.32), rgba(255, 61, 157, 0.14));
+  border-color: rgba(255, 61, 157, 0.65);
+  color: #FFB6D9;
+  box-shadow: 0 0 12px rgba(255, 61, 157, 0.35), inset 0 0 8px rgba(255, 61, 157, 0.18);
+  text-shadow: 0 0 6px rgba(255, 122, 191, 0.5);
+}
+.researchToggleActive:hover {
+  background: linear-gradient(135deg, rgba(255, 61, 157, 0.4), rgba(255, 61, 157, 0.18));
+}
+
+/* ─── Indicador visible cuando research mode está activo ─── */
+.researchModeBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 6px 12px 0;
+  background: linear-gradient(90deg, rgba(255, 61, 157, 0.10), rgba(255, 61, 157, 0.04));
+  border: 1px solid rgba(255, 61, 157, 0.25);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #FF7ABF;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Botón "Nueva conversación" (header) ─── */
+.newConvBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  border: 1px solid rgba(0, 212, 228, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(0, 212, 228, 0.55);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.newConvBtn:hover {
+  background: rgba(0, 212, 228, 0.10);
+  border-color: rgba(0, 212, 228, 0.4);
+  color: #00D4E4;
+}
+.newConvBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ─── Pildora pequeña: indicador "Sesión activa" en welcome ─── */
+.sessionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0, 212, 228, 0.08);
+  border: 1px solid rgba(0, 212, 228, 0.18);
+  color: rgba(0, 212, 228, 0.75);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+}
+.sessionBadge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #00D4E4;
+  box-shadow: 0 0 6px rgba(0, 212, 228, 0.6);
+  animation: sessionPulse 2.5s ease-in-out infinite;
+}
+@keyframes sessionPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ─── Botón Web Search en header (cyan, icon-only) ─── */
+.webToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  border: 1px solid rgba(0, 212, 228, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(0, 212, 228, 0.55);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.webToggle:hover:not(:disabled) {
+  background: rgba(0, 212, 228, 0.10);
+  border-color: rgba(0, 212, 228, 0.4);
+  color: #00D4E4;
+}
+.webToggle:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.webToggleActive {
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.28), rgba(0, 212, 228, 0.10));
+  border-color: rgba(0, 212, 228, 0.6);
+  color: #66E8F5;
+  box-shadow: 0 0 8px rgba(0, 212, 228, 0.3), inset 0 0 4px rgba(0, 212, 228, 0.15);
+}
+
+/* Override del banner: usar cyan-azulado en vez de magenta */
+.researchModeBanner {
+  background: linear-gradient(90deg, rgba(0, 212, 228, 0.10), rgba(0, 212, 228, 0.04));
+  border-color: rgba(0, 212, 228, 0.25);
+  color: #66E8F5;
+}
+
+/* Cursor parpadeante para texto en streaming */
+.streamingCursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: rgba(0, 212, 228, 0.85);
+  animation: blinkCursor 1s steps(2, start) infinite;
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(0, 212, 228, 0.5);
+}
+@keyframes blinkCursor {
+  to { visibility: hidden; }
+}
+
+/* Step en vivo: pulso sutil + tiempo transcurrido a la derecha */
+.thinkingStepLive {
+  opacity: 0.95;
+  animation: stepLivePulse 1.8s ease-in-out infinite;
+}
+@keyframes stepLivePulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+.thinkingStepTime {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  color: rgba(0, 212, 228, 0.7);
+  background: rgba(0, 212, 228, 0.06);
+  border: 1px solid rgba(0, 212, 228, 0.14);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+/* ─── INSIGHTS worker (verde esmeralda) ─── */
+.agentBadgeInsights {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.24), rgba(52, 211, 153, 0.10));
+  color: #34D399;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  text-shadow: 0 0 6px rgba(52, 211, 153, 0.35);
+}
+.msgAgentInsights {
+  color: rgba(52, 211, 153, 0.65);
+}
+.msgAgentInsights .msgAgentDot {
+  background: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 4px rgba(52, 211, 153, 0.35);
+}
+
+/* Números puros (renderer custom de <code>): negrita grande y color cyan,
+   SIN caja para que destaquen como valores legibles, no como identificadores. */
+.inlineNumber {
+  font-weight: 700;
+  color: #00D4E4;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  font-size: 1.02em;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 6px rgba(0, 212, 228, 0.25);
 }

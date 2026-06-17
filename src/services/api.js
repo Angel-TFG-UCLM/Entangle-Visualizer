@@ -794,13 +794,18 @@ export default apiClient;
  * @param {AbortSignal} [signal] - AbortController signal para cancelar
  * @returns {Promise<void>}
  */
-export async function sendChatMessageStream(message, history = null, callbacks = {}, signal = null) {
+export async function sendChatMessageStream(message, history = null, callbacks = {}, signal = null, sessionId = null) {
   const url = `${BASE_URL}/chat/stream`;
-  
+
+  const payload = { message, history };
+  if (sessionId) {
+    payload.session_id = sessionId;
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify(payload),
     signal,
   });
 
@@ -836,11 +841,14 @@ export async function sendChatMessageStream(message, history = null, callbacks =
       try {
         const event = JSON.parse(stripped);
 
-        // Para eventos intermedios (no reply/error), garantizar que el
-        // mensaje de estado anterior se haya mostrado al menos MIN_STATUS_MS
-        // antes de reemplazarlo. Esto evita que mensajes consecutivos que
-        // llegan en un mismo chunk se vean como un flash imperceptible.
-        const isIntermediate = event.type !== 'reply' && event.type !== 'error';
+        // Eventos "vivos" sin delay (queremos que lleguen al instante):
+        //   - reply / error: finalización
+        //   - token: streaming letra a letra
+        //   - session / routing / heartbeat: control
+        // Eventos "perceptibles" CON delay mínimo (para que cada paso del
+        // lifecycle se vea claro y no como un flash imperceptible):
+        //   - thinking / tool_result / status
+        const isIntermediate = event.type === 'status' || event.type === 'thinking' || event.type === 'tool_result';
         if (isIntermediate && lastStatusTs > 0) {
           const gap = Date.now() - lastStatusTs;
           if (gap < MIN_STATUS_MS) {
@@ -849,6 +857,9 @@ export async function sendChatMessageStream(message, history = null, callbacks =
         }
 
         switch (event.type) {
+          case 'session':
+            callbacks.onSession?.(event);
+            break;
           case 'thinking':
             callbacks.onThinking?.(event);
             break;
@@ -864,6 +875,9 @@ export async function sendChatMessageStream(message, history = null, callbacks =
           case 'action':
             callbacks.onAction?.(event);
             break;
+          case 'token':
+            callbacks.onToken?.(event);
+            break;
           case 'reply':
             callbacks.onReply?.(event);
             break;
@@ -876,8 +890,13 @@ export async function sendChatMessageStream(message, history = null, callbacks =
           lastStatusTs = Date.now();
         }
 
-        // Ceder control al navegador para que React renderice
-        await new Promise(r => setTimeout(r, 0));
+        // Ceder control al navegador solo para eventos "pesados" (no tokens).
+        // Los tokens vienen en ráfagas (decenas/centenas por segundo) y un
+        // yield por cada uno multiplica drásticamente el tiempo total de
+        // renderizado, haciendo que el streaming se sienta lento.
+        if (event.type !== 'token') {
+          await new Promise(r => setTimeout(r, 0));
+        }
       } catch (e) {
         console.warn('[SSE] Error parsing event:', stripped, e);
       }
@@ -888,11 +907,44 @@ export async function sendChatMessageStream(message, history = null, callbacks =
 /**
  * Envía un mensaje al agente de IA (versión no-streaming, fallback).
  * @param {string} message - Pregunta del usuario
- * @param {Array|null} history - Historial de conversación previo
- * @returns {Promise<{reply: string, history: Array, tools_used: string[]}>}
+ * @param {Array|null} history - Historial de conversación previo (opcional, redundante con sessionId)
+ * @param {string|null} sessionId - ID de sesión persistente (recomendado sobre history)
+ * @returns {Promise<{reply: string, history: Array, tools_used: string[], session_id: string}>}
  */
-export async function sendChatMessage(message, history = null) {
-  const response = await apiClient.post('/chat', { message, history }, { timeout: 120000 });
+export async function sendChatMessage(message, history = null, sessionId = null) {
+  const payload = { message, history };
+  if (sessionId) {
+    payload.session_id = sessionId;
+  }
+  const response = await apiClient.post('/chat', payload, { timeout: 120000 });
+  return response.data;
+}
+
+/**
+ * Borra una sesión de chat persistente (botón "Nueva conversación").
+ * @param {string} sessionId
+ * @returns {Promise<{deleted: boolean, session_id: string}>}
+ */
+export async function resetChatSession(sessionId) {
+  if (!sessionId) return { deleted: false, session_id: null };
+  const response = await apiClient.delete(`/chat/session/${sessionId}`);
+  return response.data;
+}
+
+/**
+ * Endpoint separado para investigación externa (papers, web). Va al worker
+ * DEEP_RESEARCH (Tavily + arXiv) en lugar del router principal.
+ * @param {string} message
+ * @param {string|null} sessionId
+ * @returns {Promise<{reply: string, history: Array, tools_used: string[], session_id: string}>}
+ */
+export async function sendResearchMessage(message, sessionId = null) {
+  const payload = { message };
+  if (sessionId) payload.session_id = sessionId;
+  // 5 min: la búsqueda externa (Tavily + arXiv con retries) puede ser lenta.
+  // arXiv tiene rate limit estricto: damos hasta 5 retries con backoff = ~1 min,
+  // más el tiempo del LLM sintetizando = puede llegar a 2-3 min en el peor caso.
+  const response = await apiClient.post('/chat/research', payload, { timeout: 300000 });
   return response.data;
 }
 

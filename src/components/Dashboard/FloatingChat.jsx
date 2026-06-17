@@ -8,16 +8,17 @@
  * Se posiciona por encima de la barra flotante de comparación
  * de ChartsSection para evitar superposición.
  */
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { FiSend, FiX, FiZap, FiCpu, FiActivity, FiSquare } from 'react-icons/fi'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { FiSend, FiX, FiZap, FiCpu, FiActivity, FiSquare, FiGlobe, FiTrash2 } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import { sendChatMessageStream } from '../../services/api'
 import { useDashboardStore } from '../../store/dashboardStore'
 import useFavoritesStore from '../../store/favoritesStore'
+import useChatSession from '../../hooks/useChatSession'
+import Tooltip from '../Tooltip'
 import { useTranslation } from 'react-i18next'
 import styles from './FloatingChat.module.css'
 
@@ -28,6 +29,22 @@ function normalizeMathDelimiters(text) {
   let out = text.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => `$$${inner}$$`)
   out = out.replace(/\\\((.*?)\\\)/g, (_m, inner) => `$${inner}$`)
   return out
+}
+
+/* Detecta si una cadena es un número puro (con separadores opcionales y
+ * sufijos comunes como %, k, M). Mismo razonamiento que en QuantumChat:
+ * los números van como negrita grande, no como cajita de código.
+ */
+const NUMERIC_REGEX = /^\s*-?\d[\d.,]*\s*[%kKmMbB]?\s*$/
+
+function makeCodeRenderer(styles) {
+  return function CodeRenderer({ inline, className, children, ...rest }) {
+    const text = String(children ?? '')
+    if (inline !== false && NUMERIC_REGEX.test(text)) {
+      return <strong className={styles.inlineNumber}>{text.trim()}</strong>
+    }
+    return <code className={className} {...rest}>{children}</code>
+  }
 }
 
 /* ─── i18n helpers for SSE events ─── */
@@ -46,12 +63,8 @@ function translateThinkingDesc(step, t) {
 
 function translateToolResult(step, t) {
   if (step.count !== undefined && step.count !== null) return t('chat.resultsObtained', { count: step.count })
+  if (step.summary) return step.summary
   return t('chat.dataReceived')
-}
-
-function translateStatus(event, t) {
-  if (event.status_key) return t(`chat.${event.status_key}`, { defaultValue: event.message })
-  return event.message
 }
 
 const QUICK_PROMPTS = [
@@ -93,70 +106,15 @@ export default function FloatingChat() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
-  const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [history, setHistory] = useState(null)
-  const [tools, setTools] = useState([])
-  const [thinkingSteps, setThinkingSteps] = useState([])
-  const [statusMsg, setStatusMsg] = useState('')
-  const [elapsedSec, setElapsedSec] = useState(0)
-  const [activeAgent, setActiveAgent] = useState(null)
   const bodyRef = useRef(null)
   const inputRef = useRef(null)
   const windowRef = useRef(null)
-  const abortRef = useRef(null)
-  const timerRef = useRef(null)
-  const agentRef = useRef(null)
+  const thinkingStepsRef = useRef(null)
+  // Renderer custom para <code>: números puros → <strong> grande
+  const mdComponents = useMemo(() => ({ code: makeCodeRenderer(styles) }), [])
 
-  /* Auto-scroll body */
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs, loading, thinkingSteps])
-
-  /* Dynamic resize — expand window when tables/wide content appear */
-  useEffect(() => {
-    if (!bodyRef.current || !windowRef.current) return
-    const isMobile = window.innerWidth <= 480
-    if (isMobile) return                               // mobile keeps scroll instead
-
-    const MIN_W = 420
-    const MAX_W = Math.min(780, window.innerWidth - 56)
-
-    // Double-raf ensures layout is fully computed after React commit
-    const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => {
-        if (!bodyRef.current || !windowRef.current) return
-
-        const tables = bodyRef.current.querySelectorAll('table')
-        if (!tables.length) {
-          windowRef.current.style.width = ''
-          return
-        }
-
-        let maxTableW = 0
-        tables.forEach(t => {
-          // Use offsetWidth first (actual rendered), fallback to scrollWidth
-          const w = Math.max(t.scrollWidth, t.offsetWidth)
-          maxTableW = Math.max(maxTableW, w)
-        })
-
-        if (maxTableW <= 0) return
-
-        // Overhead: body padding(14*2) + bubble padding(14*2) + avatar(28)+gap(8) + border(2) + safety(24)
-        const needed = maxTableW + 28 + 28 + 36 + 2 + 24
-        const clamped = Math.min(Math.max(needed, MIN_W), MAX_W)
-        const currentW = windowRef.current.getBoundingClientRect().width
-
-        if (Math.abs(clamped - currentW) > 4) {
-          windowRef.current.style.width = `${clamped}px`
-        }
-      })
-      return () => cancelAnimationFrame(raf2)
-    })
-
-    return () => cancelAnimationFrame(raf1)
-  }, [msgs])
+  /* Auto-scroll body — bound below after hook */
 
   /* Focus input on open */
   useEffect(() => {
@@ -234,113 +192,98 @@ export default function FloatingChat() {
         console.error('[FloatingChat] Error creating view:', err)
       }
     }
-  }, [])
+  }, [t])
 
-  /* ─── Cancel ─── */
-  const cancelRequest = useCallback(() => {
-    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null }
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-    setLoading(false)
-    setThinkingSteps([])
-    setStatusMsg('')
-    setElapsedSec(0)
-    setActiveAgent(null)
-    agentRef.current = null
-    setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.reasoningCancelled'), cancelled: true }])
-  }, [])
+  /* ─── Lógica de chat (memoria + research + reset) ─── */
+  const {
+    msgs, loading, tools,
+    thinkingSteps, statusMsg, elapsedSec, activeAgent,
+    sessionId, researchMode, setResearchMode,
+    resetting, streamingContent,
+    send: sendMessage, cancel: cancelRequest, newConversation, clearLocal,
+  } = useChatSession({ onAction: handleAction })
 
-  /* ─── Send ─── */
-  const send = useCallback(async (text) => {
+  /* Auto-scroll body cuando llega contenido nuevo (después del hook) */
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
+  }, [msgs, loading, thinkingSteps, streamingContent])
+
+  /* Auto-scroll de la lista de herramientas (overflow interno propio) */
+  useEffect(() => {
+    thinkingStepsRef.current?.scrollTo({ top: thinkingStepsRef.current.scrollHeight, behavior: 'smooth' })
+  }, [thinkingSteps])
+
+  /* Dynamic resize — expand window when tables/wide content appear (después del hook) */
+  useEffect(() => {
+    if (!bodyRef.current || !windowRef.current) return
+    const isMobile = window.innerWidth <= 480
+    if (isMobile) return                               // mobile keeps scroll instead
+
+    const MIN_W = 420
+    const MAX_W = Math.min(780, window.innerWidth - 56)
+
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        if (!bodyRef.current || !windowRef.current) return
+
+        const tables = bodyRef.current.querySelectorAll('table')
+        if (!tables.length) {
+          windowRef.current.style.width = ''
+          return
+        }
+
+        let maxTableW = 0
+        tables.forEach(tbl => {
+          const w = Math.max(tbl.scrollWidth, tbl.offsetWidth)
+          maxTableW = Math.max(maxTableW, w)
+        })
+
+        if (maxTableW <= 0) return
+
+        const needed = maxTableW + 28 + 28 + 36 + 2 + 24
+        const clamped = Math.min(Math.max(needed, MIN_W), MAX_W)
+        const currentW = windowRef.current.getBoundingClientRect().width
+
+        if (Math.abs(clamped - currentW) > 4) {
+          windowRef.current.style.width = `${clamped}px`
+        }
+      })
+      return () => cancelAnimationFrame(raf2)
+    })
+
+    return () => cancelAnimationFrame(raf1)
+  }, [msgs])
+
+  const send = useCallback(async (text, opts) => {
     const msg = (text ?? '').trim()
     if (!msg || loading) return
-    setMsgs(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
-    setLoading(true)
-    setThinkingSteps([])
-    setStatusMsg(t('chat.classifying'))
-    setElapsedSec(0)
-    setActiveAgent(null)
-    agentRef.current = null
+    await sendMessage(msg, opts)
+  }, [loading, sendMessage])
 
-    const start = Date.now()
-    timerRef.current = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - start) / 1000))
-    }, 1000)
-
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    try {
-      await sendChatMessageStream(msg, history, {
-        onStatus: (event) => { if (event.message) setStatusMsg(translateStatus(event, t)) },
-        onRouting: (event) => {
-          const intent = event.intent || null
-          setActiveAgent(intent)
-          agentRef.current = intent
-          setStatusMsg(intent === 'DATA' ? t('chat.connecting') : intent === 'UNIVERSE' ? t('chat.connectingUniverse') : t('chat.connectingDashboard'))
-        },
-        onThinking: (event) => {
-          setThinkingSteps(prev => [...prev, { type: 'thinking', ...event }])
-          setStatusMsg(`${t('chat.executing')}${translateThinkingDesc(event, t)}`)
-        },
-        onToolResult: (event) => {
-          setThinkingSteps(prev => [...prev, { type: 'result', ...event }])
-          setStatusMsg(translateToolResult(event, t))
-        },
-        onAction: (event) => { handleAction(event) },
-        onReply: (event) => {
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          const capturedAgent = agentRef.current
-          setMsgs(prev => [...prev, { role: 'assistant', content: event.content, agent: capturedAgent }])
-          setHistory(event.history)
-          if (event.tools_used?.length) setTools(event.tools_used)
-          setThinkingSteps([])
-          setStatusMsg('')
-          setElapsedSec(0)
-          setActiveAgent(null)
-          agentRef.current = null
-          setLoading(false)
-        },
-        onError: (errMsg) => {
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-          setMsgs(prev => [...prev, { role: 'assistant', content: errMsg || t('chat.connectionError'), err: true }])
-          setThinkingSteps([])
-          setStatusMsg('')
-          setElapsedSec(0)
-          setActiveAgent(null)
-          setLoading(false)
-        },
-      }, controller.signal)
-    } catch (err) {
-      if (err.name === 'AbortError') return
-      setMsgs(prev => [...prev, { role: 'assistant', content: t('chat.connectionError'), err: true }])
-    } finally {
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-      setLoading(false)
-      setThinkingSteps([])
-      setStatusMsg('')
-      setElapsedSec(0)
-      setActiveAgent(null)
-      abortRef.current = null
+  const sendWithMode = useCallback((text, asResearch) => {
+    if (asResearch) {
+      setResearchMode(true)
+      send(text, { research: true })
+    } else {
+      send(text)
     }
-  }, [loading, history, handleAction])
+  }, [setResearchMode, send])
 
   const submit = (e) => { e.preventDefault(); send(input) }
 
   const openChat = () => {
     setOpen(true)
     setClosing(false)
-    // Reset dynamic width so it re-calculates after render
     if (windowRef.current) windowRef.current.style.width = ''
   }
   const closeChat = () => {
-    if (abortRef.current) abortRef.current.abort()
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setClosing(true)
     setTimeout(() => {
       setOpen(false)
       setClosing(false)
-    }, 260)
+      clearLocal()
+    }, 300)
   }
 
   const toggleChat = () => { open ? closeChat() : openChat() }
@@ -424,10 +367,42 @@ export default function FloatingChat() {
                 {loading ? t('chat.reasoning') : t('chat.connected')}
               </div>
             </div>
-            <button className={styles.headerClose} onClick={closeChat} title={t('chat.close')}>
+            {msgs.length > 0 && (
+              <Tooltip label={t('chat.newConversationTooltip')} position="bottom">
+                <button
+                  className={styles.newConvBtn}
+                  onClick={newConversation}
+                  disabled={loading || resetting}
+                  aria-label={t('chat.newConversation')}
+                >
+                  <FiTrash2 size={11} />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip label={t('chat.researchModeTooltip')} position="bottom">
+              <button
+                type="button"
+                className={`${styles.webToggle} ${researchMode ? styles.webToggleActive : ''}`}
+                onClick={() => setResearchMode(prev => !prev)}
+                disabled={loading}
+                aria-label={t('chat.researchMode')}
+                aria-pressed={researchMode}
+              >
+                <FiGlobe size={12} />
+              </button>
+            </Tooltip>
+            <button className={styles.headerClose} onClick={closeChat} aria-label={t('chat.close')}>
               <FiX size={14} />
             </button>
           </div>
+
+          {/* Research mode banner */}
+          {researchMode && (
+            <div className={styles.researchModeBanner}>
+              <FiGlobe size={10} />
+              <span>{t('chat.researchModeActive')}</span>
+            </div>
+          )}
 
           {/* Messages */}
           <div className={styles.body} ref={bodyRef}>
@@ -438,10 +413,20 @@ export default function FloatingChat() {
                 </div>
                 <p className={styles.welcomeTitle}>{t('chat.title')}</p>
                 <p className={styles.welcomeHint}>{t('chat.welcome')}</p>
+                {sessionId && (
+                  <span className={styles.sessionBadge} title={t('chat.sessionMemoryHint')}>
+                    {t('chat.sessionActive')}
+                  </span>
+                )}
                 <p className={styles.disclaimer}>{t('chat.disclaimer')}</p>
                 <div className={styles.quickPrompts}>
                   {QUICK_PROMPTS.map((p, i) => (
-                    <button key={i} className={styles.quickPrompt} onClick={() => send(t(p.msgKey))} disabled={loading}>
+                    <button
+                      key={i}
+                      className={styles.quickPrompt}
+                      onClick={() => sendWithMode(t(p.msgKey), p.researchMode || false)}
+                      disabled={loading}
+                    >
                       <span className={styles.quickPromptIcon}>{p.icon}</span>
                       {t(p.labelKey)}
                     </button>
@@ -459,21 +444,48 @@ export default function FloatingChat() {
                   </span>
                 )}
                 <div className={styles.bubble}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
                     {normalizeMathDelimiters(m.content)}
                   </ReactMarkdown>
                   {m.role === 'assistant' && m.agent && (
-                    <span className={`${styles.msgAgent} ${m.agent === 'DATA' ? styles.msgAgentData : styles.msgAgentUI}`}>
+                    <span className={`${styles.msgAgent} ${
+                      m.agent === 'DATA' ? styles.msgAgentData :
+                      m.agent === 'KNOWLEDGE' ? styles.msgAgentKnowledge :
+                      m.agent === 'RESEARCH' ? styles.msgAgentResearch :
+                      m.agent === 'INSIGHTS' ? styles.msgAgentInsights :
+                      styles.msgAgentUI
+                    }`}>
                       <span className={styles.msgAgentDot} />
-                      {m.agent === 'DATA' ? t('chat.agentAnalyst') : m.agent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
+                      {m.agent === 'DATA' ? t('chat.agentAnalyst') :
+                       m.agent === 'UNIVERSE' ? t('chat.agentUniverse') :
+                       m.agent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
+                       m.agent === 'RESEARCH' ? t('chat.agentResearch') :
+                       m.agent === 'INSIGHTS' ? t('chat.agentInsights') :
+                       t('chat.agentDashboard')}
                     </span>
                   )}
                 </div>
               </div>
             ))}
 
+            {/* Respuesta en streaming */}
+            {loading && streamingContent && (
+              <div className={`${styles.msg} ${styles.msgBot}`}>
+                <span className={styles.avatar}>
+                  <span className={styles.avatarGlow} />
+                  ⟨ψ|
+                </span>
+                <div className={styles.bubble}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                    {normalizeMathDelimiters(streamingContent)}
+                  </ReactMarkdown>
+                  <span className={styles.streamingCursor}>▌</span>
+                </div>
+              </div>
+            )}
+
             {/* Thinking state */}
-            {loading && (
+            {loading && !streamingContent && (
               <div className={`${styles.msg} ${styles.msgBot}`}>
                 <span className={styles.avatar}>
                   <span className={styles.avatarGlow} />
@@ -486,22 +498,46 @@ export default function FloatingChat() {
                         <span className={styles.thinkingPulse} />
                         {statusMsg || t('chat.reasoning')}
                         {activeAgent && (
-                          <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>
-                        {activeAgent === 'DATA' ? t('chat.agentAnalyst') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
+                          <span className={`${styles.agentBadge} ${
+                            activeAgent === 'DATA' ? styles.agentBadgeData :
+                            activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
+                            activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
+                            activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
+                            styles.agentBadgeUI
+                          }`}>
+                            {activeAgent === 'DATA' ? t('chat.agentAnalyst') :
+                             activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') :
+                             activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
+                             activeAgent === 'RESEARCH' ? t('chat.agentResearch') :
+                             activeAgent === 'INSIGHTS' ? t('chat.agentInsights') :
+                             t('chat.agentDashboard')}
                           </span>
                         )}
                         {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
                       </div>
-                      <div className={styles.thinkingSteps}>
-                        {thinkingSteps.map((step, i) => (
-                          <div key={i} className={`${styles.thinkingStep} ${step.type === 'result' ? styles.thinkingStepResult : ''}`}>
-                            {step.type === 'thinking' ? (
-                              <><FiCpu className={styles.thinkingIcon} /><span>{translateThinkingDesc(step, t)}</span></>
-                            ) : (
-                              <><span className={styles.thinkingCheck}>✓</span><span>{translateToolResult(step, t)}</span></>
-                            )}
-                          </div>
-                        ))}
+                      <div className={styles.thinkingSteps} ref={thinkingStepsRef}>
+                        {thinkingSteps.map((step, i) => {
+                          const isInProgress = step.type === 'thinking' && step.startTs && !step.endTs
+                          const isDoneThinking = step.type === 'thinking' && step.startTs && step.endTs
+                          const isResult = step.type === 'result'
+                          let durationLabel = null
+                          if (isInProgress) {
+                            const live = Math.max(0, Math.floor((Date.now() - step.startTs) / 1000))
+                            if (live > 0) durationLabel = `${live}s`
+                          } else if (isDoneThinking) {
+                            const dur = ((step.endTs - step.startTs) / 1000).toFixed(1)
+                            durationLabel = `${dur}s`
+                          }
+                          return (
+                            <div key={i} className={`${styles.thinkingStep} ${isResult ? styles.thinkingStepResult : ''} ${isInProgress ? styles.thinkingStepLive : ''}`}>
+                              {step.type === 'thinking' ? (
+                                <><FiCpu className={styles.thinkingIcon} /><span>{translateThinkingDesc(step, t)}</span>{durationLabel && <span className={styles.thinkingStepTime}>{durationLabel}</span>}</>
+                              ) : (
+                                <><span className={styles.thinkingCheck}>✓</span><span>{translateToolResult(step, t)}</span></>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     </>
                   ) : (
@@ -509,8 +545,19 @@ export default function FloatingChat() {
                       <span className={styles.thinkingPulse} />
                       {statusMsg || t('chat.thinking')}
                       {activeAgent && (
-                        <span className={`${styles.agentBadge} ${activeAgent === 'DATA' ? styles.agentBadgeData : styles.agentBadgeUI}`}>
-                          {activeAgent === 'DATA' ? t('chat.agentAnalyst') : activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') : t('chat.agentDashboard')}
+                        <span className={`${styles.agentBadge} ${
+                          activeAgent === 'DATA' ? styles.agentBadgeData :
+                          activeAgent === 'KNOWLEDGE' ? styles.agentBadgeKnowledge :
+                          activeAgent === 'RESEARCH' ? styles.agentBadgeResearch :
+                          activeAgent === 'INSIGHTS' ? styles.agentBadgeInsights :
+                          styles.agentBadgeUI
+                        }`}>
+                          {activeAgent === 'DATA' ? t('chat.agentAnalyst') :
+                           activeAgent === 'UNIVERSE' ? t('chat.agentUniverse') :
+                           activeAgent === 'KNOWLEDGE' ? t('chat.agentKnowledge') :
+                           activeAgent === 'RESEARCH' ? t('chat.agentResearch') :
+                           activeAgent === 'INSIGHTS' ? t('chat.agentInsights') :
+                           t('chat.agentDashboard')}
                         </span>
                       )}
                       {elapsedSec > 0 && <span className={styles.elapsed}>{elapsedSec}s</span>}
@@ -557,7 +604,6 @@ export default function FloatingChat() {
       <button
         className={`${styles.fab} ${open ? styles.fabOpen : ''} ${hasFloatingIndicator && !open && !isUniverse ? styles.fabShifted : ''} ${isUniverse ? styles.fabUniverse : ''} ${isUniverse && !isUniverseReady ? styles.fabUniverseHidden : ''} ${isUniverse && isTourActive ? styles.fabTourHidden : ''} ${isUniverse && isCinematic && !open ? styles.fabCinematicHidden : ''} ${!isUniverse && isDashboardCinematic && !open ? styles.fabCinematicHidden : ''}`}
         onClick={toggleChat}
-        title={open ? t('chat.closeChat') : t('chat.chatWithAI')}
         aria-label={open ? t('chat.closeAssistant') : t('chat.openAssistant')}
         style={
           hasFloatingIndicator && !open && !isUniverse && floatingIndicatorHeight > 0

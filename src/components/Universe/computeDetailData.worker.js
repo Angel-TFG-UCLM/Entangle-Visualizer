@@ -559,21 +559,42 @@ function wt(key, lang, ...args) {
   return args.length ? String(str).replace(/\{(\d+)\}/g, (_, i) => args[i] ?? '') : str
 }
 
+// Datos pesados cacheados en el worker: se envían UNA vez (o cuando cambian) desde el
+// hilo principal. Evita clonar universeData (~28k nodos + grafo + posiciones) y
+// networkMetrics en CADA selección, que era la causa del mini-freeze al centrar entidad.
+let _cachedUniverseData = null
+let _cachedNetworkMetrics = null
+
 self.onmessage = function (e) {
-  const { selectedEntity, universeData, networkMetrics, requestId, lang } = e.data
+  const { type, selectedEntity, universeData, networkMetrics, requestId, lang } = e.data
+
+  // Mensaje de datos: actualizar caché sin computar nada.
+  if (type === 'data') {
+    _cachedUniverseData = universeData || null
+    _cachedNetworkMetrics = networkMetrics || null
+    return
+  }
+
+  // Compatibilidad: si un mensaje de selección trae datos, refrescar caché.
+  if (universeData !== undefined) _cachedUniverseData = universeData
+  if (networkMetrics !== undefined) _cachedNetworkMetrics = networkMetrics
+
   const _lang = lang || 'es'
   if (!selectedEntity) { self.postMessage({ phase: 1, data: null, requestId }); return }
 
+  const _uni = _cachedUniverseData
+  const _nm = _cachedNetworkMetrics
+
   // Phase 1 - core data + DNA (fast, <50ms)
-  const core = computeCoreData(selectedEntity, universeData, networkMetrics, _lang)
+  const core = computeCoreData(selectedEntity, _uni, _nm, _lang)
   self.postMessage({ phase: 1, data: core, requestId })
 
   // Phase 2 - impact simulations + collab matrix (medium)
-  const medium = computeMediumData(selectedEntity, universeData, networkMetrics, core)
+  const medium = computeMediumData(selectedEntity, _uni, _nm, core)
   self.postMessage({ phase: 2, data: medium, requestId })
 
   // Phase 3 - similar entities (heavy - O(N) over all same-type nodes)
-  const heavy = computeHeavyData(selectedEntity, universeData, networkMetrics, core)
+  const heavy = computeHeavyData(selectedEntity, _uni, _nm, core)
   self.postMessage({ phase: 3, data: heavy, requestId })
 }
 

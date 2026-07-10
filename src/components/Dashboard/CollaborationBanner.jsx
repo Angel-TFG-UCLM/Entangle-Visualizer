@@ -52,8 +52,9 @@ export default function CollaborationBanner() {
   const { t } = useTranslation()
   const {
     collaborationAvailable,
+    collaborationSummary,
     collaborationDiscovery,
-    isDiscovering,
+    graphReady,
     openCollaborationGraph,
   } = useDashboardStore()
   
@@ -97,12 +98,15 @@ export default function CollaborationBanner() {
     }
   }, [collaborationAvailable])
   
-  const shouldShow = collaborationAvailable && !isDiscovering
+  const shouldShow = collaborationAvailable
   const revealed = shouldShow && visible && inView
   
-  const metrics = collaborationDiscovery?.metrics
+  const metrics = collaborationDiscovery?.metrics || collaborationSummary?.metrics
   
-  const handleClick = () => openCollaborationGraph({ autoTour })
+  const handleClick = () => {
+    if (!graphReady) return // el grafo aún carga de fondo; "Entrar" deshabilitado
+    openCollaborationGraph({ autoTour })
+  }
   
   const handleToggle = (e) => {
     e.stopPropagation()
@@ -284,12 +288,20 @@ export default function CollaborationBanner() {
       </Tooltip>
       
       {/* Botón CTA */}
-      <div className={styles.cta}>
-        <span className={styles.ctaText}>{t('collaboration.enter')}</span>
+      <div className={`${styles.cta} ${!graphReady ? styles.ctaLoading : ''}`}>
+        <span className={styles.ctaText}>{graphReady ? t('collaboration.enter') : t('collaboration.preparing')}</span>
         <svg className={styles.ctaIcon} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>
         <div className={styles.ctaGlow} />
+        {/* Indicador "universo listo": barrido de luz izq→der que termina en un
+            destello en la esquina superior derecha (se reproduce una sola vez). */}
+        {graphReady && (
+          <>
+            <div className={styles.ctaReadySweep} aria-hidden="true" />
+            <div className={styles.ctaReadyGlow} aria-hidden="true" />
+          </>
+        )}
       </div>
       
     </div>

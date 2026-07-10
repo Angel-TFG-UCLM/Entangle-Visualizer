@@ -107,7 +107,9 @@ const initialState = {
   
   // === AUTO-DISCOVERY DE COLABORACIÓN ===
   collaborationAvailable: false,   // bool - si se detectó colaboración real
+  collaborationSummary: null,      // Resumen ligero (available + metrics) para el banner
   collaborationDiscovery: null,    // Resultado completo del discover endpoint
+  graphReady: false,               // bool - si el grafo completo ya está cargado (habilita "Entrar")
   showCollaborationGraph: false,   // bool - si mostrar la vista fullscreen del grafo
   autoStartTour: false,            // bool - arrancar tour cósmico automáticamente al abrir
   isDiscovering: false,            // Estado de carga del discovery
@@ -226,9 +228,14 @@ export const useDashboardStore = create(
           console.log(`   📊 Charts: organizations=${typeof stats.charts?.organizations === 'object' ? Object.keys(stats.charts.organizations).join(',') : '?'}, repos keys=${typeof stats.charts?.repositories === 'object' ? Object.keys(stats.charts.repositories).join(',') : '?'}`)
           console.log(`   🔗 Graph: ${graphData?.organizations?.length} orgs, ${graphData?.repositories?.length} repos, ${graphData?.users?.length} users`)
           
-          // Auto-detectar colaboración después de cargar datos
-          // Si es forceRefresh, forzar también recalculación del grafo
-          setTimeout(() => get().discoverCollaboration(forceRefresh), 500)
+          // Auto-detectar colaboración después de cargar datos.
+          // Fase 1: resumen ligero → el banner aparece al instante (available + metrics).
+          // Fase 2: grafo completo en segundo plano → habilita "Entrar" (graphReady).
+          // Si es forceRefresh, forzar también recalculación del grafo.
+          setTimeout(async () => {
+            await get().discoverCollaborationSummary()
+            get().discoverCollaboration(forceRefresh)
+          }, 500)
           
           return true
         } catch (error) {
@@ -692,7 +699,7 @@ export const useDashboardStore = create(
        * @param {Object|null} temporalFilter - { yearFrom, yearTo } o null
        */
       discoverCollaboration: async (forceRefresh = false, temporalFilter = null) => {
-        set({ isDiscovering: true }, false, 'discoverCollaboration/start')
+        set({ isDiscovering: true, graphReady: false }, false, 'discoverCollaboration/start')
         
         try {
           const { discoverCollaboration } = await import('../services/api')
@@ -702,6 +709,7 @@ export const useDashboardStore = create(
           set({
             collaborationAvailable: result.available,
             collaborationDiscovery: result,
+            graphReady: !!result.available, // grafo completo listo → habilita "Entrar"
             isDiscovering: false,
             temporalFilter: temporalFilter,
             temporalRange: tRange,
@@ -718,11 +726,41 @@ export const useDashboardStore = create(
           return result.available
         } catch (error) {
           console.warn('⚠️ Error en auto-discovery de colaboración:', error.message)
+          // Si el resumen ligero ya confirmó colaboración, conservamos el banner
+          // (con el botón "Entrar" deshabilitado hasta que el grafo cargue); si no,
+          // reseteamos como antes.
+          const summ = get().collaborationSummary
+          if (summ?.available) {
+            set({ graphReady: false, isDiscovering: false }, false, 'discoverCollaboration/error-keepSummary')
+          } else {
+            set({
+              collaborationAvailable: false,
+              collaborationDiscovery: null,
+              graphReady: false,
+              isDiscovering: false,
+            }, false, 'discoverCollaboration/error')
+          }
+          return false
+        }
+      },
+
+      /**
+       * Resumen ligero de colaboración para pintar el banner al instante.
+       * Llama a /collaboration/discover?summary=true, que devuelve solo
+       * available + metrics (sin el grafo completo). No es bloqueante: si falla,
+       * el discover completo establecerá la disponibilidad igual que antes.
+       */
+      discoverCollaborationSummary: async () => {
+        try {
+          const { discoverCollaboration } = await import('../services/api')
+          const result = await discoverCollaboration(false, null, true)
           set({
-            collaborationAvailable: false,
-            collaborationDiscovery: null,
-            isDiscovering: false,
-          }, false, 'discoverCollaboration/error')
+            collaborationAvailable: !!result.available,
+            collaborationSummary: result,
+          }, false, 'discoverCollaborationSummary/success')
+          return !!result.available
+        } catch (error) {
+          console.warn('⚠️ Error en resumen de colaboración (se usará el discover completo):', error.message)
           return false
         }
       },

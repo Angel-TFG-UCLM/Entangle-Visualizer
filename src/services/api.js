@@ -311,16 +311,17 @@ export async function getUserCollaborationNetwork(userLogin) {
  * @param {number} [temporalFilter.yearTo] - Año fin (incluido)
  * @returns {Promise<Object>} { available, summary, graph, metrics, bridge_users, connected_pairs, temporal_filter }
  */
-export async function discoverCollaboration(forceRefresh = false, temporalFilter = null) {
+export async function discoverCollaboration(forceRefresh = false, temporalFilter = null, summary = false) {
   try {
     const params = forceRefresh ? { force: true } : {};
+    if (summary) params.summary = true;
     if (temporalFilter?.yearFrom) params.year_from = temporalFilter.yearFrom;
     if (temporalFilter?.yearTo) params.year_to = temporalFilter.yearTo;
     const response = await apiClient.get('/collaboration/discover', {
       params,
-      timeout: 120000, // 2 min - la construcción del grafo completo puede tardar
+      timeout: summary ? 20000 : 120000, // resumen ligero vs grafo completo
     });
-    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}, temporal=${temporalFilter ? `${temporalFilter.yearFrom || '∞'}–${temporalFilter.yearTo || '∞'}` : 'none'}`);
+    console.log(`🔍 Collaboration discovery: available=${response.data.available}, forced=${forceRefresh}, summary=${summary}, temporal=${temporalFilter ? `${temporalFilter.yearFrom || '∞'}–${temporalFilter.yearTo || '∞'}` : 'none'}`);
     return response.data;
   } catch (error) {
     console.error('[discoverCollaboration] Error:', error);

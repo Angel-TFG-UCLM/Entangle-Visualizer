@@ -298,6 +298,104 @@
   transition-duration: 0.1s;
 }
 
+/* Estado "preparando universo": botón atenuado y no interactivo mientras el
+   grafo se carga de fondo. */
+.ctaLoading {
+  opacity: 0.55;
+  filter: saturate(0.55);
+  cursor: progress;
+  pointer-events: none;
+}
+
+.ctaLoading .ctaText {
+  text-shadow: none;
+  color: rgba(0, 212, 228, 0.72);
+}
+
+.ctaLoading .ctaIcon {
+  opacity: 0.55;
+}
+
+/* Indicador "universo listo": barrido de luz izq→der dentro del botón,
+   recortado por el overflow del propio botón. Se reproduce una sola vez. */
+.ctaReadySweep {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -50%;
+  width: 42%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(0, 212, 228, 0.55) 45%,
+    rgba(157, 111, 219, 0.55) 62%,
+    transparent 100%
+  );
+  transform: skewX(-16deg);
+  filter: blur(1px);
+  pointer-events: none;
+  z-index: 3;
+  animation: ctaReadySweepMove 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ctaReadySweepMove {
+  0% {
+    left: -50%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    left: 108%;
+    opacity: 0.85;
+  }
+}
+
+/* Destello final en la esquina superior derecha (recortado al radio del botón,
+   se lee como un halo de esquina). Arranca cuando el barrido llega al final. */
+.ctaReadyGlow {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(0, 212, 228, 0.82) 38%,
+    rgba(0, 212, 228, 0) 72%
+  );
+  opacity: 0;
+  pointer-events: none;
+  z-index: 4;
+  animation: ctaReadyCornerPop 0.8s ease-out 0.6s forwards;
+}
+
+@keyframes ctaReadyCornerPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctaReadySweep,
+  .ctaReadyGlow {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 
 
 /* === TOGGLE TOUR CÓSMICO === */

@@ -741,6 +741,12 @@ function QuantumProcessors({ orgNodes, positions, onHover, onClick, progressRef,
     torus2Ref.current.instanceMatrix.needsUpdate = true
     coreRef.current.instanceMatrix.needsUpdate = true
     hitRef.current.instanceMatrix.needsUpdate = true
+    // Los nodos entran animados desde la singularidad (0,0,0) mutando instanceMatrix cada
+    // frame. three.js cachea boundingSphere y NO la recalcula al cambiar las matrices, por
+    // lo que quedaría fijada al estado colapsado inicial (r=0 en el origen) y el broad-phase
+    // del raycaster descartaría todos los rayos → orgs "dibujadas pero no clicables". Anularla
+    // fuerza el recálculo perezoso en el siguiente raycast (solo en eventos de puntero).
+    hitRef.current.boundingSphere = null
     if (torus1Ref.current.instanceColor) torus1Ref.current.instanceColor.needsUpdate = true
     if (torus2Ref.current.instanceColor) torus2Ref.current.instanceColor.needsUpdate = true
     if (coreRef.current.instanceColor) coreRef.current.instanceColor.needsUpdate = true
@@ -1024,7 +1030,10 @@ function Qubits({ repoNodes, positions, onHover, onClick, progressRef, progressK
     })
     ref.current.instanceMatrix.needsUpdate = true
     if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true
-    if (hitRef.current) hitRef.current.instanceMatrix.needsUpdate = true
+    // Invalidar boundingSphere: los qubits se mueven cada frame (entrada desde la
+    // singularidad + incertidumbre de Heisenberg) y three.js no recalcula la esfera
+    // cacheada al mutar instanceMatrix → sin esto el raycast rechaza los repos. (Ver orgs.)
+    if (hitRef.current) { hitRef.current.instanceMatrix.needsUpdate = true; hitRef.current.boundingSphere = null }
   })
 
   if (repoNodes.length === 0) return null

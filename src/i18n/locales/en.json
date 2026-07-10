@@ -551,6 +551,7 @@
     "tour": "Tour",
     "tourHint": "Start Cosmic Tour on entry",
     "enter": "Enter",
+    "preparing": "Preparing universe…",
     "noRelations": "No collaboration relationships found",
     "graphTitle": "Collaboration Graph",
     "typeOrg": "Organization",

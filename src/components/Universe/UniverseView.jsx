@@ -7000,17 +7000,26 @@ export default function UniverseView() {
     return () => w.terminate()
   }, [])
 
+  // Enviar los datos pesados (universeData + networkMetrics) al worker UNA sola vez / cuando
+  // cambian. Antes se clonaban en cada selección (structured clone de ~28k nodos + grafo +
+  // posiciones en el hilo principal) → mini-freeze visible al centrar una entidad.
+  useEffect(() => {
+    detailWorkerRef.current?.postMessage({ type: 'data', universeData, networkMetrics })
+  }, [universeData, networkMetrics])
+
   useEffect(() => {
     if (!selectedEntity) { setDetailData(null); setDetailLoading(false); return }
     setDetailLoading(true)
     setDetailData(null)
     const id = ++detailRequestIdRef.current
-    // Defer worker postMessage a next frame para no competir con la transición de cámara
+    // Defer worker postMessage a next frame para no competir con la transición de cámara.
+    // Solo se envía la entidad seleccionada (mensaje ligero); los datos pesados ya están
+    // cacheados en el worker.
     const raf = requestAnimationFrame(() => {
-      detailWorkerRef.current?.postMessage({ selectedEntity, universeData, networkMetrics, requestId: id, lang: i18n.language })
+      detailWorkerRef.current?.postMessage({ type: 'select', selectedEntity, requestId: id, lang: i18n.language })
     })
     return () => cancelAnimationFrame(raf)
-  }, [selectedEntity, universeData, networkMetrics, i18n.language])
+  }, [selectedEntity, i18n.language])
   // Pin / unpin para modo comparación
   const handlePinToggle = useCallback(() => {
     if (pinnedEntity?.id === selectedEntity?.id) {

@@ -639,16 +639,17 @@ function ActiveOperationCard({ operation, onCancel }) {
     return `~${(seconds / 3600).toFixed(1)}h`
   }
 
-  const opLabel = OPERATION_DEFS.find(d => 
+  const opDef = OPERATION_DEFS.find(d => 
     d.type === operation.operation_type && d.entity === operation.entity
-  )?.label || operation.operation_type
+  )
+  const opLabelText = opDef?.labelKey ? t(opDef.labelKey) : operation.operation_type
 
   return (
     <div className={styles.activeCard}>
       <div className={styles.activeCardHeader}>
         <div className={styles.activeCardTitle}>
           <span className={styles.activeCardIcon}>
-            {OPERATION_DEFS.find(d => d.type === operation.operation_type && d.entity === operation.entity)?.icon || <FiZap />}
+            {opDef?.icon || <FiZap />}
           </span>
           <div>
             <h4>{opLabelText}</h4>
@@ -736,9 +737,10 @@ function FinishedOperationCard({ operation }) {
 
   const cfg = statusConfig[operation.status] || statusConfig.failed
 
-  const opLabel = OPERATION_DEFS.find(d => 
+  const opDef = OPERATION_DEFS.find(d => 
     d.type === operation.operation_type && d.entity === operation.entity
-  )?.label || operation.operation_type
+  )
+  const opLabelText = opDef?.labelKey ? t(opDef.labelKey) : operation.operation_type
 
   const formatDuration = (seconds) => {
     if (!seconds) return '—'

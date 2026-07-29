@@ -46,9 +46,19 @@
       "lastUpdated": "Daten vom"
     },
     "offline": {
-      "banner": "Dekohärenz erkannt - Backend offline - Angezeigte Daten sind simuliert",
-      "title": "Systemdekohärenz",
-      "hint": "Backend antwortet nicht - simulierte Daten werden angezeigt. Die angezeigten Werte dienen zur Demonstration und spiegeln nicht den tatsächlichen Zustand des Quanten-Ökosystems wider."
+      "banner": "Erhaltungsmodus · verifizierter Snapshot Juli 2026 · ohne Backend",
+      "title": "Entangle erhalten",
+      "ready": "Offline-Replik mit dem letzten verifizierten öffentlichen Snapshot aktiv",
+      "hint": "Das ursprüngliche Backend ist nicht verfügbar. Diese Replik erhält Dashboard, Universum, Netzwerkmetriken, Favoriten, Administration und deterministische KI-Antworten.",
+      "video": {
+        "eyebrow": "Historisches Archiv",
+        "title": "So funktionierte Entangle",
+        "description": "Die vollständige Aufnahme des bereitgestellten Systems bewahrt Dashboard, Kreuzfilter, 3D-Universum, Administration und KI-Agenten.",
+        "duration": "6 Min. 22 Sek. · 1080p-Original",
+        "snapshot": "Aus dem echten Deployment aufgenommen",
+        "note": "Die Webversion ist für GitHub Pages optimiert; das hochwertige Master bleibt im privaten Archiv.",
+        "open": "Video in neuem Tab öffnen"
+      }
     },
     "footer": {
       "circuitLabel": "Bell-Paar-Schaltung - Maximal verschränkter Zustand",

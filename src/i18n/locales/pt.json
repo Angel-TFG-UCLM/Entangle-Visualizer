@@ -46,9 +46,19 @@
       "lastUpdated": "Dados de"
     },
     "offline": {
-      "banner": "Decoerência detetada - Backend offline - Dados exibidos são simulados",
-      "title": "Decoerência do sistema",
-      "hint": "Backend não responde - dados simulados exibidos. Os valores mostrados são para demonstração e não refletem o estado real do ecossistema quântico."
+      "banner": "Modo de preservação · snapshot verificado de julho de 2026 · sem backend",
+      "title": "Entangle preservado",
+      "ready": "Réplica offline ativa com o último snapshot público verificado",
+      "hint": "O backend original está indisponível. Esta réplica preserva o dashboard, o Universo, métricas de rede, favoritos, administração e respostas de IA determinísticas.",
+      "video": {
+        "eyebrow": "Arquivo histórico",
+        "title": "Como funcionava o Entangle",
+        "description": "A gravação completa do sistema implantado preserva o dashboard real, filtros cruzados, Universo 3D, administração e agentes de IA.",
+        "duration": "6 min 22 s · original 1080p",
+        "snapshot": "Gravado a partir do deployment real",
+        "note": "A versão web está otimizada para GitHub Pages; o master de alta qualidade permanece no arquivo privado.",
+        "open": "Abrir o vídeo num novo separador"
+      }
     },
     "footer": {
       "circuitLabel": "Circuito Par de Bell - Estado maximamente entrelaçado",

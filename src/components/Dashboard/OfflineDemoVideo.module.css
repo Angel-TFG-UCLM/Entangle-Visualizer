@@ -1,0 +1,201 @@
+.section {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(22px, 4vw, 48px);
+  align-items: center;
+  margin: 34px 0 18px;
+  padding: clamp(22px, 4vw, 42px);
+  overflow: hidden;
+  border: 1px solid rgba(157, 111, 219, 0.28);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(157, 111, 219, 0.16), transparent 38%),
+    radial-gradient(circle at 92% 82%, rgba(0, 212, 228, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(20, 25, 39, 0.96), rgba(9, 14, 23, 0.98));
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(90deg, #000, transparent 70%);
+}
+
+.glow {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  left: -140px;
+  bottom: -170px;
+  border-radius: 50%;
+  background: rgba(0, 212, 228, 0.22);
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.copy,
+.playerFrame {
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: #72e6f2;
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: #f7fbff;
+  font-size: clamp(26px, 4vw, 42px);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+
+.description {
+  max-width: 560px;
+  margin: 18px 0 0;
+  color: rgba(225, 233, 244, 0.72);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: rgba(232, 240, 250, 0.78);
+  background: rgba(255, 255, 255, 0.035);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+}
+
+.note {
+  margin: 16px 0 0;
+  color: rgba(190, 200, 217, 0.58);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.openLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: #00d4e4;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.openLink:hover {
+  color: #7ceaf3;
+}
+
+.playerFrame {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
+  background: #05080e;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.5),
+    0 0 45px rgba(0, 212, 228, 0.08);
+}
+
+.playerChrome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(16, 21, 32, 0.96);
+}
+
+.playerChrome span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.playerChrome span:first-child {
+  background: rgba(239, 68, 68, 0.65);
+}
+
+.playerChrome span:nth-child(2) {
+  background: rgba(245, 158, 11, 0.65);
+}
+
+.playerChrome span:nth-child(3) {
+  background: rgba(16, 185, 129, 0.65);
+}
+
+.playerChrome strong {
+  min-width: 0;
+  margin-left: 5px;
+  overflow: hidden;
+  color: rgba(203, 213, 225, 0.52);
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #02040a;
+  object-fit: contain;
+}
+
+@media (max-width: 850px) {
+  .section {
+    grid-template-columns: 1fr;
+  }
+
+  .copy {
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 520px) {
+  .section {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .description {
+    font-size: 13px;
+  }
+}

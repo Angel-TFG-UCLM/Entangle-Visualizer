@@ -95,7 +95,7 @@ const initialState = {
   selectedLanguage: null,   // string | null - lenguaje de programación
   selectedRepo: null,       // string | null - full_name del repositorio (filtro simple)
   selectedDiscipline: null, // string | null - disciplina interdisciplinar (e.g. 'quantum_algorithms')
-  dataSource: 'mock',       // 'mock' | 'backend' - origen de los datos actuales
+  dataSource: 'mock',       // 'mock' | 'offline' | 'backend' - origen de los datos actuales
   
   // === SELECCIÓN MÚLTIPLE PARA ANÁLISIS DE COLABORACIÓN ===
   selectedRepos: [],        // string[] - repos seleccionados para comparación
@@ -217,7 +217,7 @@ export const useDashboardStore = create(
             filters: stats.filters,
             metadata: stats.metadata,
             data: legacyData,
-            dataSource: 'backend',
+            dataSource: stats.metadata?.source === 'offline-snapshot' ? 'offline' : 'backend',
             isLoading: false,
             error: null,
           }, false, 'loadFullData/success')
@@ -721,6 +721,12 @@ export const useDashboardStore = create(
           set({
             collaborationAvailable: false,
             collaborationDiscovery: null,
+            selectedRepos: [],
+            selectedOrgs: [],
+            selectedUser: null,
+            collaborationMode: null,
+            collaborationData: null,
+            isAnalyzing: false,
             isDiscovering: false,
           }, false, 'discoverCollaboration/error')
           return false
@@ -740,6 +746,36 @@ export const useDashboardStore = create(
        */
       closeCollaborationGraph: () => {
         set({ showCollaborationGraph: false, autoStartTour: false }, false, 'closeCollaborationGraph')
+      },
+
+      /**
+       * Limpia cualquier grafo/métrica preservada antes de cambiar de proveedor.
+       */
+      resetCollaborationState: () => {
+        set({
+          collaborationAvailable: false,
+          collaborationDiscovery: null,
+          selectedRepos: [],
+          selectedOrgs: [],
+          selectedUser: null,
+          collaborationMode: null,
+          collaborationData: null,
+          isAnalyzing: false,
+          showCollaborationGraph: false,
+          autoStartTour: false,
+          isDiscovering: false,
+          temporalFilter: null,
+          temporalRange: null,
+          sliderYear: null,
+          activeNodeIds: null,
+          activeLens: null,
+          networkMetrics: null,
+          isLoadingMetrics: false,
+          metricsError: null,
+          metricsLoadAttempted: false,
+          tunnelingPath: null,
+          isLoadingTunneling: false,
+        }, false, 'resetCollaborationState')
       },
 
       /**

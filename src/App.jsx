@@ -45,6 +45,9 @@ import FloatingChat from './components/Dashboard/FloatingChat'
 import { useDevStore } from './store/devStore'
 import { useTranslation } from 'react-i18next'
 import LanguageSelector from './components/LanguageSelector'
+import OfflineDemoVideo from './components/Dashboard/OfflineDemoVideo'
+import { disableOfflineMode, enableOfflineMode } from './offline/runtimeMode'
+import { publicAsset } from './utils/publicAsset'
 
 // Lazy-load del universo 3D (Three.js ~600KB) - solo se carga al abrir
 const UniverseView = lazy(() => import('./components/Universe/UniverseView'))
@@ -147,6 +150,32 @@ function App() {
     let isMounted = true
     let retryTimeout = null
 
+    const finishLoading = (delay = 1600) => {
+      setTimeout(() => {
+        if (!isMounted) return
+        setIsExiting(true)
+        setTimeout(() => {
+          if (isMounted) setIsLoading(false)
+        }, 700)
+      }, delay)
+    }
+
+    const activateOfflinePreservation = async (reason) => {
+      enableOfflineMode(reason)
+      const metricsLoaded = await loadFullData()
+      if (metricsLoaded) initFavorites().catch(() => {})
+      if (!isMounted) return
+      setRetryCount(0)
+      setApiStatus({
+        status: 'offline',
+        message: t('app.offline.ready'),
+        latencyMs: 0,
+        lastCheckedAt: new Date().toISOString(),
+      })
+      setLoadingResult(metricsLoaded ? 'success' : 'error')
+      finishLoading(metricsLoaded ? 1400 : 2200)
+    }
+
     async function loadData(attempt = 1) {
       const MAX_RETRIES = 3
       const RETRY_DELAY = attempt * 2000 // Exponential backoff: 2s, 4s, 6s
@@ -168,6 +197,11 @@ function App() {
           lastCheckedAt: healthResult.timestamp || new Date().toISOString(),
         })
 
+        if (healthResult.offlineReady) {
+          await activateOfflinePreservation('configured')
+          return
+        }
+
         // Backend online → Cargar métricas pre-calculadas del backend
         if (healthResult.status === 'online') {
           setRetryCount(0)
@@ -187,17 +221,7 @@ function App() {
           // Éxito: mostrar check verde
           setLoadingResult('success')
           
-          // Esperar a que la animación SVG se dibuje (~0.85s) + tiempo de lectura
-          setTimeout(() => {
-            if (isMounted) {
-              setIsExiting(true)
-              setTimeout(() => {
-                if (isMounted) {
-                  setIsLoading(false)
-                }
-              }, 700)
-            }
-          }, 2000)
+          finishLoading(2000)
         } else {
           // Backend offline - reintentar con backoff incremental
           if (attempt < MAX_RETRIES) {
@@ -207,20 +231,9 @@ function App() {
               loadData(attempt + 1)
             }, RETRY_DELAY)
           } else {
-            // Agotamos reintentos: mostrar error y continuar con datos simulados
+            // Agotamos reintentos: activar la réplica preservada completa
             console.error(`❌ Backend offline tras ${MAX_RETRIES} reintentos`)
-            setRetryCount(0)
-            setLoadingResult('error')
-            setTimeout(() => {
-              if (isMounted) {
-                setIsExiting(true)
-                setTimeout(() => {
-                  if (isMounted) {
-                    setIsLoading(false)
-                  }
-                }, 700)
-              }
-            }, 2500)
+            await activateOfflinePreservation('backend-unavailable')
           }
         }
       } catch (err) {
@@ -242,18 +255,7 @@ function App() {
             loadData(attempt + 1)
           }, RETRY_DELAY)
         } else {
-          // Agotamos reintentos: mostrar error
-          setLoadingResult('error')
-          setTimeout(() => {
-            if (isMounted) {
-              setIsExiting(true)
-              setTimeout(() => {
-                if (isMounted) {
-                  setIsLoading(false)
-                }
-              }, 700)
-            }
-          }, 2500)
+          await activateOfflinePreservation('health-check-error')
         }
       }
     }
@@ -291,7 +293,7 @@ function App() {
 
         <div className={styles.loadingContent}>
           <img 
-            src="/logo.png" 
+            src={publicAsset('logo.png')}
             alt="ENTANGLE Logo" 
             className={styles.loadingLogo}
           />
@@ -439,7 +441,27 @@ function App() {
       setApiStatus(prev => ({ ...prev, status: 'checking' }))
     }
     try {
-      const result = await checkHealth()
+      const result = await checkHealth({ forceOnline: true })
+      if (result.status === 'online') {
+        disableOfflineMode()
+        const dashboard = useDashboardStore.getState()
+        dashboard.resetCollaborationState()
+        const loaded = await loadFullData()
+        if (!loaded) {
+          enableOfflineMode('backend-data-reload-failed')
+          await loadFullData()
+          setApiStatus(prev => ({
+            ...prev,
+            status: 'offline',
+            message: t('app.offline.ready'),
+            latencyMs: 0,
+            lastCheckedAt: new Date().toISOString(),
+          }))
+          return
+        }
+        await dashboard.discoverCollaboration(false)
+        initFavorites().catch(() => {})
+      }
       setApiStatus(prev => ({
         ...prev,
         status: result.status,
@@ -472,7 +494,7 @@ function App() {
           <div className={styles.branding}>
             <span className={styles.headerLogoWrap}>
               <img
-                src="/logo.png"
+                src={publicAsset('logo.png')}
                 alt="ENTANGLE Logo"
                 className={styles.headerLogo}
               />
@@ -496,7 +518,7 @@ function App() {
             <LanguageSelector />
 
             {/* Botón de favoritos */}
-            {apiStatus.status === 'online' && (
+            {apiStatus.status !== 'checking' && (
               <Tooltip label={t('app.header.favorites')}>
                 <button
                   className={`${styles.refreshButton} ${styles.favoritesButton} ${showFavoritesPanel ? styles.favoritesButtonActive : ''}`}
@@ -601,6 +623,8 @@ function App() {
               <CollaborationBanner />
             </div>
           )}
+
+          {apiStatus.status === 'offline' && <OfflineDemoVideo />}
 
           {devFeatures.quantumDividers !== false && <QuantumDivider />}
 

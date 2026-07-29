@@ -8,6 +8,7 @@
  */
 
 import axios from 'axios';
+import { isOfflineMode } from '../offline/runtimeMode';
 
 // === CONFIGURACIÓN BASE ===
 // Lee la URL del backend desde variables de entorno
@@ -15,22 +16,35 @@ import axios from 'axios';
 // - Producción (npm run build): usa .env.production → Azure URL
 const BASE_URL = import.meta.env.VITE_API_URL;
 
-// Validación: asegurar que la variable de entorno esté definida
-if (!BASE_URL) {
-  console.error('❌ ERROR: VITE_API_URL no está definida en las variables de entorno');
-  throw new Error('VITE_API_URL no configurada. Revisa tus archivos .env');
-}
+console.log(
+  isOfflineMode()
+    ? '🧪 API Client configurado en modo preservación offline'
+    : `🔗 API Client configurado para: ${BASE_URL}`,
+);
 
-console.log(`🔗 API Client configurado para: ${BASE_URL}`);
+const onlineAdapter =
+  typeof axios.getAdapter === 'function'
+    ? axios.getAdapter(axios.defaults?.adapter)
+    : null;
+
+const adaptiveAdapter = onlineAdapter
+  ? async (config) => {
+      if (!isOfflineMode()) return onlineAdapter(config);
+      const { offlineAxiosAdapter } = await import('../offline/offlineApi');
+      return offlineAxiosAdapter(config);
+    }
+  : undefined;
 
 // Instancia configurada de Axios
-const apiClient = axios.create({
-  baseURL: BASE_URL,
+const apiConfig = {
+  baseURL: BASE_URL || '/api/v1',
   timeout: 60000, // 60s timeout (cálculos pesados de dashboard pueden tardar ~35s)
   headers: {
     'Content-Type': 'application/json',
   },
-});
+};
+if (adaptiveAdapter) apiConfig.adapter = adaptiveAdapter;
+const apiClient = axios.create(apiConfig);
 
 // === INTERCEPTORES ===
 // Request Interceptor: Agregar tokens de autenticación en el futuro
@@ -73,12 +87,37 @@ apiClient.interceptors.response.use(
  * Health Check: Verifica que el backend esté Online y mide latencia
  * @returns {Promise<{status: string, message: string, latencyMs: number, timestamp: string, data: object}>}
  */
-export async function checkHealth() {
+export async function checkHealth({ forceOnline = false } = {}) {
   const startedAt = performance.now();
+  if (isOfflineMode() && !forceOnline) {
+    return {
+      status: 'offline',
+      message: 'Modo de preservación offline activo',
+      latencyMs: 0,
+      timestamp: new Date().toISOString(),
+      offlineReady: true,
+      data: {
+        mode: 'offline',
+        source: 'preserved-snapshot',
+      },
+    };
+  }
+  if (!BASE_URL) {
+    return {
+      status: 'offline',
+      message: 'No hay backend configurado para comprobar',
+      latencyMs: 0,
+      timestamp: new Date().toISOString(),
+      offlineReady: true,
+    };
+  }
   try {
     // FastAPI genera automáticamente /docs (Swagger UI)
     // El endpoint raíz "/" debería retornar info básica o redirigir
-    const response = await apiClient.get('/');
+    const response =
+      forceOnline && onlineAdapter
+        ? await apiClient.get('/', { adapter: onlineAdapter })
+        : await apiClient.get('/');
     const latencyMs = Math.round(performance.now() - startedAt);
     return {
       status: 'online',
@@ -795,6 +834,11 @@ export default apiClient;
  * @returns {Promise<void>}
  */
 export async function sendChatMessageStream(message, history = null, callbacks = {}, signal = null, sessionId = null) {
+  if (isOfflineMode()) {
+    const { streamOfflineReply } = await import('../offline/offlineChat');
+    return streamOfflineReply(message, callbacks, signal, sessionId);
+  }
+
   const url = `${BASE_URL}/chat/stream`;
 
   const payload = { message, history };

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:offline": "vite build --mode offline",
+    "snapshot:offline": "node scripts/build-offline-snapshot.mjs --dashboard ../../artifacts/private-backups/entangle/dashboard-stats.json --collaboration ../../artifacts/private-backups/entangle/collaboration-discover.json --network ../../artifacts/private-backups/entangle/network-metrics.json --out src/offline/generatedSnapshot.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

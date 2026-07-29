@@ -46,9 +46,19 @@
       "lastUpdated": "Data from"
     },
     "offline": {
-      "banner": "Decoherence detected - Backend offline - Displayed data is simulated",
-      "title": "System Decoherence",
-      "hint": "Backend is not responding - showing simulated data. The displayed values are for demonstration and do not reflect the actual state of the quantum ecosystem."
+      "banner": "Preservation mode · verified July 2026 snapshot · no backend required",
+      "title": "Preserved Entangle",
+      "ready": "Offline replica active with the latest verified public snapshot",
+      "hint": "The original backend is unavailable. This replica preserves the dashboard, Universe, network metrics, favorites, administration, and deterministic AI responses over the latest public snapshot.",
+      "video": {
+        "eyebrow": "Historical archive",
+        "title": "How Entangle worked",
+        "description": "The complete recording of the deployed system preserves the real dashboard, cross-filtering, 3D Universe, administration panel, and AI-agent experience.",
+        "duration": "6 min 22 sec · 1080p original",
+        "snapshot": "Recorded from the real deployment",
+        "note": "The web version is optimized for GitHub Pages; the full-quality master remains in the private preservation archive.",
+        "open": "Open the video in a new tab"
+      }
     },
     "footer": {
       "circuitLabel": "Bell Pair Circuit - Maximally entangled state",

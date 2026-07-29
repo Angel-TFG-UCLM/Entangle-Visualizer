@@ -29,6 +29,7 @@ import {
   useChatAutoScroll,
 } from './chatShared'
 import styles from './FloatingChat.module.css'
+import { publicAsset } from '../../utils/publicAsset'
 
 const QUICK_PROMPTS = [
   { icon: <FiZap size={12} />,      labelKey: 'chat.quantumPrompts.topReposLabel',  msgKey: 'chat.quickPrompts.topRepos' },
@@ -312,7 +313,7 @@ export default function FloatingChat() {
         >
           {/* Header */}
           <div className={styles.header}>
-            <img src="/logo.png" alt="Entangle" className={styles.headerLogo} />
+            <img src={publicAsset('logo.png')} alt="Entangle" className={styles.headerLogo} />
             <div className={styles.headerInfo}>
               <div className={styles.headerTitle}>
                 {t('chat.headerTitle')}
@@ -486,7 +487,7 @@ export default function FloatingChat() {
           <FiX size={22} className={styles.fabCloseIcon} />
         ) : (
           <>
-            <img src="/logo.png" alt="Entangle" className={styles.fabLogo} />
+            <img src={publicAsset('logo.png')} alt="Entangle" className={styles.fabLogo} />
             <span className={styles.fabBadge}>
               <span className={styles.fabBadgeText}>{t('chat.aiBadge')}</span>
             </span>

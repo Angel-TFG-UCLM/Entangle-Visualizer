@@ -35,6 +35,7 @@ import BigBangEntry from './BigBangEntry'
 import { seededRandom, jenksNaturalBreaks } from './_shared.js'
 import { useIdleTimer } from '../../hooks/useIdleTimer'
 import styles from './UniverseView.module.css'
+import { publicAsset } from '../../utils/publicAsset'
 
 // ============================================================================
 // CONSTANTES
@@ -7605,7 +7606,7 @@ export default function UniverseView() {
           <div className={styles.loaderBigBangSeed} aria-hidden="true" />
           <div className={styles.loaderScanline} />
           <div className={styles.loaderContent}>
-            <img src="/logo.png" alt="ENTANGLE" className={styles.loaderLogo} />
+            <img src={publicAsset('logo.png')} alt="ENTANGLE" className={styles.loaderLogo} />
             <p className={styles.loaderSub}>{t('app.subtitle')}</p>
             <div className={styles.loaderSpinnerWrap}>
               {/* Átomo SVG realista con órbitas elípticas y electrones brillantes */}
@@ -7729,7 +7730,7 @@ export default function UniverseView() {
       <header className={`${styles.header} ${tourUIClass}`}>
         <div className={styles.headerLeft}>
           <div className={styles.headerBrand}>
-            <img src="/logo.png" alt="ENTANGLE" className={styles.headerLogo} />
+            <img src={publicAsset('logo.png')} alt="ENTANGLE" className={styles.headerLogo} />
             <div className={styles.headerTitleGroup}>
               <h2>ENTANGLE</h2>
               <span className={styles.headerTag}>{t('universe.header.quantumField')}</span>

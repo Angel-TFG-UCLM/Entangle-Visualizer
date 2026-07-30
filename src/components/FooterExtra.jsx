@@ -14,6 +14,7 @@ const APP_VERSION = '1.0.0'
 const GITHUB_BACKEND = 'https://github.com/Angel-TFG-UCLM/Entangle-Core'
 const GITHUB_FRONTEND = 'https://github.com/Angel-TFG-UCLM/Entangle-Visualizer'
 const LINKEDIN_URL = 'https://www.linkedin.com/in/angelllm/'
+const THESIS_URL = `${import.meta.env.BASE_URL}media/entangle-tfg-memoria.pdf`
 
 function formatNum(n) {
   if (typeof n !== 'number' || Number.isNaN(n)) return '—'
@@ -91,7 +92,7 @@ export default function FooterExtra() {
           <Linkedin size={14} />
         </a>
         <a
-          href={GITHUB_BACKEND + '/blob/main/README.md'}
+          href={THESIS_URL}
           target="_blank"
           rel="noopener noreferrer"
           className={styles.socialLink}

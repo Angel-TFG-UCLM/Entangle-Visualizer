@@ -11,6 +11,7 @@ The preservation build is a separate runtime mode. It does not remove or replace
 - Deterministic streamed AI responses for dashboard, data, Universe, knowledge, and preserved-research scenarios.
 - A local administration replay with progress, logs, history, and database statistics.
 - The historical deployed-system video in `public/media/entangle-demo-web.mp4`.
+- The signed 214-page Bachelor's Thesis in `public/media/entangle-tfg-memoria.pdf`, linked from the historical-video panel and the shared application footer.
 
 The full source snapshots are intentionally outside Git:
 

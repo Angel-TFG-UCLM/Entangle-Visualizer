@@ -104,19 +104,45 @@
   line-height: 1.55;
 }
 
-.openLink {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.openLink,
+.thesisLink {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 18px;
+  padding: 9px 12px;
+  border: 1px solid rgba(0, 212, 228, 0.24);
+  border-radius: 10px;
   color: #00d4e4;
+  background: rgba(0, 212, 228, 0.06);
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
+  transition: 160ms ease;
 }
 
-.openLink:hover {
+.openLink:hover,
+.thesisLink:hover {
   color: #7ceaf3;
+  border-color: rgba(0, 212, 228, 0.5);
+  transform: translateY(-1px);
+}
+
+.thesisLink {
+  border-color: rgba(157, 111, 219, 0.3);
+  color: #cbb5f5;
+  background: rgba(157, 111, 219, 0.08);
+}
+
+.thesisLink:hover {
+  border-color: rgba(157, 111, 219, 0.58);
+  color: #e0d2fb;
 }
 
 .playerFrame {

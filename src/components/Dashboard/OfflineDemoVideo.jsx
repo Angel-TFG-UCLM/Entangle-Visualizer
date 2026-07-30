@@ -1,4 +1,4 @@
-import { FiArchive, FiExternalLink, FiPlayCircle } from 'react-icons/fi'
+import { FiArchive, FiExternalLink, FiFileText, FiPlayCircle } from 'react-icons/fi'
 import { useTranslation } from 'react-i18next'
 import { publicAsset } from '../../utils/publicAsset'
 import styles from './OfflineDemoVideo.module.css'
@@ -7,6 +7,7 @@ export default function OfflineDemoVideo() {
   const { t } = useTranslation()
   const videoUrl = publicAsset('media/entangle-demo-web.mp4')
   const posterUrl = publicAsset('media/entangle-demo-poster.png')
+  const thesisUrl = publicAsset('media/entangle-tfg-memoria.pdf')
 
   return (
     <section className={styles.section} aria-labelledby="offline-demo-title">
@@ -25,10 +26,17 @@ export default function OfflineDemoVideo() {
           <span>{t('app.offline.video.snapshot')}</span>
         </div>
         <p className={styles.note}>{t('app.offline.video.note')}</p>
-        <a className={styles.openLink} href={videoUrl} target="_blank" rel="noreferrer">
-          {t('app.offline.video.open')}
-          <FiExternalLink aria-hidden="true" />
-        </a>
+        <div className={styles.actions}>
+          <a className={styles.openLink} href={videoUrl} target="_blank" rel="noreferrer">
+            {t('app.offline.video.open')}
+            <FiExternalLink aria-hidden="true" />
+          </a>
+          <a className={styles.thesisLink} href={thesisUrl} target="_blank" rel="noreferrer">
+            <FiFileText aria-hidden="true" />
+            {t('app.footer.links.memoria')}
+            <FiExternalLink aria-hidden="true" />
+          </a>
+        </div>
       </div>
 
       <div className={styles.playerFrame}>

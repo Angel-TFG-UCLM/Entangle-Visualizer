@@ -1,0 +1,110 @@
+/* Controles de voz (ElevenLabs) — estética "quantum" de Entangle.
+   Compartido por QuantumChat y FloatingChat vía chatShared.jsx.
+   Paleta: cian #00d4e4, púrpura #bd00ff, rojo #f43f5e, ámbar #ffb347. */
+
+/* ── Botón "escuchar" (TTS), inline en la burbuja del asistente ── */
+.speakBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 6px;
+  padding: 0;
+  vertical-align: middle;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 212, 228, 0.18);
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.08), rgba(157, 111, 219, 0.06));
+  color: rgba(0, 212, 228, 0.72);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease,
+              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.speakBtn:hover {
+  color: #00d4e4;
+  border-color: rgba(0, 212, 228, 0.5);
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.16), rgba(157, 111, 219, 0.12));
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 212, 228, 0.18), 0 0 18px rgba(157, 111, 219, 0.10);
+}
+
+.speakBtn:active { transform: translateY(0) scale(0.94); }
+
+/* Reproduciendo: cian encendido + halo pulsante */
+.speakBtn.playing {
+  color: #00d4e4;
+  border-color: rgba(0, 212, 228, 0.6);
+  background: linear-gradient(135deg, rgba(0, 212, 228, 0.22), rgba(157, 111, 219, 0.16));
+  box-shadow: 0 0 14px rgba(0, 212, 228, 0.35);
+  animation: voicePulse 1.6s ease-in-out infinite;
+}
+
+/* Cargando: color atenuado mientras se genera el audio */
+.speakBtn.loading { color: rgba(0, 212, 228, 0.9); cursor: progress; }
+
+/* Error de reproducción: rojo */
+.speakBtn.error {
+  color: #f43f5e;
+  border-color: rgba(244, 63, 94, 0.45);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.14), rgba(244, 63, 94, 0.06));
+}
+
+/* Créditos agotados: ámbar (aviso, no error de código) */
+.speakBtn.quota {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.45);
+  background: linear-gradient(135deg, rgba(255, 179, 71, 0.14), rgba(255, 179, 71, 0.06));
+}
+
+/* ── Botón de micrófono (STT), junto al de enviar en la barra ── */
+.micBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(157, 111, 219, 0.30);
+  background: linear-gradient(135deg, rgba(157, 111, 219, 0.12) 0%, rgba(0, 212, 228, 0.10) 100%),
+              rgba(157, 111, 219, 0.04);
+  color: rgba(189, 148, 240, 0.9);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease,
+              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.micBtn:hover:not(:disabled) {
+  color: #c9a6ff;
+  border-color: rgba(157, 111, 219, 0.6);
+  transform: translateY(-1px) scale(1.06);
+  box-shadow: 0 6px 18px rgba(157, 111, 219, 0.22), 0 0 24px rgba(0, 212, 228, 0.10);
+}
+
+.micBtn:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+
+.micBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Grabando: rojo pulsante para dejar claro que está capturando audio */
+.micBtn.recording {
+  color: #fff;
+  border-color: rgba(244, 63, 94, 0.65);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.85), rgba(244, 63, 94, 0.55));
+  box-shadow: 0 0 16px rgba(244, 63, 94, 0.5);
+  animation: voicePulse 1.1s ease-in-out infinite;
+}
+
+/* Transcribiendo: cian mientras Scribe procesa */
+.micBtn.transcribing { color: #00d4e4; border-color: rgba(0, 212, 228, 0.5); cursor: progress; }
+
+/* ── Animaciones ── */
+.spin { animation: voiceSpin 1s linear infinite; }
+
+@keyframes voiceSpin { to { transform: rotate(360deg); } }
+
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(0, 212, 228, 0.30); }
+  50%      { box-shadow: 0 0 20px rgba(0, 212, 228, 0.55); }
+}

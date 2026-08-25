@@ -13,12 +13,14 @@
 /* eslint-disable react-refresh/only-export-components --
    módulo de utilidades + presentación compartido a propósito; no es un
    componente de pantalla, así que el fast-refresh no aplica. */
-import { useEffect } from 'react'
-import { FiCpu } from 'react-icons/fi'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { FiCpu, FiVolume2, FiSquare, FiMic, FiLoader } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import { getVoiceStatus, textToSpeech, speechToText } from '../../services/api'
+import voiceStyles from './voiceControls.module.css'
 
 /**
  * Auto-scroll compartido por ambos chats: desliza el cuerpo del chat al fondo
@@ -221,5 +223,179 @@ export function ThinkingBlock({ thinkingSteps, statusMsg, activeAgent, elapsedSe
   }
   return (
     <ThinkingHeader statusMsg={statusMsg} fallbackKey="chat.thinking" activeAgent={activeAgent} elapsedSec={elapsedSec} styles={styles} t={t} variant={variant} />
+  )
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Capa de voz (ElevenLabs) — compartida por ambos chats
+ * ───────────────────────────────────────────────────────────────────────────
+ * SpeakButton: locuta la respuesta del asistente (TTS).
+ * MicButton:   graba una pregunta por voz y la transcribe (STT/Scribe) al input.
+ * Ambos se ocultan si el backend no tiene configurada la capa de voz
+ * (ELEVENLABS_API_KEY ausente → /voice/status devuelve configured:false).
+ * El estilo vive en voiceControls.module.css (estética "quantum" de la app),
+ * compartido por QuantumChat y FloatingChat. */
+
+// Cache a nivel de módulo: /voice/status se consulta una sola vez por carga,
+// con una única promesa en vuelo compartida por todos los botones.
+let _voiceEnabledCache = null
+let _voiceStatusPromise = null
+
+/** Hook: ¿está activada la capa de voz en el backend? (una sola consulta). */
+export function useVoiceEnabled() {
+  const [enabled, setEnabled] = useState(_voiceEnabledCache ?? false)
+  useEffect(() => {
+    // Si ya está resuelto en cache, el estado inicial ya es correcto: no hay
+    // que llamar a setState de forma síncrona dentro del efecto.
+    if (_voiceEnabledCache !== null) return
+    let alive = true
+    _voiceStatusPromise = _voiceStatusPromise
+      || getVoiceStatus().then(s => !!s.configured).catch(() => false)
+    _voiceStatusPromise.then(v => { _voiceEnabledCache = v; if (alive) setEnabled(v) })
+    return () => { alive = false }
+  }, [])
+  return enabled
+}
+
+/** Botón "escuchar": convierte el texto del mensaje en voz y lo reproduce. */
+export function SpeakButton({ text, t }) {
+  const enabled = useVoiceEnabled()
+  const [state, setState] = useState('idle') // idle | loading | playing | error
+  const audioRef = useRef(null)
+  const urlRef = useRef(null)
+
+  // Elemento de audio persistente: crearlo una vez y reutilizarlo hace que
+  // quede "habilitado" por la interacción del usuario, evitando que la política
+  // de autoplay bloquee la reproducción tras el await del fetch (Safari, sobre
+  // todo). Se crea de forma perezosa en el primer render del cliente.
+  const getAudio = useCallback(() => {
+    if (!audioRef.current && typeof Audio !== 'undefined') {
+      audioRef.current = new Audio()
+    }
+    return audioRef.current
+  }, [])
+
+  const stop = useCallback(() => {
+    const a = audioRef.current
+    if (a) { try { a.pause() } catch { /* noop */ } }
+    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null }
+    setState('idle')
+  }, [])
+
+  useEffect(() => () => stop(), [stop])
+
+  const onClick = useCallback(async () => {
+    if (state === 'playing' || state === 'loading') { stop(); return }
+    const clean = (text || '').trim()
+    if (!clean) return
+
+    // Reutilizar el elemento y "despertarlo" dentro del gesto del click ayuda a
+    // que el navegador permita reproducir después del await.
+    const audio = getAudio()
+    if (!audio) return
+    audio.muted = false
+    audio.volume = 1
+
+    setState('loading')
+    try {
+      const url = await textToSpeech(clean)
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+      urlRef.current = url
+      audio.src = url
+      audio.onended = () => setState('idle')
+      audio.onerror = () => {
+        console.error('[voice] audio playback error', audio.error)
+        setState('error')
+      }
+      await audio.play()
+      setState('playing')
+    } catch (err) {
+      // Detectar el caso de cuota agotada de ElevenLabs para dar un aviso claro
+      // en vez de un error genérico. El backend reenvía el cuerpo de ElevenLabs.
+      const detail = err?.response?.data?.detail || err?.message || ''
+      const isQuota = typeof detail === 'string' && /quota/i.test(detail)
+      console.error('[voice] text-to-speech failed', err)
+      setState(isQuota ? 'quota' : 'error')
+    }
+  }, [state, text, stop, getAudio])
+
+  if (!enabled) return null
+  const title = state === 'quota'
+    ? t('chat.speakQuota', { defaultValue: 'ElevenLabs free credits exhausted — resets monthly' })
+    : state === 'error'
+      ? t('chat.speakError', { defaultValue: 'Playback failed — click to retry' })
+      : state === 'playing'
+        ? t('chat.stopSpeaking', { defaultValue: 'Stop' })
+        : t('chat.speak', { defaultValue: 'Listen' })
+  const cls = [voiceStyles.speakBtn, voiceStyles[state] || ''].filter(Boolean).join(' ')
+  return (
+    <button type="button" onClick={onClick} title={title} aria-label={title} className={cls}>
+      {state === 'loading'
+        ? <FiLoader size={13} className={voiceStyles.spin} />
+        : state === 'playing'
+          ? <FiSquare size={13} />
+          : <FiVolume2 size={13} />}
+    </button>
+  )
+}
+
+/** Botón de micrófono: graba y transcribe la pregunta al input del chat. */
+export function MicButton({ onTranscript, disabled, t }) {
+  const enabled = useVoiceEnabled()
+  const [state, setState] = useState('idle') // idle | recording | transcribing
+  const recRef = useRef(null)
+  const chunksRef = useRef([])
+
+  const start = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      recRef.current = rec
+      chunksRef.current = []
+      rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach((tr) => tr.stop())
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setState('transcribing')
+        try {
+          const txt = await speechToText(blob)
+          if (txt) onTranscript?.(txt)
+        } catch { /* ignorar: error de transcripción no rompe el chat */ }
+        setState('idle')
+      }
+      rec.start()
+      setState('recording')
+    } catch {
+      setState('idle') // micrófono denegado o no disponible
+    }
+  }, [onTranscript])
+
+  const onClick = useCallback(() => {
+    if (state === 'recording') { recRef.current?.stop(); return }
+    if (state === 'idle') start()
+  }, [state, start])
+
+  useEffect(() => () => { try { recRef.current?.stop() } catch { /* noop */ } }, [])
+
+  if (!enabled) return null
+  const title = state === 'recording'
+    ? t('chat.stopRecording', { defaultValue: 'Stop recording' })
+    : t('chat.recordVoice', { defaultValue: 'Ask by voice' })
+  const cls = [voiceStyles.micBtn, voiceStyles[state] || ''].filter(Boolean).join(' ')
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled && state === 'idle'}
+      title={title}
+      aria-label={title}
+      className={cls}
+    >
+      {state === 'transcribing'
+        ? <FiLoader size={14} className={voiceStyles.spin} />
+        : state === 'recording'
+          ? <FiSquare size={14} />
+          : <FiMic size={14} />}
+    </button>
   )
 }

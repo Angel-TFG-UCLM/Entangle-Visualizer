@@ -1112,3 +1112,41 @@ export async function adminPollOperation(token, operationId, onUpdate = () => {}
     poll();
   });
 }
+
+/* ─────────────── Capa de voz (ElevenLabs) ─────────────── */
+
+/**
+ * Estado de la capa de voz: { configured, tts_model, stt_model }.
+ * El frontend lo usa para mostrar u ocultar los controles de voz.
+ */
+export async function getVoiceStatus() {
+  const res = await apiClient.get('/voice/status');
+  return res.data;
+}
+
+/**
+ * Text-to-Speech: convierte texto en audio y devuelve una object URL
+ * reproducible con `new Audio(url)`. Revócala con URL.revokeObjectURL.
+ */
+export async function textToSpeech(text, voiceId = null) {
+  const res = await apiClient.post(
+    '/voice/tts',
+    { text, voice_id: voiceId },
+    { responseType: 'blob' },
+  );
+  return URL.createObjectURL(res.data);
+}
+
+/**
+ * Speech-to-Text (Scribe): sube un blob de audio grabado y devuelve el texto.
+ * Se anula el Content-Type por defecto (application/json) para que el navegador
+ * fije el boundary multipart correcto.
+ */
+export async function speechToText(blob, filename = 'question.webm') {
+  const form = new FormData();
+  form.append('file', blob, filename);
+  const res = await apiClient.post('/voice/stt', form, {
+    headers: { 'Content-Type': undefined },
+  });
+  return res.data.text;
+}

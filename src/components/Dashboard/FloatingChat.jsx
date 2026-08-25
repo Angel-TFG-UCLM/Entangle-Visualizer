@@ -27,6 +27,8 @@ import {
   StreamingBubble,
   MessageAgentBadge,
   useChatAutoScroll,
+  SpeakButton,
+  MicButton,
 } from './chatShared'
 import styles from './FloatingChat.module.css'
 
@@ -406,6 +408,7 @@ export default function FloatingChat() {
                   {m.role === 'assistant' && m.agent && (
                     <MessageAgentBadge agent={m.agent} styles={styles} t={t} variant="long" />
                   )}
+                  {m.role === 'assistant' && !m.err && <SpeakButton text={m.content} t={t} />}
                 </div>
               </div>
             ))}
@@ -463,6 +466,7 @@ export default function FloatingChat() {
               disabled={loading}
               maxLength={2000}
             />
+            <MicButton onTranscript={setInput} disabled={loading} t={t} />
             <button type="submit" className={styles.sendBtn} disabled={loading || !input.trim()}>
               <FiSend size={14} />
             </button>

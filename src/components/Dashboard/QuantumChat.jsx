@@ -26,6 +26,8 @@ import {
   StreamingBubble,
   MessageAgentBadge,
   useChatAutoScroll,
+  SpeakButton,
+  MicButton,
 } from './chatShared'
 import styles from './QuantumChat.module.css'
 
@@ -326,6 +328,7 @@ export default function QuantumChat() {
                     {m.role === 'assistant' && m.agent && (
                       <MessageAgentBadge agent={m.agent} styles={styles} t={t} variant="message" />
                     )}
+                    {m.role === 'assistant' && !m.err && <SpeakButton text={m.content} t={t} />}
                   </div>
                 </div>
               ))}
@@ -417,6 +420,7 @@ export default function QuantumChat() {
             disabled={loading}
             maxLength={2000}
           />
+          <MicButton onTranscript={(txt) => { setInput(txt); if (!expanded) setExpanded(true) }} disabled={loading} t={t} />
           {input.trim() ? (
             <button type="submit" className={styles.sendBtn} disabled={loading}><FiSend /></button>
           ) : (

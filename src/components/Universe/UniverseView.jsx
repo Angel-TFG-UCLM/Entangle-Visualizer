@@ -4141,7 +4141,7 @@ function CameraRig({ focusTarget, resetTrigger, selectedEntity, tourCameraRef, f
 
   useEffect(() => {
     target.current.set(0, 0, 0)
-    goal.current.set(0, 80, 260)
+    goal.current.set(0, 80, 300)
     flying.current = true
   }, [resetTrigger])
 
@@ -7559,7 +7559,7 @@ export default function UniverseView() {
       <div ref={canvasWrapperRef} className={`${styles.canvasWrapper} ${lensTransitioning ? styles.canvasTransitioning : ''}`}>
         {canvasMounted && (
         <Canvas
-          camera={{ position: [0, 80, 260], fov: 60, near: 0.1, far: 8000 }}
+          camera={{ position: [0, 80, 300], fov: 60, near: 0.1, far: 8000 }}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance', stencil: false }}
           dpr={[1, 1.5]}
           raycaster={{ params: { Points: { threshold: 2 } } }}

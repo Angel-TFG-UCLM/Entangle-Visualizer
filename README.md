@@ -21,7 +21,7 @@ Explore organizations, repositories, developers and their collaboration networks
 [![Quality Gate](https://img.shields.io/badge/quality%20gate-passed-brightgreen?logo=sonarqube&logoColor=white)](#quality--code-analysis)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-[**Open app**](https://github.com/Angel-TFG-UCLM/Entangle-Visualizer) ·
+[**Open app**](https://angel-tfg-uclm.github.io/Entangle-Visualizer/) ·
 [**Backend repo**](https://github.com/Angel-TFG-UCLM/Entangle-Core) ·
 [**Report a bug**](https://github.com/Angel-TFG-UCLM/Entangle-Visualizer/issues)
 
